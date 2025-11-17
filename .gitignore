@@ -50,6 +50,7 @@ coverage/
 services/**/server
 services/**/bin/
 services/**/tmp/
+services/*/*-service
 
 # Logs
 *.log
