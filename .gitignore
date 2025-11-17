@@ -28,9 +28,16 @@ temp/
 *.pyc
 *.pyo
 *.whl
+*.bin
+*.tar
+*.tgz
+*.gz
 coverage/
 *.coverage
 *.test
+services/**/server
+services/**/bin/
+services/**/tmp/
 
 # Logs
 *.log
