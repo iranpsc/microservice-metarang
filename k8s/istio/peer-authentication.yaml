@@ -1,0 +1,35 @@
+# PeerAuthentication - Enable strict mTLS for all services
+# This ensures all service-to-service communication is encrypted
+
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: metargb
+spec:
+  mtls:
+    mode: STRICT
+---
+# PeerAuthentication for istio-system namespace
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
+---
+# Allow non-mTLS traffic to ingress gateway (for external clients)
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: ingress-permissive
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+  mtls:
+    mode: PERMISSIVE
+

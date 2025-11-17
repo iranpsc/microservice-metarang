@@ -1,0 +1,19 @@
+# Enable automatic sidecar injection for the metargb namespace
+# Apply with: kubectl apply -f namespace-injection.yaml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metargb
+  labels:
+    istio-injection: enabled
+    name: metargb
+---
+# Istio system namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+  labels:
+    name: istio-system
+

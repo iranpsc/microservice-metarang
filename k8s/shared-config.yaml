@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+  namespace: metargb
+data:
+  # Database configuration
+  mysql-host: "mysql.metargb.svc.cluster.local"
+  mysql-port: "3306"
+  mysql-database: "metargb_db"
+  mysql-user: "metargb"
+  
+  # Redis configuration
+  redis-host: "redis.metargb.svc.cluster.local"
+  redis-port: "6379"
+  
+  # OAuth configuration (update with actual values)
+  oauth-server-url: "https://sso.metargb.com"
+  oauth-client-id: "metargb-client-id"
+  
+  # Application configuration
+  app-url: "https://api.metargb.com"
+  ftp-endpoint: "ftp://ftp.metargb.com"
+  
+  # Kavenegar SMS
+  kavenegar-api-key: ""
+  
+  # Parsian Payment
+  parsian-merchant-id: ""
+  parsian-callback-url: "https://api.metargb.com/api/parsian/callback"
+  
+  # Logging
+  log-level: "info"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: metargb
+type: Opaque
+stringData:
+  # OAuth secrets
+  oauth-client-secret: "changeme-oauth-secret"
+  
+  # Database password
+  mysql-password: "changeme-password"
+  
+  # API keys
+  kavenegar-api-key: "changeme-kavenegar-key"
+  parsian-pin: "changeme-parsian-pin"
+  
+  # JWT secret for Sanctum
+  jwt-secret: "changeme-jwt-secret"
+

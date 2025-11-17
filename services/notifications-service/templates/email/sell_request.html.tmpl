@@ -1,0 +1,81 @@
+{{define "email/sell_request"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/sell_request/content"}}
+  <h1>درخواست فروش جدید</h1>
+  <p>
+    {{with .SellerName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    درخواست انتقال یا مشارکت برای یکی از دارایی‌هایت ثبت شده است. برای جلوگیری از سوء‌استفاده، جزئیات را با دقت بررسی کن.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>شناسه مالک فعلی</th>
+        <td>{{with .SellerCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>شناسه درخواست‌کننده</th>
+        <td>{{with .RequesterCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>شناسه VOD</th>
+        <td>{{with .FeatureID}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .FeatureTitle}}
+      <tr>
+        <th>عنوان دارایی</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .OfferIRR}}
+      <tr>
+        <th>مبلغ پیشنهادی IRR</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .OfferPSC}}
+      <tr>
+        <th>مبلغ پیشنهادی PSC</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .CreatedDate}}
+      <tr>
+        <th>تاریخ ثبت</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .CreatedTime}}
+      <tr>
+        <th>ساعت ثبت</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    در صورتی که این درخواست را نمی‌شناسی، آن را رد کن و گزارش بده تا تیم امنیتی پیگیری کند.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .ManageURL}}
+      <a href="{{.}}" class="button">مدیریت درخواست</a>
+    {{end}}
+    {{with .DeclineURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">رد درخواست</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    برای دریافت راهنمایی بیشتر با
+    {{with .ContactURL}}<a href="{{.}}" style="color:#b0a7b7;">پشتیبانی متارنگ</a>{{else}}پشتیبانی متارنگ{{end}}
+    در ارتباط باش یا موارد امنیتی را در
+    {{with .SecurityURL}}<a href="{{.}}" style="color:#b0a7b7;">پروتکل‌های امنیتی</a>{{else}}پروتکل‌های امنیتی{{end}}
+    مطالعه کن.
+  </p>
+{{end}}
+
+

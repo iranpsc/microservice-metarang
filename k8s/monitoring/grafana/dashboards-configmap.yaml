@@ -1,0 +1,590 @@
+# Grafana Dashboards ConfigMap
+# This ConfigMap contains JSON definitions for all Grafana dashboards
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  # Service Overview Dashboard
+  service-overview.json: |
+    {
+      "dashboard": {
+        "title": "MetaRGB Services Overview",
+        "tags": ["metargb", "overview"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Total Request Rate (RPS)",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(grpc_server_handled_total{namespace=\"metargb\"}[5m])) by (job)",
+                "legendFormat": "{{job}}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "reqps", "label": "Requests/sec"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Error Rate (%)",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(grpc_server_handled_total{namespace=\"metargb\",grpc_code!=\"OK\"}[5m])) by (job) / sum(rate(grpc_server_handled_total{namespace=\"metargb\"}[5m])) by (job) * 100",
+                "legendFormat": "{{job}}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "percent", "label": "Error %"},
+              {"format": "short"}
+            ],
+            "alert": {
+              "conditions": [
+                {
+                  "evaluator": {"params": [1], "type": "gt"},
+                  "operator": {"type": "and"},
+                  "query": {"params": ["A", "5m", "now"]},
+                  "reducer": {"params": [], "type": "avg"},
+                  "type": "query"
+                }
+              ],
+              "executionErrorState": "alerting",
+              "frequency": "60s",
+              "handler": 1,
+              "name": "High Error Rate Alert",
+              "noDataState": "no_data",
+              "notifications": []
+            }
+          },
+          {
+            "id": 3,
+            "title": "P95 Latency (seconds)",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{namespace=\"metargb\"}[5m])) by (job, le))",
+                "legendFormat": "{{job}}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "s", "label": "Latency"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Active Connections",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(grpc_server_started_total{namespace=\"metargb\"} - grpc_server_handled_total{namespace=\"metargb\"}) by (job)",
+                "legendFormat": "{{job}}",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "short", "label": "Connections"},
+              {"format": "short"}
+            ]
+          }
+        ]
+      }
+    }
+  
+  # Auth Service Dashboard
+  auth-service.json: |
+    {
+      "dashboard": {
+        "title": "Auth Service Metrics",
+        "tags": ["metargb", "auth"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Request Rate",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 8, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(grpc_server_handled_total{job=\"auth-service\"}[5m])) by (grpc_method)",
+                "legendFormat": "{{grpc_method}}",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Error Rate by Method",
+            "type": "graph",
+            "gridPos": {"x": 8, "y": 0, "w": 8, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(grpc_server_handled_total{job=\"auth-service\",grpc_code!=\"OK\"}[5m])) by (grpc_method)",
+                "legendFormat": "{{grpc_method}}",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Latency by Percentile",
+            "type": "graph",
+            "gridPos": {"x": 16, "y": 0, "w": 8, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, sum(rate(grpc_server_handling_seconds_bucket{job=\"auth-service\"}[5m])) by (le))",
+                "legendFormat": "p50",
+                "refId": "A"
+              },
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{job=\"auth-service\"}[5m])) by (le))",
+                "legendFormat": "p95",
+                "refId": "B"
+              },
+              {
+                "expr": "histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket{job=\"auth-service\"}[5m])) by (le))",
+                "legendFormat": "p99",
+                "refId": "C"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Database Connection Pool",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "db_connections_in_use{job=\"auth-service\"}",
+                "legendFormat": "In Use",
+                "refId": "A"
+              },
+              {
+                "expr": "db_connections_idle{job=\"auth-service\"}",
+                "legendFormat": "Idle",
+                "refId": "B"
+              },
+              {
+                "expr": "db_connections_max{job=\"auth-service\"}",
+                "legendFormat": "Max",
+                "refId": "C"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Token Operations",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(tokens_created_total{job=\"auth-service\"}[5m]))",
+                "legendFormat": "Created",
+                "refId": "A"
+              },
+              {
+                "expr": "sum(rate(tokens_validated_total{job=\"auth-service\"}[5m]))",
+                "legendFormat": "Validated",
+                "refId": "B"
+              },
+              {
+                "expr": "sum(rate(tokens_revoked_total{job=\"auth-service\"}[5m]))",
+                "legendFormat": "Revoked",
+                "refId": "C"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  
+  # Commercial Service Dashboard
+  commercial-service.json: |
+    {
+      "dashboard": {
+        "title": "Commercial Service Metrics",
+        "tags": ["metargb", "commercial"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Transaction Rate",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(transactions_created_total{job=\"commercial-service\"}[5m]))",
+                "legendFormat": "Created",
+                "refId": "A"
+              },
+              {
+                "expr": "sum(rate(transactions_failed_total{job=\"commercial-service\"}[5m]))",
+                "legendFormat": "Failed",
+                "refId": "B"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Wallet Operations",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(wallet_deductions_total{job=\"commercial-service\"}[5m]))",
+                "legendFormat": "Deductions",
+                "refId": "A"
+              },
+              {
+                "expr": "sum(rate(wallet_additions_total{job=\"commercial-service\"}[5m]))",
+                "legendFormat": "Additions",
+                "refId": "B"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Payment Gateway Response Time",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(payment_gateway_duration_seconds_bucket{job=\"commercial-service\"}[5m])) by (le))",
+                "legendFormat": "p95",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Payment Success Rate",
+            "type": "stat",
+            "gridPos": {"x": 12, "y": 8, "w": 6, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(payments_successful_total{job=\"commercial-service\"}[5m])) / sum(rate(payments_total{job=\"commercial-service\"}[5m])) * 100",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": 0, "color": "red"},
+                    {"value": 95, "color": "yellow"},
+                    {"value": 99, "color": "green"}
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  
+  # Features Service Dashboard
+  features-service.json: |
+    {
+      "dashboard": {
+        "title": "Features Service Metrics",
+        "tags": ["metargb", "features"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Feature Operations",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(features_listed_total{job=\"features-service\"}[5m]))",
+                "legendFormat": "List",
+                "refId": "A"
+              },
+              {
+                "expr": "sum(rate(features_bought_total{job=\"features-service\"}[5m]))",
+                "legendFormat": "Buy",
+                "refId": "B"
+              },
+              {
+                "expr": "sum(rate(features_sold_total{job=\"features-service\"}[5m]))",
+                "legendFormat": "Sell",
+                "refId": "C"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Hourly Profit Calculations",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(hourly_profits_calculated_total{job=\"features-service\"}[5m]))",
+                "legendFormat": "Calculated",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "3D Environment Jobs",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(threed_jobs_started_total{job=\"features-service\"}[5m]))",
+                "legendFormat": "Started",
+                "refId": "A"
+              },
+              {
+                "expr": "sum(rate(threed_jobs_completed_total{job=\"features-service\"}[5m]))",
+                "legendFormat": "Completed",
+                "refId": "B"
+              },
+              {
+                "expr": "sum(rate(threed_jobs_failed_total{job=\"features-service\"}[5m]))",
+                "legendFormat": "Failed",
+                "refId": "C"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  
+  # WebSocket Gateway Dashboard
+  websocket-gateway.json: |
+    {
+      "dashboard": {
+        "title": "WebSocket Gateway Metrics",
+        "tags": ["metargb", "websocket"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Active WebSocket Connections",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "websocket_connections_total{job=\"websocket-gateway\"}",
+                "legendFormat": "Active Connections",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "short", "label": "Connections"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 2,
+            "title": "WebSocket Message Rate",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(websocket_messages_sent_total{job=\"websocket-gateway\"}[5m])",
+                "legendFormat": "Messages Sent/sec",
+                "refId": "A"
+              },
+              {
+                "expr": "rate(websocket_messages_received_total{job=\"websocket-gateway\"}[5m])",
+                "legendFormat": "Messages Received/sec",
+                "refId": "B"
+              }
+            ],
+            "yaxes": [
+              {"format": "msgs/s", "label": "Messages/sec"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Connection Events",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(websocket_connections_opened_total{job=\"websocket-gateway\"}[5m])",
+                "legendFormat": "Connections Opened/sec",
+                "refId": "A"
+              },
+              {
+                "expr": "rate(websocket_connections_closed_total{job=\"websocket-gateway\"}[5m])",
+                "legendFormat": "Connections Closed/sec",
+                "refId": "B"
+              },
+              {
+                "expr": "rate(websocket_connections_failed_total{job=\"websocket-gateway\"}[5m])",
+                "legendFormat": "Connection Failures/sec",
+                "refId": "C"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Connection Duration (P95)",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(websocket_connection_duration_seconds_bucket{job=\"websocket-gateway\"}[5m]))",
+                "legendFormat": "p95 Duration",
+                "refId": "A"
+              }
+            ],
+            "yaxes": [
+              {"format": "s", "label": "Duration"},
+              {"format": "short"}
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Redis Pub/Sub Status",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(redis_pubsub_messages_received_total{job=\"websocket-gateway\"}[5m])",
+                "legendFormat": "Redis Messages/sec",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Broadcast Events",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "rate(websocket_broadcasts_total{job=\"websocket-gateway\",event=\"user-status-changed\"}[5m])",
+                "legendFormat": "User Status Broadcasts",
+                "refId": "A"
+              },
+              {
+                "expr": "rate(websocket_broadcasts_total{job=\"websocket-gateway\",event=\"feature-status-changed\"}[5m])",
+                "legendFormat": "Feature Status Broadcasts",
+                "refId": "B"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  
+  # Database Metrics Dashboard
+  database-metrics.json: |
+    {
+      "dashboard": {
+        "title": "Database Metrics",
+        "tags": ["metargb", "database"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Query Rate",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(mysql_global_status_queries[5m]))",
+                "legendFormat": "Queries/sec",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Connection Pool Usage by Service",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "db_connections_in_use{namespace=\"metargb\"}",
+                "legendFormat": "{{job}} - In Use",
+                "refId": "A"
+              },
+              {
+                "expr": "db_connections_idle{namespace=\"metargb\"}",
+                "legendFormat": "{{job}} - Idle",
+                "refId": "B"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Slow Queries",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(mysql_global_status_slow_queries[5m]))",
+                "legendFormat": "Slow Queries/sec",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Database Connections",
+            "type": "stat",
+            "gridPos": {"x": 12, "y": 8, "w": 6, "h": 4},
+            "targets": [
+              {
+                "expr": "mysql_global_status_threads_connected",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Max Connections",
+            "type": "stat",
+            "gridPos": {"x": 18, "y": 8, "w": 6, "h": 4},
+            "targets": [
+              {
+                "expr": "mysql_global_variables_max_connections",
+                "refId": "A"
+              }
+            ]
+          }
+        ]
+      }
+    }
+

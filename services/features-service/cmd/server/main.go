@@ -1,0 +1,191 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"metargb/features-service/internal/handler"
+	"metargb/features-service/internal/repository"
+	"metargb/features-service/internal/service"
+	"metargb/features-service/pkg/threed_client"
+	pb "metargb/shared/pb/features"
+	"metargb/shared/pkg/db"
+	"metargb/shared/pkg/logger"
+	"metargb/shared/pkg/metrics"
+
+	_ "github.com/go-sql-driver/mysql"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+)
+
+func main() {
+	// Initialize logger
+	log := logger.NewLogger("features-service")
+	log.Info("Starting Features Service...")
+
+	// Load configuration from environment
+	// Construct DSN from individual environment variables
+	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+		getEnv("DB_USER", "metargb_user"),
+		getEnv("DB_PASSWORD", "metargb_password"),
+		getEnv("DB_HOST", "mysql"),
+		getEnv("DB_PORT", "3306"),
+		getEnv("DB_DATABASE", "metargb_db"),
+	)
+	port := getEnv("GRPC_PORT", "50053")
+	metricsPort := getEnv("METRICS_PORT", "9090")
+	threeDMetaURL := getEnv("THREE_D_META_URL", "http://3d-meta-api")
+
+	// Initialize database connection
+	database, err := sql.Open("mysql", dbDSN)
+	if err != nil {
+		log.Fatal("Failed to connect to database", "error", err)
+	}
+	defer database.Close()
+
+	// Test database connection
+	if err := database.Ping(); err != nil {
+		log.Fatal("Failed to ping database", "error", err)
+	}
+
+	// Validate schema
+	schemaGuard := db.NewSchemaGuard(database)
+	if err := schemaGuard.ValidateTable(db.TableSchema{
+		Name: "features",
+		Columns: []db.ColumnType{
+			{Name: "id", DataType: "bigint"},
+			{Name: "map_id", DataType: "bigint"},
+			{Name: "owner_id", DataType: "bigint"},
+			{Name: "type", DataType: "varchar"},
+		},
+	}); err != nil {
+		log.Warn("Schema validation warning", "error", err)
+	}
+
+	log.Info("Database connected and schema validated")
+
+	// Initialize repositories
+	featureRepo := repository.NewFeatureRepository(database)
+	propertiesRepo := repository.NewPropertiesRepository(database)
+	geometryRepo := repository.NewGeometryRepository(database)
+	tradeRepo := repository.NewTradeRepository(database)
+	buyRequestRepo := repository.NewBuyRequestRepository(database)
+	sellRequestRepo := repository.NewSellRequestRepository(database)
+	hourlyProfitRepo := repository.NewHourlyProfitRepository(database)
+	buildingRepo := repository.NewBuildingRepository(database)
+
+	// Initialize 3D client
+	threeDClient := threed_client.New(threeDMetaURL)
+
+	// Initialize services
+	featureService := service.NewFeatureService(
+		featureRepo,
+		propertiesRepo,
+		geometryRepo,
+	)
+
+	// Note: These services need additional dependencies that aren't fully implemented yet
+	// For now, pass nil for missing dependencies
+	marketplaceService := service.NewMarketplaceService(
+		featureRepo,
+		propertiesRepo,
+		tradeRepo,
+		buyRequestRepo,
+		sellRequestRepo,
+		nil, // lockedAssetRepo - TODO: implement
+		hourlyProfitRepo,
+		nil, // featureLimitRepo - TODO: implement
+		nil, // commercialClient - TODO: implement
+		database,
+		log,
+	)
+
+	profitService := service.NewProfitService(
+		hourlyProfitRepo,
+		featureRepo,
+		propertiesRepo,
+		nil, // commercialClient - TODO: implement
+		database,
+		log,
+	)
+
+	buildingService := service.NewBuildingService(
+		buildingRepo,
+		featureRepo,
+		geometryRepo,
+		hourlyProfitRepo,
+		threeDClient,
+	)
+
+	// Initialize gRPC handlers
+	featureHandler := handler.NewFeatureHandler(featureService)
+	marketplaceHandler := handler.NewMarketplaceHandler(marketplaceService)
+	profitHandler := handler.NewProfitHandler(profitService)
+	buildingHandler := handler.NewBuildingHandler(buildingService)
+
+	// Create gRPC server with interceptors
+	serviceMetrics := metrics.NewMetrics("features")
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			logger.UnaryServerInterceptor(log),
+			metrics.UnaryServerInterceptor(serviceMetrics),
+		),
+	)
+
+	// Register services
+	pb.RegisterFeatureServiceServer(grpcServer, featureHandler)
+	pb.RegisterFeatureMarketplaceServiceServer(grpcServer, marketplaceHandler)
+	pb.RegisterFeatureProfitServiceServer(grpcServer, profitHandler)
+	pb.RegisterBuildingServiceServer(grpcServer, buildingHandler)
+
+	// Enable reflection for debugging
+	reflection.Register(grpcServer)
+
+	// Metrics are exposed via Prometheus client library
+	// Start HTTP server for metrics endpoint if needed
+	log.Info("Metrics available on /metrics endpoint", "port", metricsPort)
+
+	// Start hourly profit calculator background job
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go profitService.StartHourlyProfitCalculator(ctx, log)
+
+	// Start gRPC server
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	if err != nil {
+		log.Fatal("Failed to listen", "error", err, "port", port)
+	}
+
+	log.Info("Features Service started", "port", port, "metrics_port", metricsPort)
+
+	// Graceful shutdown
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		<-sigChan
+
+		log.Info("Shutting down gracefully...")
+		cancel() // Stop background jobs
+		grpcServer.GracefulStop()
+		database.Close()
+		log.Info("Shutdown complete")
+	}()
+
+	// Start serving
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatal("Failed to serve", "error", err)
+	}
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}

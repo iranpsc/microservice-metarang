@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package notifications;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/notifications";
+
+// NotificationService handles in-app notifications
+service NotificationService {
+  rpc SendNotification(SendNotificationRequest) returns (NotificationResponse);
+  rpc GetNotifications(GetNotificationsRequest) returns (NotificationsResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (common.Empty);
+  rpc MarkAllAsRead(MarkAllAsReadRequest) returns (common.Empty);
+}
+
+// SMSService handles SMS delivery
+service SMSService {
+  rpc SendSMS(SendSMSRequest) returns (SMSResponse);
+  rpc SendOTP(SendOTPRequest) returns (SMSResponse);
+}
+
+// EmailService handles email delivery
+service EmailService {
+  rpc SendEmail(SendEmailRequest) returns (EmailResponse);
+}
+
+// Messages
+
+message SendNotificationRequest {
+  uint64 user_id = 1;
+  string type = 2;
+  string title = 3;
+  string message = 4;
+  map<string, string> data = 5;
+  bool send_sms = 6;
+  bool send_email = 7;
+}
+
+message NotificationResponse {
+  uint64 id = 1;
+  bool sent = 2;
+}
+
+message GetNotificationsRequest {
+  uint64 user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message NotificationsResponse {
+  repeated Notification notifications = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message Notification {
+  string id = 1;
+  string type = 2;
+  string title = 3;
+  string message = 4;
+  map<string, string> data = 5;
+  string read_at = 6; // null if unread
+  string created_at = 7; // Jalali formatted
+}
+
+message MarkAsReadRequest {
+  string notification_id = 1;
+  uint64 user_id = 2;
+}
+
+message MarkAllAsReadRequest {
+  uint64 user_id = 1;
+}
+
+message SendSMSRequest {
+  string phone = 1;
+  string message = 2;
+  string template = 3; // Kavenegar template name
+  map<string, string> tokens = 4; // Template tokens
+}
+
+message SMSResponse {
+  bool sent = 1;
+  string message_id = 2;
+  string status = 3;
+}
+
+message SendOTPRequest {
+  string phone = 1;
+  string code = 2;
+  string reason = 3;
+}
+
+message SendEmailRequest {
+  string to = 1;
+  string subject = 2;
+  string body = 3;
+  string html_body = 4;
+  repeated string cc = 5;
+  repeated string bcc = 6;
+}
+
+message EmailResponse {
+  bool sent = 1;
+  string message_id = 2;
+}
+

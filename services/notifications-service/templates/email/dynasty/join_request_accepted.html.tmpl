@@ -1,0 +1,63 @@
+{{define "email/dynasty/join_request_accepted"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/dynasty/join_request_accepted/content"}}
+  <h1>پیوستن به خاندان تأیید شد</h1>
+  <p>
+    {{with .RecipientName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    درخواستت برای پیوستن به خاندان {{with .DynastyName}}{{.}}{{else}}منتخب{{end}} پذیرفته شد. از این لحظه می‌توانی فعالیت‌های خانوادگی را دنبال کنی.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>نام خاندان</th>
+        <td>{{with .DynastyName}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .DynastyCode}}
+      <tr>
+        <th>شناسه خاندان</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .Role}}
+      <tr>
+        <th>نقش اختصاص یافته</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .AcceptedBy}}
+      <tr>
+        <th>تأیید توسط</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .AcceptedAt}}
+      <tr>
+        <th>زمان تأیید</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    قوانین و اهداف خاندان را بررسی کن تا بهتر بتوانی در توسعه آن نقش داشته باشی.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .DashboardURL}}
+      <a href="{{.}}" class="button">ورود به پنل خاندان</a>
+    {{end}}
+    {{with .GuidelineURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">مطالعه قوانین</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    از همراهی تو در حاکمیت موازی متارنگ خوشحالیم.
+  </p>
+{{end}}
+
+

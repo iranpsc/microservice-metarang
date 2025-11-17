@@ -1,0 +1,330 @@
+syntax = "proto3";
+
+package levels;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/levels";
+
+// LevelService handles user level progression
+service LevelService {
+  rpc GetUserLevel(GetUserLevelRequest) returns (UserLevelResponse);
+  rpc GetAllLevels(GetAllLevelsRequest) returns (LevelsResponse);
+  rpc GetLevel(GetLevelRequest) returns (LevelResponse);
+  rpc GetLevelGeneralInfo(GetLevelGeneralInfoRequest) returns (LevelGeneralInfoResponse);
+  rpc GetLevelGem(GetLevelGemRequest) returns (LevelGemResponse);
+  rpc GetLevelGift(GetLevelGiftRequest) returns (LevelGiftResponse);
+  rpc GetLevelLicenses(GetLevelLicensesRequest) returns (LevelLicensesResponse);
+  rpc GetLevelPrizes(GetLevelPrizesRequest) returns (LevelPrizesResponse);
+  rpc ClaimPrize(ClaimPrizeRequest) returns (ClaimPrizeResponse);
+}
+
+// ActivityService handles user activity tracking
+service ActivityService {
+  rpc LogActivity(LogActivityRequest) returns (LogActivityResponse);
+  rpc GetUserActivities(GetUserActivitiesRequest) returns (UserActivitiesResponse);
+  rpc UpdateActivityScore(UpdateActivityScoreRequest) returns (UpdateActivityScoreResponse);
+  rpc RecordTrade(RecordTradeRequest) returns (RecordTradeResponse);
+  rpc RecordDeposit(RecordDepositRequest) returns (RecordDepositResponse);
+  rpc RecordFollower(RecordFollowerRequest) returns (RecordFollowerResponse);
+}
+
+// ChallengeService handles quiz challenges
+service ChallengeService {
+  rpc GetQuestion(GetQuestionRequest) returns (QuestionResponse);
+  rpc SubmitAnswer(SubmitAnswerRequest) returns (AnswerResultResponse);
+  rpc GetTimings(GetTimingsRequest) returns (TimingsResponse);
+}
+
+// Level Messages
+
+message GetUserLevelRequest {
+  uint64 user_id = 1;
+}
+
+message UserLevelResponse {
+  Level latest_level = 1;
+  repeated Level previous_levels = 2;
+  int32 score_percentage_to_next_level = 3;
+  int32 user_score = 4;
+}
+
+message GetAllLevelsRequest {}
+
+message LevelsResponse {
+  repeated Level levels = 1;
+}
+
+message GetLevelRequest {
+  uint64 level_id = 1;
+  string level_slug = 2;
+}
+
+message LevelResponse {
+  Level level = 1;
+}
+
+message Level {
+  uint64 id = 1;
+  string name = 2;
+  string slug = 3;
+  int32 score = 4;
+  string image_url = 5;
+  string background_image = 6;
+  LevelGeneralInfo general_info = 7;
+  LevelPrize prize = 8;
+  LevelGem gem = 9;
+  LevelGift gift = 10;
+  LevelLicense licenses = 11;
+}
+
+message LevelGeneralInfo {
+  uint64 id = 1;
+  uint64 level_id = 2;
+  int32 score = 3;
+  string rank = 4;
+  string description = 5;
+  string subcategories = 6;
+  string persian_font = 7;
+  string english_font = 8;
+  string file_volume = 9;
+  string used_colors = 10;
+  string points = 11;
+  string lines = 12;
+  bool has_animation = 13;
+  string designer = 14;
+  string model_designer = 15;
+  string creation_date = 16;
+  string png_file = 17;
+  string fbx_file = 18;
+  string gif_file = 19;
+}
+
+message LevelPrize {
+  uint64 id = 1;
+  uint64 level_id = 2;
+  string psc = 3;
+  string blue = 4;
+  string red = 5;
+  string yellow = 6;
+  int32 union_license = 7;
+  int32 union_members_count = 8;
+  int32 observing_license = 9;
+  int32 gate_license = 10;
+  int32 lawyer_license = 11;
+  int32 city_counsil_entry = 12;
+  string special_residence_property = 13;
+  string property_on_area = 14;
+  int32 judge_entry = 15;
+  string satisfaction = 16;
+  int32 effect = 17;
+}
+
+message LevelGem {
+  uint64 id = 1;
+  uint64 level_id = 2;
+  string name = 3;
+  string slug = 4;
+  string description = 5;
+  string image_url = 6;
+}
+
+message LevelGift {
+  uint64 id = 1;
+  uint64 level_id = 2;
+  // Add fields based on actual database schema
+}
+
+message LevelLicense {
+  uint64 id = 1;
+  uint64 level_id = 2;
+  // Add fields based on actual database schema
+}
+
+message GetLevelGeneralInfoRequest {
+  uint64 level_id = 1;
+  string level_slug = 2;
+}
+
+message LevelGeneralInfoResponse {
+  LevelGeneralInfo general_info = 1;
+}
+
+message GetLevelGemRequest {
+  uint64 level_id = 1;
+  string level_slug = 2;
+}
+
+message LevelGemResponse {
+  LevelGem gem = 1;
+}
+
+message GetLevelGiftRequest {
+  uint64 level_id = 1;
+  string level_slug = 2;
+}
+
+message LevelGiftResponse {
+  LevelGift gift = 1;
+}
+
+message GetLevelLicensesRequest {
+  uint64 level_id = 1;
+  string level_slug = 2;
+}
+
+message LevelLicensesResponse {
+  LevelLicense licenses = 1;
+}
+
+message GetLevelPrizesRequest {
+  uint64 level_id = 1;
+}
+
+message LevelPrizesResponse {
+  LevelPrize prize = 1;
+}
+
+message ClaimPrizeRequest {
+  uint64 user_id = 1;
+  uint64 level_id = 2;
+}
+
+message ClaimPrizeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Activity Messages
+
+message LogActivityRequest {
+  uint64 user_id = 1;
+  string event_type = 2; // login, logout, trade, etc.
+  string ip = 3;
+  string device = 4;
+}
+
+message LogActivityResponse {
+  bool success = 1;
+  uint64 activity_id = 2;
+}
+
+message GetUserActivitiesRequest {
+  uint64 user_id = 1;
+  int32 limit = 2;
+}
+
+message UserActivitiesResponse {
+  repeated UserActivity activities = 1;
+  UserLog user_log = 2;
+}
+
+message UserActivity {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string start = 3; // timestamp
+  string end = 4; // timestamp
+  int32 total = 5; // minutes
+  string ip = 6;
+}
+
+message UserLog {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string transactions_count = 3; // as string for precision
+  string followers_count = 4;
+  string deposit_amount = 5;
+  string activity_hours = 6;
+  string score = 7;
+}
+
+message UpdateActivityScoreRequest {
+  uint64 user_id = 1;
+}
+
+message UpdateActivityScoreResponse {
+  bool success = 1;
+  int32 new_score = 2;
+  bool level_up = 3;
+  uint64 new_level_id = 4;
+}
+
+message RecordTradeRequest {
+  uint64 user_id = 1;
+  string irr_amount = 2;
+  string psc_amount = 3;
+}
+
+message RecordTradeResponse {
+  bool success = 1;
+}
+
+message RecordDepositRequest {
+  uint64 user_id = 1;
+  string amount = 2;
+}
+
+message RecordDepositResponse {
+  bool success = 1;
+}
+
+message RecordFollowerRequest {
+  uint64 user_id = 1;
+}
+
+message RecordFollowerResponse {
+  bool success = 1;
+}
+
+// Challenge Messages
+
+message GetQuestionRequest {
+  uint64 user_id = 1;
+}
+
+message QuestionResponse {
+  Question question = 1;
+  bool has_question = 2;
+}
+
+message Question {
+  uint64 id = 1;
+  string text = 2;
+  repeated Answer answers = 3;
+  string prize = 4; // PSC reward
+  int32 views = 5;
+  int32 participants = 6;
+}
+
+message Answer {
+  uint64 id = 1;
+  uint64 question_id = 2;
+  string text = 3;
+  // is_correct not included in response for security
+}
+
+message SubmitAnswerRequest {
+  uint64 user_id = 1;
+  uint64 question_id = 2;
+  uint64 answer_id = 3;
+}
+
+message AnswerResultResponse {
+  bool is_correct = 1;
+  string prize_awarded = 2;
+  Question question = 3;
+}
+
+message GetTimingsRequest {
+  uint64 user_id = 1;
+}
+
+message TimingsResponse {
+  int32 display_ad_interval = 1;
+  int32 display_question_interval = 2;
+  int32 display_answer_interval = 3;
+  int32 participants = 4;
+  int32 correct_answers = 5;
+  int32 wrong_answers = 6;
+}
+

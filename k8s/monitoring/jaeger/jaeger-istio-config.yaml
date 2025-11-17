@@ -1,0 +1,64 @@
+# Istio Configuration for Jaeger Integration
+# Configures Istio to send traces to Jaeger
+
+---
+# Telemetry configuration for tracing
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: jaeger-tracing
+  namespace: istio-system
+spec:
+  tracing:
+    - providers:
+        - name: jaeger
+      randomSamplingPercentage: 100.0  # 100% for development, 10.0 for production
+      customTags:
+        cluster:
+          literal:
+            value: "metargb-cluster"
+        environment:
+          literal:
+            value: "production"
+
+---
+# Telemetry configuration for metargb namespace
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: jaeger-tracing
+  namespace: metargb
+spec:
+  tracing:
+    - providers:
+        - name: jaeger
+      randomSamplingPercentage: 100.0  # Adjust for production
+      customTags:
+        namespace:
+          literal:
+            value: "metargb"
+        service_name:
+          environment:
+            name: "POD_NAME"
+
+---
+# Extension provider configuration for Jaeger
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio-jaeger-config
+  namespace: istio-system
+data:
+  mesh: |
+    extensionProviders:
+      - name: jaeger
+        zipkin:
+          service: jaeger-collector.istio-system.svc.cluster.local
+          port: 9411
+    defaultConfig:
+      tracing:
+        sampling: 100.0
+        max_path_tag_length: 256
+        zipkin:
+          address: jaeger-collector.istio-system:9411
+

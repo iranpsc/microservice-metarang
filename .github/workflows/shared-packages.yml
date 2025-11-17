@@ -1,0 +1,108 @@
+name: Shared Packages CI
+
+on:
+  push:
+    paths:
+      - 'shared/**'
+      - '.github/workflows/shared-packages.yml'
+    branches:
+      - main
+      - develop
+  pull_request:
+    paths:
+      - 'shared/**'
+    branches:
+      - main
+      - develop
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  test-shared:
+    name: Test Shared Packages
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: metargb_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: shared/go.sum
+
+      - name: Install dependencies
+        run: |
+          cd shared
+          go mod download
+          go mod verify
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: shared
+          args: --timeout=5m
+
+      - name: Run tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: metargb_test
+          DB_USER: root
+          DB_PASSWORD: root_password
+        run: |
+          cd shared
+          go test ./pkg/... -v -race -coverprofile=coverage.out -covermode=atomic
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./shared/coverage.out
+          flags: shared
+          name: shared-packages
+
+  trigger-service-builds:
+    name: Trigger Service Rebuilds
+    runs-on: ubuntu-latest
+    needs: test-shared
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        service:
+          - auth-service
+          - commercial-service
+          - features-service
+          - levels-service
+          - dynasty-service
+          - support-service
+          - training-service
+          - notifications-service
+          - calendar-service
+          - storage-service
+
+    steps:
+      - name: Trigger ${{ matrix.service }} workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: rebuild-${{ matrix.service }}
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
+

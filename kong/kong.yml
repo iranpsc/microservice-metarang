@@ -1,0 +1,439 @@
+_format_version: "3.0"
+
+# MetaRGB API Gateway Configuration
+# This file maps HTTP REST endpoints to gRPC microservices
+
+services:
+  # Phase 2: Auth Service
+  - name: auth-service
+    url: grpc://auth-service:50051
+    protocol: grpc
+    routes:
+      - name: auth-routes
+        paths:
+          - /api/auth
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/auth.proto
+      - name: cors
+
+  # Phase 2: User Service (part of auth-service)
+  - name: user-service
+    url: grpc://auth-service:50051
+    protocol: grpc
+    routes:
+      - name: user-routes
+        paths:
+          - /api/user
+          - /api/users
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/auth.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 2000
+
+  # Phase 3: Commercial Service (Wallet & Transactions)
+  - name: commercial-service
+    url: grpc://commercial-service:50052
+    protocol: grpc
+    routes:
+      - name: wallet-routes
+        paths:
+          - /api/user/wallet
+          - /api/user/transactions
+        strip_path: false
+        protocols:
+          - http
+          - https
+      - name: payment-routes
+        paths:
+          - /api/order
+          - /api/parsian/callback
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/commercial.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: rate-limiting
+        config:
+          minute: 60
+          hour: 1000
+
+  # Phase 2: Features Service
+  - name: features-service
+    url: grpc://features-service:50053
+    protocol: grpc
+    routes:
+      - name: features-routes
+        paths:
+          - /api/features
+          - /api/my-features
+        strip_path: false
+        protocols:
+          - http
+          - https
+      - name: buy-requests-routes
+        paths:
+          - /api/buy-requests
+        strip_path: false
+        protocols:
+          - http
+          - https
+      - name: sell-requests-routes
+        paths:
+          - /api/sell-requests
+        strip_path: false
+        protocols:
+          - http
+          - https
+      - name: hourly-profits-routes
+        paths:
+          - /api/hourly-profits
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/features.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 5000
+
+
+  # Phase 4: Dynasty Service
+  - name: dynasty-service
+    url: grpc://dynasty-service:50055
+    protocol: grpc
+    routes:
+      - name: dynasty-routes
+        paths:
+          - /api/dynasty
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/dynasty.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: rate-limiting
+        config:
+          minute: 60
+          hour: 2000
+
+  # Phase 4: Support Service
+  - name: support-service
+    url: grpc://support-service:50056
+    protocol: grpc
+    routes:
+      - name: support-routes
+        paths:
+          - /api/tickets
+          - /api/reports
+          - /api/events
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/support.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: rate-limiting
+        config:
+          minute: 50
+          hour: 1000
+
+  # Phase 4: Training Service
+  - name: training-service
+    url: grpc://training-service:50057
+    protocol: grpc
+    routes:
+      - name: training-routes
+        paths:
+          - /api/v2/tutorials
+          - /api/tutorials
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/training.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 3000
+
+  # Phase 4: Notifications Service
+  - name: notifications-service
+    url: grpc://notifications-service:50060
+    protocol: grpc
+    routes:
+      - name: notifications-routes
+        paths:
+          - /api/notifications
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/notifications.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 2000
+
+  # Phase 5: Calendar Service
+  - name: calendar-service
+    url: grpc://calendar-service:50058
+    protocol: grpc
+    routes:
+      - name: calendar-routes
+        paths:
+          - /api/calendar
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/calendar.proto
+      - name: cors
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 3000
+
+  # Health Check Service - System Health Monitoring
+  - name: health-check-service
+    url: http://health-check-service:8090
+    protocol: http
+    routes:
+      - name: health-check-route
+        paths:
+          - /health
+          - /api/health
+        methods:
+          - GET
+        strip_path: false
+    plugins:
+      - name: cors
+
+  # Phase 5: Storage Service (File Uploads)
+  # Public upload endpoint (no auth required)
+  - name: storage-service-upload
+    url: http://storage-service:8059
+    protocol: http
+    routes:
+      - name: upload-route
+        paths:
+          - /api/upload
+        methods:
+          - POST
+          - OPTIONS
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 100 # 100MB for file uploads
+      - name: rate-limiting
+        config:
+          minute: 50
+          hour: 1000
+
+  # Protected storage endpoints (auth required)
+  - name: storage-service
+    url: grpc://storage-service:50059
+    protocol: grpc
+    routes:
+      - name: storage-routes
+        paths:
+          - /api/files
+          - /api/images
+        strip_path: false
+        protocols:
+          - http
+          - https
+    plugins:
+      - name: grpc-gateway
+        config:
+          proto: /kong/protos/storage.proto
+      - name: cors
+      - name: jwt
+        config:
+          uri_param_names:
+            - token
+          header_names:
+            - Authorization
+          cookie_names:
+            - token
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 100 # 100MB for file uploads
+      - name: rate-limiting
+        config:
+          minute: 30
+          hour: 500
+
+# Global Plugins
+plugins:
+  # CORS for all services
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - Authorization
+      exposed_headers:
+        - X-Auth-Token
+        - X-Request-ID
+      credentials: true
+      max_age: 3600
+
+  # Request ID tracking (removed - needs to be enabled in Kong config)
+  # - name: request-id
+  #   config:
+  #     header_name: X-Request-ID
+  #     generator: uuid
+  #     echo_downstream: true
+
+  # Response headers
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - "X-Powered-By: MetaRGB Microservices"
+          - "X-Version: 1.0.0"
+
+  # Global rate limiting (per IP)
+  - name: rate-limiting
+    config:
+      minute: 300
+      hour: 10000
+      policy: redis
+      redis_host: redis
+      redis_port: 6379
+      fault_tolerant: true
+
+# Upstreams for load balancing (if needed)
+upstreams:
+  - name: auth-service-upstream
+    algorithm: round-robin
+    hash_on: none
+    targets:
+      - target: auth-service:50051
+        weight: 100
+
+  - name: features-service-upstream
+    algorithm: least-connections
+    hash_on: consumer
+    targets:
+      - target: features-service:50053
+        weight: 100
+
+# Consumer management (for API keys if needed)
+# Note: Consumer plugins should be configured at the service/route level, not consumer level
+consumers:
+  - username: admin
+    custom_id: admin-user
+

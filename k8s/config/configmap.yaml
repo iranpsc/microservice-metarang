@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metargb-config
+  namespace: metargb
+data:
+  # Database Configuration
+  db.host: "mysql.metargb.svc.cluster.local"
+  db.port: "3306"
+  db.database: "metargb_db"
+  
+  # Redis Configuration
+  redis.host: "redis.metargb.svc.cluster.local"
+  redis.port: "6379"
+  redis.db: "0"
+  
+  # OAuth Configuration
+  oauth.server.url: "https://oauth.metargb.com"
+  
+  # Kong Gateway
+  kong.admin.url: "http://kong-admin.metargb.svc.cluster.local:8001"
+  
+  # Application Settings
+  app.environment: "production"
+  app.log.level: "info"
+

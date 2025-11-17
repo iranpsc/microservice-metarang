@@ -1,0 +1,271 @@
+# DestinationRules - Traffic policies (circuit breaking, load balancing, connection pooling)
+# Circuit breaker: 5xx errors > 50% → open circuit
+# Retry: 3 attempts with exponential backoff (configured in VirtualServices)
+# Timeout: 30s for gRPC calls (configured in VirtualServices)
+
+---
+# Auth Service DestinationRule
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: auth-service
+  namespace: metargb
+spec:
+  host: auth-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 2
+        h2UpgradePolicy: UPGRADE
+    loadBalancer:
+      simple: LEAST_REQUEST
+      localityLbSetting:
+        enabled: true
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+
+---
+# Commercial Service DestinationRule
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: commercial-service
+  namespace: metargb
+spec:
+  host: commercial-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 2
+        h2UpgradePolicy: UPGRADE
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+
+---
+# Features Service DestinationRule
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: features-service
+  namespace: metargb
+spec:
+  host: features-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 150
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 150
+        http2MaxRequests: 150
+        maxRequestsPerConnection: 2
+        h2UpgradePolicy: UPGRADE
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+
+---
+# Levels Service DestinationRule
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: levels-service
+  namespace: metargb
+spec:
+  host: levels-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 2
+        h2UpgradePolicy: UPGRADE
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+
+---
+# Dynasty Service DestinationRule
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: dynasty-service
+  namespace: metargb
+spec:
+  host: dynasty-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 80
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 80
+        http2MaxRequests: 80
+        maxRequestsPerConnection: 2
+        h2UpgradePolicy: UPGRADE
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+
+---
+# Support Service DestinationRule
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: support-service
+  namespace: metargb
+spec:
+  host: support-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 80
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 80
+        http2MaxRequests: 80
+        maxRequestsPerConnection: 2
+        h2UpgradePolicy: UPGRADE
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+
+---
+# Calendar Service DestinationRule
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: calendar-service
+  namespace: metargb
+spec:
+  host: calendar-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 60
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 60
+        http2MaxRequests: 60
+        maxRequestsPerConnection: 2
+        h2UpgradePolicy: UPGRADE
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+
+---
+# Storage Service DestinationRule (Higher limits for file uploads)
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: storage-service
+  namespace: metargb
+spec:
+  host: storage-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 50
+        connectTimeout: 5s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 50
+        maxRequestsPerConnection: 1
+        h2UpgradePolicy: UPGRADE
+        idleTimeout: 300s  # Longer idle timeout for file uploads
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      consecutive5xxErrors: 3
+      interval: 15s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 30
+      minHealthPercent: 70
+
+---
+# WebSocket Gateway DestinationRule (Optimized for persistent connections)
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: websocket-gateway
+  namespace: metargb
+spec:
+  host: websocket-gateway
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 1000  # Higher for many concurrent WebSocket connections
+        connectTimeout: 10s
+      http:
+        http1MaxPendingRequests: 1000
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 1  # WebSocket is one long-lived connection
+        idleTimeout: 3600s  # 1 hour for persistent connections
+    loadBalancer:
+      simple: LEAST_CONN  # Best for WebSocket
+      consistentHash:
+        useSourceIp: true  # Sticky sessions for WebSocket
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 120s
+      maxEjectionPercent: 30
+      minHealthPercent: 70
+

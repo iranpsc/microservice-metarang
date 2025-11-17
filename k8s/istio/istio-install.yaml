@@ -1,0 +1,150 @@
+# Istio Installation Configuration
+# This file contains the IstioOperator configuration for installing Istio
+# Apply with: istioctl install -f istio-install.yaml
+
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  namespace: istio-system
+  name: metargb-istio
+spec:
+  profile: default
+  
+  meshConfig:
+    # Enable access logging
+    accessLogFile: /dev/stdout
+    accessLogEncoding: JSON
+    
+    # Tracing configuration
+    enableTracing: true
+    defaultConfig:
+      tracing:
+        sampling: 100.0  # 100% sampling in dev, change to 10.0 in production
+        zipkin:
+          address: jaeger-collector.istio-system:9411
+    
+    # Service discovery
+    serviceSettings:
+      - settings:
+          clusterLocal: true
+        hosts:
+          - "*.metargb.svc.cluster.local"
+  
+  components:
+    # Ingress gateway configuration
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          service:
+            type: LoadBalancer
+            ports:
+              - port: 80
+                targetPort: 8080
+                name: http2
+              - port: 443
+                targetPort: 8443
+                name: https
+              - port: 15021
+                targetPort: 15021
+                name: status-port
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 2000m
+              memory: 1024Mi
+          hpaSpec:
+            minReplicas: 2
+            maxReplicas: 5
+            metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  targetAverageUtilization: 80
+    
+    # Pilot (Istiod) configuration
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        hpaSpec:
+          minReplicas: 2
+          maxReplicas: 5
+        env:
+          # Enable debug logging for troubleshooting
+          - name: PILOT_TRACE_SAMPLING
+            value: "100"
+    
+    # Egress gateway (for external API calls)
+    egressGateways:
+      - name: istio-egressgateway
+        enabled: true
+        k8s:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+  
+  # Global values
+  values:
+    global:
+      # Istio-wide mTLS enforcement
+      mtls:
+        enabled: true
+      
+      # Monitoring
+      monitoring:
+        enabled: true
+      
+      # Proxy configuration
+      proxy:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        
+        # Enable automatic protocol detection
+        autoInject: enabled
+        
+        # Metrics
+        includeIPRanges: "*"
+        excludeIPRanges: ""
+        
+      # Telemetry V2 (improved performance)
+      telemetryV2:
+        enabled: true
+        prometheus:
+          enabled: true
+    
+    # Pilot values
+    pilot:
+      traceSampling: 100.0  # Change to 10.0 in production
+    
+    # Grafana integration
+    grafana:
+      enabled: false  # We deploy separately for customization
+    
+    # Kiali (service mesh observability)
+    kiali:
+      enabled: true
+      dashboard:
+        viewOnlyMode: false
+    
+    # Tracing
+    tracing:
+      enabled: true
+      provider: jaeger
+

@@ -1,0 +1,178 @@
+_format_version: "3.0"
+
+services:
+  # Auth Service
+  - name: auth-service
+    url: grpc://auth-service.metargb.svc.cluster.local:50051
+    protocol: grpc
+    routes:
+      - name: auth-register
+        paths:
+          - /api/auth/register
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+            config:
+              proto: /kong/protos/auth.proto
+          - name: cors
+            config:
+              origins:
+                - "*"
+              methods:
+                - GET
+                - POST
+                - PUT
+                - DELETE
+                - OPTIONS
+              headers:
+                - Accept
+                - Authorization
+                - Content-Type
+              credentials: true
+              max_age: 3600
+      
+      - name: auth-redirect
+        paths:
+          - /api/auth/redirect
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+      
+      - name: auth-callback
+        paths:
+          - /api/auth/callback
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+      
+      - name: auth-me
+        paths:
+          - /api/auth/me
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+          - name: request-validator
+            config:
+              body_schema: |
+                {
+                  "type": "object",
+                  "required": ["token"],
+                  "properties": {
+                    "token": {"type": "string"}
+                  }
+                }
+      
+      - name: auth-logout
+        paths:
+          - /api/auth/logout
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+
+  # Commercial Service
+  - name: commercial-service
+    url: grpc://commercial-service.metargb.svc.cluster.local:50052
+    protocol: grpc
+    routes:
+      - name: user-wallet
+        paths:
+          - /api/user/wallet
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+            config:
+              proto: /kong/protos/commercial.proto
+          - name: cors
+          - name: rate-limiting
+            config:
+              minute: 60
+              hour: 1000
+              policy: local
+      
+      - name: user-transactions
+        paths:
+          - /api/user/transactions
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+          - name: rate-limiting
+            config:
+              minute: 120
+              hour: 2000
+              policy: local
+      
+      - name: user-transactions-latest
+        paths:
+          - /api/user/transactions/latest
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+      
+      - name: order-create
+        paths:
+          - /api/order
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+          - name: rate-limiting
+            config:
+              minute: 10
+              hour: 100
+              policy: local
+      
+      - name: parsian-callback
+        paths:
+          - /api/parsian/callback
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+          - name: cors
+
+plugins:
+  # Global rate limiting
+  - name: rate-limiting
+    config:
+      minute: 1000
+      hour: 10000
+      policy: local
+  
+  # Global logging
+  - name: file-log
+    config:
+      path: /tmp/kong-requests.log
+      
+  # Request/Response logging
+  - name: http-log
+    config:
+      http_endpoint: http://logstash.metargb.svc.cluster.local:8080
+      method: POST
+      timeout: 1000
+      keepalive: 1000
+

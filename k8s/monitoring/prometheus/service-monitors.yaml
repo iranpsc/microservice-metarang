@@ -1,0 +1,211 @@
+# ServiceMonitor CRDs for Prometheus Operator
+# These define which services to scrape for metrics
+
+---
+# ServiceMonitor for Auth Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: auth-service
+  namespace: metargb
+  labels:
+    app: auth-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: auth-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Commercial Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: commercial-service
+  namespace: metargb
+  labels:
+    app: commercial-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: commercial-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Features Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: features-service
+  namespace: metargb
+  labels:
+    app: features-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: features-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Levels Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: levels-service
+  namespace: metargb
+  labels:
+    app: levels-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: levels-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Dynasty Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dynasty-service
+  namespace: metargb
+  labels:
+    app: dynasty-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: dynasty-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Support Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: support-service
+  namespace: metargb
+  labels:
+    app: support-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: support-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Calendar Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: calendar-service
+  namespace: metargb
+  labels:
+    app: calendar-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: calendar-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Storage Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: storage-service
+  namespace: metargb
+  labels:
+    app: storage-service
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: storage-service
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for WebSocket Gateway
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: websocket-gateway
+  namespace: metargb
+  labels:
+    app: websocket-gateway
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: websocket-gateway
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# ServiceMonitor for Istio components
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-component-monitor
+  namespace: istio-system
+  labels:
+    monitoring: istio-components
+    release: prometheus
+spec:
+  jobLabel: istio
+  selector:
+    matchExpressions:
+      - key: istio
+        operator: In
+        values:
+          - pilot
+          - galley
+          - citadel
+          - mixer
+  namespaceSelector:
+    matchNames:
+      - istio-system
+  endpoints:
+    - port: http-monitoring
+      interval: 15s
+

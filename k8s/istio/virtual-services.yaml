@@ -1,0 +1,248 @@
+# VirtualServices - Traffic routing for all microservices
+# These configure how requests are routed to services
+
+---
+# Auth Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: auth-service
+  namespace: metargb
+spec:
+  hosts:
+    - auth-service
+    - auth-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: auth-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# Commercial Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: commercial-service
+  namespace: metargb
+spec:
+  hosts:
+    - commercial-service
+    - commercial-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: commercial-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# Features Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: features-service
+  namespace: metargb
+spec:
+  hosts:
+    - features-service
+    - features-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: features-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# Levels Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: levels-service
+  namespace: metargb
+spec:
+  hosts:
+    - levels-service
+    - levels-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: levels-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# Dynasty Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: dynasty-service
+  namespace: metargb
+spec:
+  hosts:
+    - dynasty-service
+    - dynasty-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: dynasty-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# Support Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: support-service
+  namespace: metargb
+spec:
+  hosts:
+    - support-service
+    - support-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: support-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# Calendar Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: calendar-service
+  namespace: metargb
+spec:
+  hosts:
+    - calendar-service
+    - calendar-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: calendar-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# Storage Service VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: storage-service
+  namespace: metargb
+spec:
+  hosts:
+    - storage-service
+    - storage-service.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: storage-service
+            port:
+              number: 50051
+          weight: 100
+      timeout: 60s  # Longer timeout for file uploads
+      retries:
+        attempts: 2
+        perTryTimeout: 30s
+        retryOn: 5xx,reset,connect-failure,refused-stream
+
+---
+# WebSocket Gateway VirtualService
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: websocket-gateway
+  namespace: metargb
+spec:
+  hosts:
+    - websocket-gateway
+    - websocket-gateway.metargb.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: /socket.io
+      route:
+        - destination:
+            host: websocket-gateway
+            port:
+              number: 3000
+          weight: 100
+      timeout: 300s  # Longer timeout for persistent connections
+      retries:
+        attempts: 1  # Limited retries for WebSocket
+        perTryTimeout: 100s
+        retryOn: refused-stream
+  # WebSocket upgrade support
+  websocketUpgrade: true
+

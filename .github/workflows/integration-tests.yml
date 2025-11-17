@@ -1,0 +1,181 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run integration tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  integration-tests:
+    name: Run Integration Test Suite
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: metargb_test
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup test database
+        run: |
+          mysql -h 127.0.0.1 -u test_user -ptest_password metargb_test < scripts/schema.sql
+          mysql -h 127.0.0.1 -u test_user -ptest_password metargb_test < tests/fixtures/test_data.sql
+
+      - name: Build all services
+        run: |
+          for service in services/*/; do
+            if [ -f "$service/go.mod" ]; then
+              echo "Building $(basename $service)..."
+              cd $service
+              go build -o ./bin/server ./cmd/server/main.go
+              cd ../..
+            fi
+          done
+
+      - name: Start services
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: metargb_test
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: |
+          # Start all services in background
+          for service in services/*/; do
+            if [ -f "$service/bin/server" ]; then
+              service_name=$(basename $service)
+              echo "Starting $service_name..."
+              cd $service
+              ./bin/server &
+              echo $! > /tmp/$service_name.pid
+              cd ../..
+            fi
+          done
+          
+          # Wait for services to be ready
+          sleep 15
+
+      - name: Run integration tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: metargb_test
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: |
+          cd tests/integration
+          go test -v -timeout 10m ./...
+
+      - name: Run golden JSON tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: metargb_test
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+        run: |
+          cd tests/golden
+          go test -v -timeout 5m ./...
+
+      - name: Stop services
+        if: always()
+        run: |
+          for pid_file in /tmp/*.pid; do
+            if [ -f "$pid_file" ]; then
+              kill $(cat $pid_file) 2>/dev/null || true
+            fi
+          done
+
+  golden-json-validation:
+    name: Golden JSON Validation
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: metargb_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup test database
+        run: |
+          mysql -h 127.0.0.1 -u root -proot_password metargb_test < scripts/schema.sql
+          mysql -h 127.0.0.1 -u root -proot_password metargb_test < tests/fixtures/test_data.sql
+
+      - name: Run golden JSON comparison
+        env:
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: metargb_test
+          DB_USER: root
+          DB_PASSWORD: root_password
+        run: |
+          cd tests/golden
+          go test -v -run TestGoldenJSON
+
+      - name: Upload golden test report
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: golden-test-diffs
+          path: tests/golden/diffs/
+

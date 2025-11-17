@@ -1,0 +1,69 @@
+{{define "email/dynasty/join_request_sent"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/dynasty/join_request_sent/content"}}
+  <h1>درخواست پیوستن ارسال شد</h1>
+  <p>
+    {{with .RequesterName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    درخواست تو برای پیوستن به خاندان {{with .DynastyName}}{{.}}{{else}}منتخب{{end}} ثبت شد. منتظر تأیید سرپرست خاندان باش.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>نام خاندان</th>
+        <td>{{with .DynastyName}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .DynastyCode}}
+      <tr>
+        <th>شناسه خاندان</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .RequesterCode}}
+      <tr>
+        <th>شناسه درخواست‌کننده</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .Message}}
+      <tr>
+        <th>پیام همراه</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .SubmittedDate}}
+      <tr>
+        <th>تاریخ ارسال</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .SubmittedTime}}
+      <tr>
+        <th>ساعت ارسال</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    وضعیت درخواست را از پنل خاندان می‌توانی دنبال کنی. در صورت انصراف، درخواست را لغو کن تا محدودیت ارسال مجدد نداشته باشی.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .ManageURL}}
+      <a href="{{.}}" class="button">مشاهده وضعیت</a>
+    {{end}}
+    {{with .CancelURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">لغو درخواست</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    برای آشنایی بیشتر با قوانین خاندان‌ها، راهنمای متارنگ را مطالعه کن.
+  </p>
+{{end}}
+
+

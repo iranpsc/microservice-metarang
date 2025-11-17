@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package storage;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/storage";
+
+// FileStorageService handles file uploads and management
+service FileStorageService {
+  rpc UploadFile(stream UploadFileRequest) returns (UploadFileResponse);
+  rpc ChunkUpload(ChunkUploadRequest) returns (ChunkUploadResponse);
+  rpc GetFile(GetFileRequest) returns (stream GetFileResponse);
+  rpc DeleteFile(DeleteFileRequest) returns (common.Empty);
+  rpc GetFilesByEntity(GetFilesByEntityRequest) returns (FilesResponse);
+}
+
+// ImageService handles polymorphic image management
+service ImageService {
+  rpc CreateImage(CreateImageRequest) returns (ImageResponse);
+  rpc GetImages(GetImagesRequest) returns (ImagesResponse);
+  rpc DeleteImage(DeleteImageRequest) returns (common.Empty);
+}
+
+// Messages
+
+// Streaming upload for large files
+message UploadFileRequest {
+  oneof data {
+    FileMetadata metadata = 1; // First message contains metadata
+    bytes chunk_data = 2; // Subsequent messages contain chunks
+  }
+}
+
+message FileMetadata {
+  string filename = 1;
+  string content_type = 2;
+  int64 file_size = 3;
+  string imageable_type = 4; // For polymorphic relation (e.g., "App\\Models\\User")
+  uint64 imageable_id = 5; // For polymorphic relation
+  string upload_path = 6; // FTP path or storage path
+}
+
+message UploadFileResponse {
+  string file_url = 1;
+  string filename = 2;
+  int64 file_size = 3;
+  bool success = 4;
+  string message = 5;
+}
+
+message GetFileRequest {
+  string file_path = 1; // FTP path or storage path
+}
+
+message GetFileResponse {
+  bytes data = 1;
+  string content_type = 2;
+  int64 file_size = 3;
+}
+
+message DeleteFileRequest {
+  string file_path = 1; // FTP path or storage path
+}
+
+message GetFilesByEntityRequest {
+  string imageable_type = 1; // e.g., "App\\Models\\User"
+  uint64 imageable_id = 2;
+  string type = 3; // optional: filter by type (profile, feature, etc.)
+}
+
+message FilesResponse {
+  repeated FileInfo files = 1;
+}
+
+message FileInfo {
+  string url = 1;
+  string filename = 2;
+  int64 file_size = 3;
+  string content_type = 4;
+  string created_at = 5;
+}
+
+// Image Service Messages
+
+message CreateImageRequest {
+  string imageable_type = 1; // Polymorphic type (e.g., "App\\Models\\User")
+  uint64 imageable_id = 2; // Polymorphic ID
+  string url = 3; // Image URL after upload
+  string type = 4; // Optional: profile, feature, etc.
+}
+
+message ImageResponse {
+  uint64 id = 1;
+  string imageable_type = 2;
+  uint64 imageable_id = 3;
+  string url = 4;
+  string type = 5;
+  string created_at = 6; // Jalali formatted
+}
+
+message GetImagesRequest {
+  string imageable_type = 1;
+  uint64 imageable_id = 2;
+  string type = 3; // optional filter
+}
+
+message ImagesResponse {
+  repeated ImageResponse images = 1;
+}
+
+message DeleteImageRequest {
+  uint64 image_id = 1;
+}
+
+// Chunk Upload Messages
+
+message ChunkUploadRequest {
+  string upload_id = 1; // Unique identifier for the upload session
+  bytes chunk_data = 2; // The chunk data
+  int32 chunk_index = 3; // Index of this chunk
+  int32 total_chunks = 4; // Total number of chunks
+  string filename = 5; // Original filename
+  string content_type = 6; // MIME type
+  int64 total_size = 7; // Total file size
+  string upload_path = 8; // Optional: custom upload path
+}
+
+message ChunkUploadResponse {
+  bool success = 1;
+  string message = 2;
+  double percentage_done = 3; // Upload progress percentage (0-100)
+  bool is_finished = 4; // True when all chunks are uploaded
+  string file_url = 5; // File URL (only when is_finished = true)
+  string file_path = 6; // File path in storage (only when is_finished = true)
+  string final_filename = 7; // Final filename with timestamp (only when is_finished = true)
+}
+

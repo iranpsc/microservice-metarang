@@ -1,0 +1,52 @@
+{{define "email/otp"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/otp/content"}}
+  <h1>کد تأیید ورود</h1>
+  <p>
+    {{with .RecipientName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    برای تکمیل ورود یا تأیید عملیات امنیتی در متارنگ از کد یکبار مصرف زیر استفاده کن.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>شناسه شهروندی</th>
+        <td>{{with .UserCode}}{{.}}{{else}}نامشخص{{end}}</td>
+      </tr>
+      <tr>
+        <th>کد تأیید</th>
+        <td style="font-size: 28px; letter-spacing: 4px; font-weight: 700;">{{.OtpCode}}</td>
+      </tr>
+      <tr>
+        <th>اعتبار</th>
+        <td>{{with .ExpirationWindow}}{{.}}{{else}}۳۰ دقیقه{{end}}</td>
+      </tr>
+      {{with .RequestIP}}
+      <tr>
+        <th>آی‌پی درخواست</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .RequestedAt}}
+      <tr>
+        <th>زمان درخواست</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  {{with .PrimaryAction}}
+    <div style="text-align: center;">
+      <a href="{{.URL}}" class="button">{{.Label}}</a>
+    </div>
+  {{end}}
+
+  <p class="muted" style="margin-top:24px;">
+    اگر این درخواست از طرف شما نبوده است، رمز عبورت را تغییر بده و با تیم پشتیبانی متارنگ تماس بگیر.
+  </p>
+{{end}}
+
+

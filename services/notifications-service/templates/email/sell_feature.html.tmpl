@@ -1,0 +1,87 @@
+{{define "email/sell_feature"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/sell_feature/content"}}
+  <h1>فروش موفق VOD</h1>
+  <p>
+    {{with .SellerName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    عملیات فروش VOD با موفقیت ثبت شد و دارایی به خریدار منتقل گردید. جزئیات معامله را بررسی کن.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>شناسه فروشنده</th>
+        <td>{{with .SellerCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>شناسه خریدار</th>
+        <td>{{with .BuyerCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>شناسه VOD</th>
+        <td>{{with .FeatureID}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .FeatureArea}}
+      <tr>
+        <th>متراژ</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .FeatureApplication}}
+      <tr>
+        <th>کاربری</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      <tr>
+        <th>مبلغ IRR</th>
+        <td>{{with .PriceIRR}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>مبلغ PSC</th>
+        <td>{{with .PricePSC}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .TransactionId}}
+      <tr>
+        <th>شناسه تراکنش</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .TransactionDate}}
+      <tr>
+        <th>تاریخ ثبت</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .TransactionTime}}
+      <tr>
+        <th>ساعت ثبت</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    اگر این فروش بدون اطلاع تو انجام شده است، فوراً با تیم پشتیبانی تماس بگیر تا دارایی بررسی و در صورت نیاز قفل شود.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .DisputeURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">گزارش مغایرت</a>
+    {{end}}
+    {{with .SecurityURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #795E8B;">پروتکل‌های امنیتی</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    وضعیت مبالغ را از کیف پول متارنگ پیگیری کن. در صورت نیاز می‌توانی با
+    {{with .ContactURL}}<a href="{{.}}" style="color:#b0a7b7;">پشتیبانی</a>{{else}}پشتیبانی متارنگ{{end}}
+    در ارتباط باشی.
+  </p>
+{{end}}
+
+

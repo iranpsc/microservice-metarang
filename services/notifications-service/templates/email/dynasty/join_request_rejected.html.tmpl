@@ -1,0 +1,58 @@
+{{define "email/dynasty/join_request_rejected"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/dynasty/join_request_rejected/content"}}
+  <h1>درخواست پیوستن رد شد</h1>
+  <p>
+    {{with .RecipientName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    متأسفانه درخواست تو برای پیوستن به خاندان {{with .DynastyName}}{{.}}{{else}}منتخب{{end}} تأیید نشد.
+    می‌توانی پس از بررسی دلایل احتمالی، درخواست تازه‌ای ثبت کنی یا به خاندان دیگری بپیوندی.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>نام خاندان</th>
+        <td>{{with .DynastyName}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .DynastyCode}}
+      <tr>
+        <th>شناسه خاندان</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .RejectedAt}}
+      <tr>
+        <th>زمان رد</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .RejectionReason}}
+      <tr>
+        <th>دلیل اعلام شده</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    برای افزایش شانس پذیرش، پروفایل خود را کامل کن و اهداف مشارکتت را شفاف بنویس.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .ExploreURL}}
+      <a href="{{.}}" class="button">جستجوی خاندان‌ها</a>
+    {{end}}
+    {{with .ProfileURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">ویرایش پروفایل</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    متارنگ همیشه پذیرای ایده‌های تازه است؛ ناامید نشو و دوباره تلاش کن.
+  </p>
+{{end}}
+
+

@@ -1,0 +1,128 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{with .Subject}}{{.}}{{else}}MetaRGB Notification{{end}}</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #3d1554;
+      font-family: 'IRANYekan', 'Tahoma', sans-serif;
+      direction: rtl;
+      color: #ffffff;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #3d1554;
+    }
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      background-color: #57366e;
+      border-left: 4px solid #fd7e14;
+      border-right: 4px solid #fd7e14;
+      box-sizing: border-box;
+    }
+    .spacer {
+      height: 32px;
+    }
+    .header,
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+    }
+    .header img,
+    .footer img {
+      max-width: 180px;
+    }
+    .body {
+      padding: 32px 48px;
+      background-color: rgba(61, 21, 84, 0.35);
+    }
+    h1, h2, h3 {
+      font-weight: 600;
+      margin: 0 0 16px;
+      color: #fd7e14;
+    }
+    p {
+      font-size: 16px;
+      line-height: 1.7;
+      margin: 0 0 16px;
+      color: #ffffff;
+    }
+    a.button {
+      display: inline-block;
+      background-color: #fd7e14;
+      color: #ffffff;
+      text-decoration: none;
+      padding: 14px 36px;
+      border-radius: 32px;
+      font-weight: 600;
+      margin: 12px 0;
+    }
+    .details-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 24px 0;
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+    .details-table th,
+    .details-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: right;
+      font-size: 15px;
+    }
+    .details-table th {
+      width: 40%;
+      color: #fd7e14;
+      font-weight: 600;
+    }
+    .muted {
+      color: #b0a7b7;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="spacer"></div>
+    <div class="container">
+      <div class="header">
+        <img src="{{with .Assets.LogoURL}}{{.}}{{else}}https://rgb.irpsc.com/images/logo/metargb-500.png{{end}}" alt="MetaRGB">
+      </div>
+      <div class="body">
+        {{if .ContentTemplate}}
+          {{template .ContentTemplate .}}
+        {{else}}
+          <p>سلام {{.RecipientName}}</p>
+          <p>این یک اعلان خودکار از متارنگ است.</p>
+        {{end}}
+      </div>
+      <div class="footer">
+        <p class="muted">
+          {{with .Footer.Tagline}}{{.}}{{else}}ساختارسازی شده با هدف حاکمیت موازی زیرنظر شرکت تعاونی زنجیره تامین بهشت (irpsc.com){{end}}
+        </p>
+        <p class="muted">
+          {{with .Footer.Links}}
+            {{range $index, $item := .}}
+              {{if $index}} | {{end}}<a href="{{$item.URL}}" style="color:#b0a7b7; text-decoration:none;">{{$item.Label}}</a>
+            {{end}}
+          {{else}}
+            <a href="https://target.irpsc.com" style="color:#b0a7b7; text-decoration:none;">حم</a> |
+            <a href="https://irpsc.com/human-masterpiece.html" style="color:#b0a7b7; text-decoration:none;">پیش به سوی شاهکار بشریت</a>
+          {{end}}
+        </p>
+      </div>
+    </div>
+    <div class="spacer"></div>
+  </div>
+</body>
+</html>
+{{end}}
+
+

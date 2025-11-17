@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commercial-service
+  namespace: metargb
+  labels:
+    app: commercial-service
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: commercial-service
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: commercial-service
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: commercial-service
+        image: metargb/commercial-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 50052
+          name: grpc
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: metargb-config
+              key: db.host
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: metargb-config
+              key: db.port
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: metargb-secrets
+              key: db.user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: metargb-secrets
+              key: db.password
+        - name: DB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: metargb-config
+              key: db.database
+        - name: PARSIAN_MERCHANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: metargb-secrets
+              key: parsian.merchant.id
+        - name: PARSIAN_LOAN_MERCHANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: metargb-secrets
+              key: parsian.loan.merchant.id
+        - name: GRPC_PORT
+          value: "50052"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command: ["/bin/sh", "-c", "nc -z localhost 50052"]
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command: ["/bin/sh", "-c", "nc -z localhost 50052"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: commercial-service
+  namespace: metargb
+  labels:
+    app: commercial-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 50052
+    targetPort: 50052
+    protocol: TCP
+    name: grpc
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app: commercial-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: commercial-service-hpa
+  namespace: metargb
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: commercial-service
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+

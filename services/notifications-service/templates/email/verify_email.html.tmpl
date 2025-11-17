@@ -1,0 +1,58 @@
+{{define "email/verify_email"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/verify_email/content"}}
+  <h1>تأیید ایمیل متارنگ</h1>
+  <p>
+    {{with .RecipientEmail}}سلام {{.}}،{{else}}سلام دوست متارنگی،{{end}}
+    تنها یک گام تا ورود به دنیای موازی متارنگ باقی مانده است. برای فعال‌سازی حساب روی دکمه زیر کلیک کن.
+  </p>
+
+  {{with .VerifyURL}}
+  <div style="text-align: center; margin: 24px 0;">
+    <a href="{{.}}" class="button">تأیید ایمیل</a>
+  </div>
+  <p style="word-break: break-all; text-align:center;">
+    اگر دکمه برایت قابل مشاهده نیست از لینک زیر استفاده کن:<br>
+    <a href="{{.}}" style="color:#fd7e14;">{{.}}</a>
+  </p>
+  {{end}}
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>ایمیل ثبت شده</th>
+        <td>{{with .RecipientEmail}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .SignupDate}}
+      <tr>
+        <th>تاریخ ثبت نام</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .SignupTime}}
+      <tr>
+        <th>زمان ثبت نام</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      <tr>
+        <th>اعتبار لینک</th>
+        <td>{{with .ExpiresIn}}{{.}}{{else}}۲۴ ساعت{{end}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {{with .ReRegisterURL}}
+  <div style="text-align: center; margin-top: 8px;">
+    <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">ثبت‌نام مجدد</a>
+  </div>
+  {{end}}
+
+  <p class="muted" style="margin-top:24px;">
+    اگر این درخواست از طرف شما نبوده است، می‌توانید ایمیل را نادیده بگیرید. حساب‌های تأیید نشده پس از ۲۴ ساعت حذف می‌شوند.
+  </p>
+{{end}}
+
+

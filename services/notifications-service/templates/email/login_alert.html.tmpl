@@ -1,0 +1,69 @@
+{{define "email/login_alert"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/login_alert/content"}}
+  <h1>ورود موفق به متارنگ</h1>
+  <p>
+    {{with .RecipientName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    ورود تازه‌ای به حساب کاربری متارنگ ثبت شد. اگر این ورود توسط تو انجام شده است، نیازی به اقدام دیگری نیست.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>شناسه شهروندی</th>
+        <td>{{with .UserCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .LoginDate}}
+      <tr>
+        <th>تاریخ ورود</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .LoginTime}}
+      <tr>
+        <th>ساعت ورود</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .IPAddress}}
+      <tr>
+        <th>آی‌پی</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .UserAgent}}
+      <tr>
+        <th>مرورگر / دستگاه</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .Location}}
+      <tr>
+        <th>موقعیت تقریبی</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    اگر این ورود توسط تو انجام نشده، گذرواژه را تغییر بده و تنظیمات امنیتی (فعال‌سازی ۲FA، بررسی نشست‌های فعال) را فوراً بازبینی کن.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .SecurityURL}}
+      <a href="{{.}}" class="button">تنظیمات امنیتی</a>
+    {{end}}
+    {{with .SupportURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">گزارش ورود مشکوک</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    پیشنهاد می‌شود نشست‌های فعال را از پنل امنیتی بررسی و نشست‌های ناشناس را خاتمه دهی.
+  </p>
+{{end}}
+
+

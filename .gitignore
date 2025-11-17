@@ -1,0 +1,60 @@
+# Editor / OS metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependency directories
+node_modules/
+vendor/
+
+# Build artifacts & binaries
+bin/
+dist/
+build/
+tmp/
+temp/
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.o
+*.obj
+*.class
+*.pyc
+*.pyo
+*.whl
+coverage/
+*.coverage
+*.test
+
+# Logs
+*.log
+logs/
+
+# Environment & secrets
+.env
+.env.*
+*.env
+*.key
+*.pem
+config.env
+
+# Docker / Compose overrides
+docker/*.env
+docker/*.env.*
+
+# Miscellaneous
+*.iml
+*.orig
+*.tmp
+*.bak
+*.swp
+__pycache__/
+coverage-final.json
+
+

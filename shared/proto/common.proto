@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "metargb/shared/pb/common";
+
+// Empty response for operations that don't return data
+message Empty {}
+
+// Pagination request parameters
+message PaginationRequest {
+  int32 page = 1;
+  int32 per_page = 2;
+}
+
+// Pagination metadata in responses
+message PaginationMeta {
+  int32 current_page = 1;
+  int32 per_page = 2;
+  int32 total = 3;
+  int32 last_page = 4;
+}
+
+// Timestamp message
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+// User basic information (embedded in many responses)
+message UserBasic {
+  uint64 id = 1;
+  string code = 2;
+  string name = 3;
+  string email = 4;
+  string profile_photo = 5;
+}
+
+// Wallet information
+message Wallet {
+  string psc = 1;          // formatted as compact number
+  string irr = 2;          // formatted as compact number
+  string red = 3;          // formatted as compact number
+  string blue = 4;         // formatted as compact number
+  string yellow = 5;       // formatted as compact number
+  string satisfaction = 6; // formatted with 1 decimal
+  int64 effect = 7;
+}
+
+// Error response
+message Error {
+  string code = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
+
+// Validation error for specific fields
+message ValidationError {
+  map<string, string> errors = 1; // field name => error message
+}
+

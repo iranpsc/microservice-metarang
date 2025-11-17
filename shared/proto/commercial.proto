@@ -1,0 +1,222 @@
+syntax = "proto3";
+
+package commercial;
+
+option go_package = "metargb/shared/pb/commercial";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Wallet Service - handles wallet operations
+service WalletService {
+  rpc GetWallet(GetWalletRequest) returns (WalletResponse);
+  rpc DeductBalance(DeductBalanceRequest) returns (DeductBalanceResponse);
+  rpc AddBalance(AddBalanceRequest) returns (AddBalanceResponse);
+  rpc LockBalance(LockBalanceRequest) returns (google.protobuf.Empty);
+  rpc UnlockBalance(UnlockBalanceRequest) returns (google.protobuf.Empty);
+}
+
+// Transaction Service - handles transaction history
+service TransactionService {
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+  rpc GetLatestTransaction(GetLatestTransactionRequest) returns (LatestTransactionResponse);
+  rpc CreateTransaction(CreateTransactionRequest) returns (Transaction);
+}
+
+// Payment Service - handles payment gateway integration
+service PaymentService {
+  rpc InitiatePayment(InitiatePaymentRequest) returns (InitiatePaymentResponse);
+  rpc HandleCallback(HandleCallbackRequest) returns (HandleCallbackResponse);
+  rpc VerifyPayment(VerifyPaymentRequest) returns (VerifyPaymentResponse);
+}
+
+// ============== Messages ==============
+
+message Wallet {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  double psc = 3;
+  double irr = 4;
+  double red = 5;
+  double blue = 6;
+  double yellow = 7;
+  double satisfaction = 8;
+  double effect = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message Transaction {
+  string id = 1;  // VARCHAR UUID (TR-xxxxx)
+  uint64 user_id = 2;
+  string asset = 3;
+  double amount = 4;
+  string action = 5;  // deposit, withdraw
+  int32 status = 6;
+  int64 token = 7;
+  int64 ref_id = 8;
+  string payable_type = 9;
+  uint64 payable_id = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message Order {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string asset = 3;
+  double amount = 4;
+  int32 status = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message Payment {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  int64 ref_id = 3;
+  string card_pan = 4;
+  string gateway = 5;
+  double amount = 6;
+  string product = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+// ============== Request/Response Messages ==============
+
+message GetWalletRequest {
+  uint64 user_id = 1;
+}
+
+message WalletResponse {
+  string psc = 1;
+  string irr = 2;
+  string red = 3;
+  string blue = 4;
+  string yellow = 5;
+  string satisfaction = 6;
+  double effect = 7;
+}
+
+message DeductBalanceRequest {
+  uint64 user_id = 1;
+  string asset = 2;  // psc, irr, red, blue, yellow
+  double amount = 3;
+}
+
+message DeductBalanceResponse {
+  bool success = 1;
+  string message = 2;
+  WalletResponse wallet = 3;
+}
+
+message AddBalanceRequest {
+  uint64 user_id = 1;
+  string asset = 2;
+  double amount = 3;
+}
+
+message AddBalanceResponse {
+  bool success = 1;
+  string message = 2;
+  WalletResponse wallet = 3;
+}
+
+message LockBalanceRequest {
+  uint64 user_id = 1;
+  string asset = 2;
+  double amount = 3;
+  string reason = 4;
+}
+
+message UnlockBalanceRequest {
+  uint64 user_id = 1;
+  string asset = 2;
+  double amount = 3;
+}
+
+message ListTransactionsRequest {
+  uint64 user_id = 1;
+  int32 page = 2;
+  int32 per_page = 3;
+  string search = 4;
+  string start_date_time = 5;
+  string end_date_time = 6;
+  repeated int32 status = 7;
+  string action = 8;
+  string asset = 9;
+  string type = 10;
+}
+
+message ListTransactionsResponse {
+  repeated TransactionResource transactions = 1;
+  int32 current_page = 2;
+  bool has_more_pages = 3;
+}
+
+message TransactionResource {
+  string id = 1;
+  string type = 2;
+  string asset = 3;
+  double amount = 4;
+  string action = 5;
+  int32 status = 6;
+  string date = 7;  // Jalali format Y/m/d
+  string time = 8;  // Jalali format H:m:s
+}
+
+message GetLatestTransactionRequest {
+  uint64 user_id = 1;
+}
+
+message LatestTransactionResponse {
+  Transaction latest_transaction = 1;
+  Payment latest_payment = 2;
+  Order latest_order = 3;
+}
+
+message CreateTransactionRequest {
+  uint64 user_id = 1;
+  string asset = 2;
+  double amount = 3;
+  string action = 4;
+  int32 status = 5;
+  string payable_type = 6;
+  uint64 payable_id = 7;
+}
+
+message InitiatePaymentRequest {
+  uint64 user_id = 1;
+  string asset = 2;
+  double amount = 3;
+}
+
+message InitiatePaymentResponse {
+  string payment_url = 1;
+  uint64 order_id = 2;
+  string transaction_id = 3;
+}
+
+message HandleCallbackRequest {
+  uint64 order_id = 1;
+  int32 status = 2;
+  int64 token = 3;
+}
+
+message HandleCallbackResponse {
+  bool success = 1;
+  string redirect_url = 2;
+  string message = 3;
+}
+
+message VerifyPaymentRequest {
+  int64 token = 1;
+  string merchant_id = 2;
+}
+
+message VerifyPaymentResponse {
+  bool success = 1;
+  int32 status = 2;
+  int64 reference_id = 3;
+  string card_hash = 4;
+  string message = 5;
+}

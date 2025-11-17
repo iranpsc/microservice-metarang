@@ -1,0 +1,98 @@
+{{define "email/buy_request_received"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/buy_request_received/content"}}
+  <h1>درخواست خرید جدید</h1>
+  <p>
+    {{with .OwnerName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    برای یکی از VODهای تو پیشنهاد خرید جدیدی ثبت شده است. خلاصه اطلاعات پیشنهاد را بررسی کن.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>شناسه مالک</th>
+        <td>{{with .OwnerCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>شناسه خریدار</th>
+        <td>{{with .BuyerCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>شناسه VOD</th>
+        <td>{{with .FeatureID}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>متراژ</th>
+        <td>{{with .FeatureArea}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>کاربری</th>
+        <td>{{with .FeatureApplication}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>تراکم</th>
+        <td>{{with .FeatureDensity}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .FeatureCoordinates}}
+      <tr>
+        <th>مرزبندی</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .FeatureAddress}}
+      <tr>
+        <th>آدرس</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      <tr>
+        <th>پیشنهاد IRR</th>
+        <td>{{with .OfferIRR}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>پیشنهاد PSC</th>
+        <td>{{with .OfferPSC}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .RequestId}}
+      <tr>
+        <th>شناسه پیشنهاد</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .CreatedDate}}
+      <tr>
+        <th>تاریخ دریافت</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .CreatedTime}}
+      <tr>
+        <th>ساعت دریافت</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    می‌توانی پیشنهاد را از پنل متارنگ بررسی، قبول یا رد کنی. اگر درخواست مشکوک به نظر می‌رسد، آن را گزارش بده تا پیگیری شود.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .ManageURL}}
+      <a href="{{.}}" class="button">مدیریت پیشنهاد</a>
+    {{end}}
+    {{with .SecurityURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #795E8B;">پروتکل‌های امنیتی</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    برای راهنمایی بیشتر با <a href="{{with .ContactURL}}{{.}}{{else}}https://rgb.irpsc.com/contact{{end}}" style="color:#b0a7b7;">پشتیبانی متارنگ</a> در تماس باش یا
+    {{with .FaqURL}}<a href="{{.}}" style="color:#b0a7b7;">سؤالات متداول متاورس</a>{{else}}سؤالات متداول متاورس{{end}} را بررسی کن.
+  </p>
+{{end}}
+
+

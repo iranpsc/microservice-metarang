@@ -1,0 +1,74 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+)
+
+type VariableRepository interface {
+	GetRate(ctx context.Context, key string) (float64, error)
+	GetAllRates(ctx context.Context) (map[string]float64, error)
+}
+
+type variableRepository struct {
+	db *sql.DB
+}
+
+func NewVariableRepository(db *sql.DB) VariableRepository {
+	return &variableRepository{db: db}
+}
+
+// GetRate retrieves the rate for a specific asset
+// Laravel equivalent: Variable::getRate('psc')
+func (r *variableRepository) GetRate(ctx context.Context, key string) (float64, error) {
+	query := `
+		SELECT value
+		FROM variables
+		WHERE ` + "`key`" + ` = ?
+		LIMIT 1
+	`
+	
+	var value float64
+	err := r.db.QueryRowContext(ctx, query, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return 0, fmt.Errorf("variable not found: %s", key)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to get variable rate: %w", err)
+	}
+
+	return value, nil
+}
+
+// GetAllRates retrieves all rates at once for efficiency
+func (r *variableRepository) GetAllRates(ctx context.Context) (map[string]float64, error) {
+	query := `
+		SELECT ` + "`key`" + `, value
+		FROM variables
+		WHERE ` + "`key`" + ` IN ('psc', 'red', 'blue', 'yellow')
+	`
+	
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all rates: %w", err)
+	}
+	defer rows.Close()
+
+	rates := make(map[string]float64)
+	for rows.Next() {
+		var key string
+		var value float64
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, fmt.Errorf("failed to scan rate: %w", err)
+		}
+		rates[key] = value
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return rates, nil
+}
+

@@ -1,0 +1,251 @@
+syntax = "proto3";
+
+package training;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/training";
+
+// VideoService handles video tutorials
+service VideoService {
+  rpc GetVideos(GetVideosRequest) returns (VideosResponse);
+  rpc GetVideo(GetVideoRequest) returns (VideoResponse);
+  rpc SearchVideos(SearchVideosRequest) returns (VideosResponse);
+  rpc IncrementView(IncrementViewRequest) returns (common.Empty);
+  rpc AddInteraction(AddInteractionRequest) returns (common.Empty);
+}
+
+// CategoryService handles video categories
+service CategoryService {
+  rpc GetCategories(GetCategoriesRequest) returns (CategoriesResponse);
+  rpc GetCategory(GetCategoryRequest) returns (CategoryResponse);
+  rpc GetSubCategory(GetSubCategoryRequest) returns (SubCategoryResponse);
+  rpc GetCategoryVideos(GetCategoryVideosRequest) returns (VideosResponse);
+}
+
+// CommentService handles video comments
+service CommentService {
+  rpc GetComments(GetCommentsRequest) returns (CommentsResponse);
+  rpc AddComment(AddCommentRequest) returns (CommentResponse);
+  rpc UpdateComment(UpdateCommentRequest) returns (CommentResponse);
+  rpc DeleteComment(DeleteCommentRequest) returns (common.Empty);
+  rpc AddCommentInteraction(AddCommentInteractionRequest) returns (common.Empty);
+  rpc ReportComment(ReportCommentRequest) returns (common.Empty);
+}
+
+// ReplyService handles comment replies
+service ReplyService {
+  rpc GetReplies(GetRepliesRequest) returns (RepliesResponse);
+  rpc AddReply(AddReplyRequest) returns (CommentResponse);
+  rpc UpdateReply(UpdateReplyRequest) returns (CommentResponse);
+  rpc DeleteReply(DeleteReplyRequest) returns (common.Empty);
+  rpc AddReplyInteraction(AddReplyInteractionRequest) returns (common.Empty);
+}
+
+// Messages
+
+// Video Messages
+message GetVideosRequest {
+  common.PaginationRequest pagination = 1;
+  uint64 category_id = 2; // optional filter
+  uint64 sub_category_id = 3; // optional filter
+}
+
+message GetVideoRequest {
+  string slug = 1;
+  uint64 user_id = 2; // optional for view tracking
+}
+
+message SearchVideosRequest {
+  string query = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message VideoResponse {
+  uint64 id = 1;
+  string title = 2;
+  string slug = 3;
+  string description = 4;
+  string video_url = 5;
+  string image_url = 6;
+  string file_name = 7;
+  string creator_code = 8;
+  common.UserBasic creator = 9;
+  CategoryInfo category = 10;
+  SubCategoryInfo sub_category = 11;
+  VideoStats stats = 12;
+  string created_at = 13; // Jalali formatted
+}
+
+message VideosResponse {
+  repeated VideoResponse videos = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message VideoStats {
+  int32 views_count = 1;
+  int32 likes_count = 2;
+  int32 dislikes_count = 3;
+  int32 comments_count = 4;
+}
+
+message IncrementViewRequest {
+  uint64 video_id = 1;
+  string ip_address = 2;
+}
+
+message AddInteractionRequest {
+  uint64 video_id = 1;
+  uint64 user_id = 2;
+  bool liked = 3; // true for like, false for dislike
+  string ip_address = 4;
+}
+
+// Category Messages
+message GetCategoriesRequest {
+  common.PaginationRequest pagination = 1;
+}
+
+message GetCategoryRequest {
+  string slug = 1;
+}
+
+message GetSubCategoryRequest {
+  string category_slug = 1;
+  string sub_category_slug = 2;
+}
+
+message GetCategoryVideosRequest {
+  string category_slug = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message CategoryResponse {
+  uint64 id = 1;
+  string name = 2;
+  string slug = 3;
+  string description = 4;
+  int32 videos_count = 5;
+  repeated SubCategoryInfo sub_categories = 6;
+}
+
+message CategoriesResponse {
+  repeated CategoryResponse categories = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message SubCategoryResponse {
+  uint64 id = 1;
+  string name = 2;
+  string slug = 3;
+  string description = 4;
+  CategoryInfo category = 5;
+  int32 videos_count = 6;
+}
+
+message CategoryInfo {
+  uint64 id = 1;
+  string name = 2;
+  string slug = 3;
+}
+
+message SubCategoryInfo {
+  uint64 id = 1;
+  string name = 2;
+  string slug = 3;
+}
+
+// Comment Messages
+message GetCommentsRequest {
+  uint64 video_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message AddCommentRequest {
+  uint64 video_id = 1;
+  uint64 user_id = 2;
+  string content = 3;
+}
+
+message UpdateCommentRequest {
+  uint64 comment_id = 1;
+  uint64 user_id = 2;
+  string content = 3;
+}
+
+message DeleteCommentRequest {
+  uint64 comment_id = 1;
+  uint64 user_id = 2;
+}
+
+message CommentResponse {
+  uint64 id = 1;
+  uint64 video_id = 2;
+  uint64 user_id = 3;
+  uint64 parent_id = 4; // null for top-level comments
+  string content = 5;
+  common.UserBasic user = 6;
+  CommentStats stats = 7;
+  string created_at = 8; // Jalali formatted
+  string updated_at = 9; // Jalali formatted
+}
+
+message CommentsResponse {
+  repeated CommentResponse comments = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message CommentStats {
+  int32 likes_count = 1;
+  int32 dislikes_count = 2;
+  int32 replies_count = 3;
+}
+
+message AddCommentInteractionRequest {
+  uint64 comment_id = 1;
+  uint64 user_id = 2;
+  bool liked = 3; // true for like, false for dislike
+  string ip_address = 4;
+}
+
+message ReportCommentRequest {
+  uint64 comment_id = 1;
+  uint64 user_id = 2;
+  string content = 3;
+}
+
+// Reply Messages
+message GetRepliesRequest {
+  uint64 comment_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message AddReplyRequest {
+  uint64 parent_comment_id = 1;
+  uint64 user_id = 2;
+  string content = 3;
+}
+
+message UpdateReplyRequest {
+  uint64 reply_id = 1;
+  uint64 user_id = 2;
+  string content = 3;
+}
+
+message DeleteReplyRequest {
+  uint64 reply_id = 1;
+  uint64 user_id = 2;
+}
+
+message RepliesResponse {
+  repeated CommentResponse replies = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message AddReplyInteractionRequest {
+  uint64 reply_id = 1;
+  uint64 user_id = 2;
+  bool liked = 3;
+  string ip_address = 4;
+}
+

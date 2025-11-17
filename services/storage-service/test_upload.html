@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage Service - Upload Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #ddd;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f9f9f9;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        
+        .upload-area.dragging {
+            border-color: #667eea;
+            background: #e8ebff;
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .file-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .file-info p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .file-info strong {
+            color: #333;
+        }
+        
+        .settings {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .setting-group {
+            margin-bottom: 15px;
+        }
+        
+        .setting-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .setting-group input[type="text"],
+        .setting-group input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+            word-break: break-all;
+        }
+        
+        .result pre {
+            margin: 0;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📤 Storage Service Upload Test</h1>
+        <p class="subtitle">Test the /api/upload endpoint with chunk support</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <p><strong>Click to select a file</strong></p>
+            <p style="font-size: 12px; color: #999; margin-top: 10px;">or drag and drop</p>
+            <input type="file" id="fileInput" accept="*/*">
+        </div>
+        
+        <div class="file-info" id="fileInfo"></div>
+        
+        <button id="uploadBtn" style="width: 100%;" disabled>Upload File</button>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="result" id="result"></div>
+        
+        <div class="settings">
+            <div class="setting-group">
+                <label for="apiUrl">API Endpoint:</label>
+                <input type="text" id="apiUrl" value="http://localhost:8000/api/upload">
+                <small style="color: #999;">Goes through Kong API Gateway → Storage Service</small>
+            </div>
+            
+            <div class="setting-group">
+                <label for="chunkSize">Chunk Size (bytes):</label>
+                <input type="number" id="chunkSize" value="1048576" min="1024">
+                <small style="color: #999;">Default: 1MB (1048576 bytes)</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const status = document.getElementById('status');
+        const fileInfo = document.getElementById('fileInfo');
+        const result = document.getElementById('result');
+        const apiUrlInput = document.getElementById('apiUrl');
+        const chunkSizeInput = document.getElementById('chunkSize');
+        
+        let selectedFile = null;
+        
+        // Upload area click
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragging');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragging');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+        
+        // File selection
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        function handleFileSelect() {
+            selectedFile = fileInput.files[0];
+            if (selectedFile) {
+                const sizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+                fileInfo.innerHTML = `
+                    <p><strong>📄 File:</strong> ${selectedFile.name}</p>
+                    <p><strong>📊 Size:</strong> ${sizeMB} MB (${selectedFile.size.toLocaleString()} bytes)</p>
+                    <p><strong>📋 Type:</strong> ${selectedFile.type || 'Unknown'}</p>
+                `;
+                fileInfo.style.display = 'block';
+                uploadBtn.disabled = false;
+                showStatus('File selected! Click "Upload File" to start.', 'info');
+            }
+        }
+        
+        // Upload button
+        uploadBtn.addEventListener('click', uploadFile);
+        
+        async function uploadFile() {
+            if (!selectedFile) return;
+            
+            uploadBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            result.style.display = 'none';
+            
+            const chunkSize = parseInt(chunkSizeInput.value);
+            const totalChunks = Math.ceil(selectedFile.size / chunkSize);
+            const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const apiUrl = apiUrlInput.value;
+            
+            showStatus(`Uploading in ${totalChunks} chunk(s)...`, 'info');
+            
+            try {
+                for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                    const start = chunkIndex * chunkSize;
+                    const end = Math.min(start + chunkSize, selectedFile.size);
+                    const chunk = selectedFile.slice(start, end);
+                    
+                    const formData = new FormData();
+                    formData.append('file', chunk);
+                    formData.append('upload_id', uploadId);
+                    formData.append('chunk_index', chunkIndex);
+                    formData.append('total_chunks', totalChunks);
+                    formData.append('filename', selectedFile.name);
+                    formData.append('content_type', selectedFile.type || 'application/octet-stream');
+                    formData.append('total_size', selectedFile.size);
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Update progress
+                    const progress = Math.round(data.done);
+                    progressFill.style.width = `${progress}%`;
+                    progressFill.textContent = `${progress}%`;
+                    showStatus(`${data.message} (${progress}%)`, 'info');
+                    
+                    if (data.is_finished) {
+                        showStatus('✅ Upload complete!', 'success');
+                        result.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                        result.style.display = 'block';
+                        
+                        // Reset after 3 seconds
+                        setTimeout(() => {
+                            uploadBtn.disabled = false;
+                            progressContainer.style.display = 'none';
+                            progressFill.style.width = '0%';
+                            progressFill.textContent = '0%';
+                        }, 3000);
+                        
+                        return;
+                    }
+                }
+            } catch (error) {
+                showStatus(`❌ Upload failed: ${error.message}`, 'error');
+                uploadBtn.disabled = false;
+                progressContainer.style.display = 'none';
+                console.error('Upload error:', error);
+            }
+        }
+        
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+        
+        // Format file size
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>
+

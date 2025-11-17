@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package calendar;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/calendar";
+
+// CalendarService handles calendar events and versions
+service CalendarService {
+  rpc GetEvents(GetEventsRequest) returns (EventsResponse);
+  rpc GetEvent(GetEventRequest) returns (EventResponse);
+  rpc FilterByDateRange(FilterByDateRangeRequest) returns (SimplifiedEventsResponse);
+  rpc GetLatestVersion(GetLatestVersionRequest) returns (LatestVersionResponse);
+  rpc AddInteraction(AddInteractionRequest) returns (EventResponse);
+}
+
+// Messages
+
+message GetEventsRequest {
+  string type = 1; // "event" or "version"
+  string search = 2; // search query (optional)
+  string date = 3; // Jalali date for filtering (optional)
+  uint64 user_id = 4; // for user interaction loading (optional)
+  common.PaginationRequest pagination = 5;
+}
+
+message GetEventRequest {
+  uint64 event_id = 1;
+  uint64 user_id = 2; // for user interaction loading (optional)
+}
+
+message FilterByDateRangeRequest {
+  string start_date = 1; // Jalali date
+  string end_date = 2; // Jalali date
+}
+
+message GetLatestVersionRequest {
+  // Empty - gets the latest version event
+}
+
+message AddInteractionRequest {
+  uint64 event_id = 1;
+  uint64 user_id = 2;
+  int32 liked = 3; // 1=like, 0=dislike, -1=remove interaction
+}
+
+message EventResponse {
+  uint64 id = 1;
+  string title = 2;
+  string description = 3; // Laravel calls it description not content
+  string starts_at = 4; // Jalali formatted Y/m/d H:i
+  string ends_at = 5; // Jalali formatted Y/m/d H:i (only for events, not versions)
+  int32 views = 6; // view count (only for events)
+  string btn_name = 7; // only for events
+  string btn_link = 8; // only for events
+  string color = 9; // only for events
+  string image = 10; // only for events
+  int32 likes = 11; // like count (only for events)
+  int32 dislikes = 12; // dislike count (only for events)
+  UserInteraction user_interaction = 13; // null if user not authenticated (only for events)
+  string version_title = 14; // only for versions
+}
+
+message EventsResponse {
+  repeated EventResponse events = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+// Simplified event response for date range filter
+message SimplifiedEventResponse {
+  uint64 id = 1;
+  string title = 2;
+  string starts_at = 3; // Jalali formatted Y/m/d (date only)
+  string ends_at = 4; // Jalali formatted Y/m/d (date only)
+  string color = 5;
+}
+
+message SimplifiedEventsResponse {
+  repeated SimplifiedEventResponse events = 1;
+}
+
+message UserInteraction {
+  bool has_liked = 1;
+  bool has_disliked = 2;
+}
+
+message LatestVersionResponse {
+  string version_title = 1;
+}
+

@@ -1,0 +1,93 @@
+name: Load Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Test duration (e.g., 5m, 10m)'
+        required: false
+        default: '5m'
+      vus:
+        description: 'Number of virtual users'
+        required: false
+        default: '100'
+  schedule:
+    # Run weekly on Sundays at 3 AM UTC
+    - cron: '0 3 * * 0'
+
+env:
+  K6_VERSION: '0.48.0'
+
+jobs:
+  load-test:
+    name: Run Load Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          curl -L https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz | tar xvz
+          sudo mv k6-v${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Get service endpoints
+        id: endpoints
+        run: |
+          KONG_URL=$(kubectl get svc kong-proxy -n metargb -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "kong_url=http://${KONG_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run auth service load test
+        env:
+          DURATION: ${{ github.event.inputs.duration || '5m' }}
+          VUS: ${{ github.event.inputs.vus || '100' }}
+          API_URL: ${{ steps.endpoints.outputs.kong_url }}
+        run: |
+          k6 run \
+            --duration=$DURATION \
+            --vus=$VUS \
+            --out json=results-auth.json \
+            tests/load/auth_test.js
+
+      - name: Run features service load test
+        env:
+          DURATION: ${{ github.event.inputs.duration || '5m' }}
+          VUS: ${{ github.event.inputs.vus || '100' }}
+          API_URL: ${{ steps.endpoints.outputs.kong_url }}
+        run: |
+          k6 run \
+            --duration=$DURATION \
+            --vus=$VUS \
+            --out json=results-features.json \
+            tests/load/features_test.js
+
+      - name: Run commercial service load test
+        env:
+          DURATION: ${{ github.event.inputs.duration || '5m' }}
+          VUS: ${{ github.event.inputs.vus || '100' }}
+          API_URL: ${{ steps.endpoints.outputs.kong_url }}
+        run: |
+          k6 run \
+            --duration=$DURATION \
+            --vus=$VUS \
+            --out json=results-commercial.json \
+            tests/load/commercial_test.js
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: results-*.json
+
+      - name: Check performance thresholds
+        run: |
+          # Parse results and fail if p95 > 500ms or error rate > 0.1%
+          python3 tests/load/check_thresholds.py results-*.json
+

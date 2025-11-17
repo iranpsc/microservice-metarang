@@ -1,0 +1,227 @@
+syntax = "proto3";
+
+package dynasty;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/dynasty";
+
+// DynastyService handles dynasty management
+service DynastyService {
+  rpc CreateDynasty(CreateDynastyRequest) returns (DynastyResponse);
+  rpc GetDynasty(GetDynastyRequest) returns (DynastyResponse);
+  rpc UpdateDynastyFeature(UpdateDynastyFeatureRequest) returns (DynastyResponse);
+  rpc GetUserDynasty(GetUserDynastyRequest) returns (DynastyResponse);
+}
+
+// JoinRequestService handles family join requests
+service JoinRequestService {
+  rpc SendJoinRequest(SendJoinRequestRequest) returns (JoinRequestResponse);
+  rpc GetSentRequests(GetSentRequestsRequest) returns (JoinRequestsResponse);
+  rpc GetReceivedRequests(GetReceivedRequestsRequest) returns (JoinRequestsResponse);
+  rpc GetJoinRequest(GetJoinRequestRequest) returns (JoinRequestResponse);
+  rpc AcceptJoinRequest(AcceptJoinRequestRequest) returns (common.Empty);
+  rpc RejectJoinRequest(RejectJoinRequestRequest) returns (common.Empty);
+  rpc DeleteJoinRequest(DeleteJoinRequestRequest) returns (common.Empty);
+}
+
+// FamilyService handles family members management
+service FamilyService {
+  rpc GetFamily(GetFamilyRequest) returns (FamilyResponse);
+  rpc GetFamilyMembers(GetFamilyMembersRequest) returns (FamilyMembersResponse);
+  rpc SetChildPermissions(SetChildPermissionsRequest) returns (common.Empty);
+}
+
+// DynastyPrizeService handles dynasty prizes
+service DynastyPrizeService {
+  rpc GetPrizes(GetPrizesRequest) returns (PrizesResponse);
+  rpc GetPrize(GetPrizeRequest) returns (PrizeResponse);
+  rpc ClaimPrize(ClaimPrizeRequest) returns (common.Empty);
+}
+
+// Messages
+
+message CreateDynastyRequest {
+  uint64 user_id = 1;
+  uint64 feature_id = 2;
+}
+
+message GetDynastyRequest {
+  uint64 dynasty_id = 1;
+}
+
+message UpdateDynastyFeatureRequest {
+  uint64 dynasty_id = 1;
+  uint64 feature_id = 2;
+  uint64 user_id = 3;
+}
+
+message GetUserDynastyRequest {
+  uint64 user_id = 1;
+}
+
+message DynastyResponse {
+  bool user_has_dynasty = 1;
+  uint64 id = 2;
+  uint64 family_id = 3;
+  string created_at = 4; // Jalali formatted
+  string profile_image = 5;
+  DynastyFeature dynasty_feature = 6;
+  repeated AvailableFeature features = 7;
+}
+
+message DynastyFeature {
+  uint64 id = 1;
+  string properties_id = 2;
+  string area = 3;
+  string density = 4;
+  string feature_profit_increase = 5;
+  int32 family_members_count = 6;
+  string last_updated = 7; // Jalali formatted
+}
+
+message AvailableFeature {
+  uint64 id = 1;
+  string properties_id = 2;
+  string density = 3;
+  string stability = 4;
+  string area = 5;
+}
+
+message SendJoinRequestRequest {
+  uint64 from_user_id = 1;
+  uint64 to_user_id = 2;
+  string relationship = 3; // father, mother, offspring, spouse
+  string message = 4;
+  ChildPermissions permissions = 5; // only for offspring relationship
+}
+
+message JoinRequestResponse {
+  uint64 id = 1;
+  uint64 from_user = 2;
+  uint64 to_user = 3;
+  int32 status = 4;
+  string relationship = 5;
+  string message = 6;
+  common.UserBasic to_user_info = 7;
+  DynastyPrize request_prize = 8;
+  string created_at = 9; // Jalali formatted
+}
+
+message GetSentRequestsRequest {
+  uint64 user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message GetReceivedRequestsRequest {
+  uint64 user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message GetJoinRequestRequest {
+  uint64 request_id = 1;
+  uint64 user_id = 2; // for authorization
+}
+
+message JoinRequestsResponse {
+  repeated JoinRequestResponse requests = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message AcceptJoinRequestRequest {
+  uint64 request_id = 1;
+  uint64 user_id = 2;
+}
+
+message RejectJoinRequestRequest {
+  uint64 request_id = 1;
+  uint64 user_id = 2;
+}
+
+message DeleteJoinRequestRequest {
+  uint64 request_id = 1;
+  uint64 user_id = 2;
+}
+
+message GetFamilyRequest {
+  uint64 family_id = 1;
+  uint64 dynasty_id = 2;
+}
+
+message FamilyResponse {
+  uint64 id = 1;
+  uint64 dynasty_id = 2;
+  repeated FamilyMember members = 3;
+}
+
+message GetFamilyMembersRequest {
+  uint64 family_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message FamilyMembersResponse {
+  repeated FamilyMember members = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message FamilyMember {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string relationship = 3;
+  common.UserBasic user_info = 4;
+  string created_at = 5; // Jalali formatted
+}
+
+message SetChildPermissionsRequest {
+  uint64 child_user_id = 1;
+  uint64 parent_user_id = 2;
+  ChildPermissions permissions = 3;
+}
+
+message ChildPermissions {
+  bool verified = 1;
+  bool BFR = 2;  // Buy Feature Request
+  bool SF = 3;   // Sell Feature
+  bool W = 4;    // Wallet
+  bool JU = 5;   // Join/Unjoin
+  bool DM = 6;   // Dynasty Management
+  bool PIUP = 7; // Personal Info Update
+  bool PITC = 8; // Personal Info Type Change
+  bool PIC = 9;  // Personal Info Change
+  bool ESOO = 10; // Edit Settings On/Off
+  bool COTB = 11; // Change Of The Birth
+}
+
+message GetPrizesRequest {
+  uint64 user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message PrizesResponse {
+  repeated DynastyPrize prizes = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message GetPrizeRequest {
+  uint64 prize_id = 1;
+}
+
+message PrizeResponse {
+  DynastyPrize prize = 1;
+}
+
+message ClaimPrizeRequest {
+  uint64 prize_id = 1;
+  uint64 user_id = 2;
+}
+
+message DynastyPrize {
+  uint64 id = 1;
+  string member = 2;
+  string satisfaction = 3;
+  string introduction_profit_increase = 4;
+  string accumulated_capital_reserve = 5;
+  string data_storage = 6;
+  int32 psc = 7;
+}
+

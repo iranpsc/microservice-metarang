@@ -1,0 +1,250 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "metargb/shared/pb/auth";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Auth Service - handles authentication and authorization
+service AuthService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Redirect(RedirectRequest) returns (RedirectResponse);
+  rpc Callback(CallbackRequest) returns (CallbackResponse);
+  rpc GetMe(GetMeRequest) returns (UserResponse);
+  rpc Logout(LogoutRequest) returns (google.protobuf.Empty);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  rpc RequestAccountSecurity(RequestAccountSecurityRequest) returns (google.protobuf.Empty);
+  rpc VerifyAccountSecurity(VerifyAccountSecurityRequest) returns (google.protobuf.Empty);
+}
+
+// User Service - handles user profile and settings
+service UserService {
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc UpdateProfile(UpdateProfileRequest) returns (User);
+  rpc GetUserWallet(GetUserWalletRequest) returns (UserWalletResponse);
+  rpc GetUserLevel(GetUserLevelRequest) returns (UserLevelResponse);
+}
+
+// KYC Service - handles KYC verification
+service KYCService {
+  rpc SubmitKYC(SubmitKYCRequest) returns (KYCResponse);
+  rpc GetKYCStatus(GetKYCStatusRequest) returns (KYCResponse);
+  rpc VerifyBankAccount(VerifyBankAccountRequest) returns (BankAccountResponse);
+}
+
+// ============== Messages ==============
+
+message User {
+  uint64 id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  string code = 5;
+  uint64 referrer_id = 6;
+  int32 score = 7;
+  google.protobuf.Timestamp last_seen = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp email_verified_at = 10;
+  google.protobuf.Timestamp phone_verified_at = 11;
+  string access_token = 12;
+  string refresh_token = 13;
+  string token_type = 14;
+  int64 expires_in = 15;
+  string ip = 16;
+}
+
+message KYC {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string fname = 3;
+  string lname = 4;
+  string full_name = 5;
+  int32 status = 6;
+  string birthdate = 7;
+  string national_code = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message Settings {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  int32 automatic_logout = 3;
+}
+
+message Image {
+  uint64 id = 1;
+  string url = 2;
+  string imageable_type = 3;
+  uint64 imageable_id = 4;
+}
+
+message Notification {
+  string id = 1;
+  string type = 2;
+  string data = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp read_at = 5;
+}
+
+message Level {
+  uint64 id = 1;
+  string title = 2;
+  string description = 3;
+  int32 score = 4;
+}
+
+// ============== Request/Response Messages ==============
+
+message RegisterRequest {
+  string back_url = 1;
+  string referral = 2;
+}
+
+message RegisterResponse {
+  string url = 1;
+}
+
+message RedirectRequest {
+  string redirect_to = 1;
+  string back_url = 2;
+}
+
+message RedirectResponse {
+  string url = 1;
+}
+
+message CallbackRequest {
+  string state = 1;
+  string code = 2;
+}
+
+message CallbackResponse {
+  string token = 1;
+  int32 expires_at = 2;
+  string redirect_url = 3;
+}
+
+message GetMeRequest {
+  string token = 1;
+}
+
+message UserResponse {
+  uint64 id = 1;
+  string name = 2;
+  string token = 3;
+  string access_token = 4;
+  int32 automatic_logout = 5;
+  string code = 6;
+  Level level = 7;
+  string image = 8;
+  int32 notifications = 9;
+  // CRITICAL: Preserve Laravel typos for API compatibility!
+  // Laravel has "socre" not "score" and "unasnwered" not "unanswered"
+  double socre_percentage_to_next_level = 10;
+  int32 unasnwered_questions_count = 11;
+  double hourly_profit_time_percentage = 12;
+  bool verified_kyc = 13;
+  string birthdate = 14;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  uint64 user_id = 2;
+  string email = 3;
+}
+
+message RequestAccountSecurityRequest {
+  uint64 user_id = 1;
+  int32 time_minutes = 2;
+  string phone = 3;
+}
+
+message VerifyAccountSecurityRequest {
+  uint64 user_id = 1;
+  string code = 2;
+  string ip = 3;
+  string user_agent = 4;
+}
+
+message GetUserRequest {
+  uint64 user_id = 1;
+}
+
+message UpdateProfileRequest {
+  uint64 user_id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+}
+
+message GetUserWalletRequest {
+  uint64 user_id = 1;
+}
+
+message UserWalletResponse {
+  string psc = 1;
+  string irr = 2;
+  string red = 3;
+  string blue = 4;
+  string yellow = 5;
+  string satisfaction = 6;
+  double effect = 7;
+}
+
+message GetUserLevelRequest {
+  uint64 user_id = 1;
+}
+
+message UserLevelResponse {
+  Level level = 1;
+  int32 score = 2;
+  double percentage_to_next = 3;
+}
+
+message SubmitKYCRequest {
+  uint64 user_id = 1;
+  string fname = 2;
+  string lname = 3;
+  string national_code = 4;
+  string birthdate = 5;
+}
+
+message KYCResponse {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string fname = 3;
+  string lname = 4;
+  int32 status = 5;
+  string birthdate = 6;
+}
+
+message GetKYCStatusRequest {
+  uint64 user_id = 1;
+}
+
+message VerifyBankAccountRequest {
+  uint64 user_id = 1;
+  string bank_name = 2;
+  string shaba_num = 3;
+  string card_num = 4;
+}
+
+message BankAccountResponse {
+  uint64 id = 1;
+  string bank_name = 2;
+  string shaba_num = 3;
+  string card_num = 4;
+  int32 status = 5;
+  string errors = 6;
+}

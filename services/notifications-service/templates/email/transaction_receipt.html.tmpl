@@ -1,0 +1,75 @@
+{{define "email/transaction_receipt"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/transaction_receipt/content"}}
+  <h1>رسید تراکنش متارنگ</h1>
+  <p>
+    {{with .RecipientName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    تراکنش خرید دارایی با موفقیت ثبت شد. جزئیات پرداخت در جدول زیر آمده است.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>شناسه شهروندی</th>
+        <td>{{with .UserCode}}{{.}}{{else}}نامشخص{{end}}</td>
+      </tr>
+      <tr>
+        <th>نام دارایی</th>
+        <td>{{with .AssetTitle}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>تعداد / حجم</th>
+        <td>{{with .Quantity}}{{.}}{{else}}۱{{end}}</td>
+      </tr>
+      <tr>
+        <th>مبلغ پرداخت شده</th>
+        <td>{{with .PaidAmount}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .PaidAmountPSC}}
+      <tr>
+        <th>PSC پرداخت شده</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      <tr>
+        <th>شناسه پرداخت</th>
+        <td>{{with .PaymentId}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .TransactionDate}}
+      <tr>
+        <th>تاریخ تراکنش</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .TransactionTime}}
+      <tr>
+        <th>ساعت تراکنش</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    اگر شما این تراکنش را انجام نداده‌اید، لطفاً فوراً دارایی را قفل کنید تا تیم امنیتی متارنگ آن را بررسی کند.
+  </p>
+
+  <div style="text-align: center; margin: 24px 0;">
+    {{with .LockURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">قفل دارایی</a>
+    {{end}}
+    {{with .SecurityURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #795E8B;">پروتکل‌های امنیتی</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    نیاز به راهنمایی بیشتر داری؟<br>
+    {{with .ContactURL}}<a href="{{.}}" style="color:#b0a7b7;">تماس با متارنگ</a>{{end}}
+    {{with .FaqURL}} | <a href="{{.}}" style="color:#b0a7b7;">انجمن متاورس ایران</a>{{end}}
+  </p>
+{{end}}
+
+

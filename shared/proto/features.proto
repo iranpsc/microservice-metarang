@@ -1,0 +1,323 @@
+syntax = "proto3";
+
+package features;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/features";
+
+// FeatureService handles feature CRUD operations
+service FeatureService {
+  rpc ListFeatures(ListFeaturesRequest) returns (FeaturesResponse);
+  rpc GetFeature(GetFeatureRequest) returns (FeatureResponse);
+  rpc UpdateFeature(UpdateFeatureRequest) returns (FeatureResponse);
+  rpc AddFeatureImages(AddFeatureImagesRequest) returns (FeatureResponse);
+  rpc GetMyFeatures(GetMyFeaturesRequest) returns (FeaturesResponse);
+}
+
+// FeatureMarketplaceService handles buying/selling features
+service FeatureMarketplaceService {
+  rpc BuyFeature(BuyFeatureRequest) returns (BuyFeatureResponse);
+  rpc SendBuyRequest(SendBuyRequestRequest) returns (BuyRequestResponse);
+  rpc AcceptBuyRequest(AcceptBuyRequestRequest) returns (BuyRequestResponse);
+  rpc CreateSellRequest(CreateSellRequestRequest) returns (SellRequestResponse);
+  rpc RequestGracePeriod(RequestGracePeriodRequest) returns (GracePeriodResponse);
+}
+
+// Messages
+
+message ListFeaturesRequest {
+  repeated string points = 1; // bbox coordinates
+  bool load_buildings = 2;
+  bool user_features_location = 3;
+}
+
+message FeaturesResponse {
+  repeated Feature features = 1;
+}
+
+message GetFeatureRequest {
+  uint64 feature_id = 1;
+}
+
+message FeatureResponse {
+  Feature feature = 1;
+}
+
+message UpdateFeatureRequest {
+  uint64 feature_id = 1;
+  FeatureProperties properties = 2;
+}
+
+message AddFeatureImagesRequest {
+  uint64 feature_id = 1;
+  repeated string image_urls = 2;
+}
+
+message GetMyFeaturesRequest {
+  uint64 user_id = 1;
+}
+
+message Feature {
+  uint64 id = 1;
+  uint64 map_id = 2;
+  uint64 owner_id = 3;
+  string type = 4;
+  FeatureProperties properties = 5;
+  Geometry geometry = 6;
+  repeated Image images = 7;
+  bool is_owned_by_auth_user = 8;
+}
+
+message FeatureProperties {
+  string id = 1; // VARCHAR PK
+  string address = 2;
+  int32 density = 3;
+  string date = 4;
+  string stability = 5; // as string
+  string label = 6;
+  string area = 7; // as string
+  int32 region = 8;
+  string karbari = 9;
+  string center = 10;
+  string owner = 11;
+  string rgb = 12;
+  string price_psc = 13; // VARCHAR, kept as string
+  string price_irr = 14; // VARCHAR, kept as string
+  int32 minimum_price_percentage = 15;
+}
+
+message Geometry {
+  uint64 id = 1;
+  uint64 feature_id = 2;
+  string type = 3;
+  repeated Coordinate coordinates = 4;
+}
+
+message Coordinate {
+  uint64 id = 1;
+  uint64 geometry_id = 2;
+  string x = 3; // as string to preserve precision
+  string y = 4; // as string to preserve precision
+}
+
+message Image {
+  uint64 id = 1;
+  string url = 2;
+}
+
+message BuyFeatureRequest {
+  uint64 feature_id = 1;
+  uint64 buyer_id = 2;
+  string price_psc = 3;
+  string price_irr = 4;
+}
+
+message BuyFeatureResponse {
+  bool success = 1;
+  string message = 2;
+  Feature feature = 3;
+}
+
+message SendBuyRequestRequest {
+  uint64 feature_id = 1;
+  uint64 buyer_id = 2;
+  string price_psc = 3;
+  string price_irr = 4;
+  string note = 5;
+}
+
+message BuyRequestResponse {
+  uint64 id = 1;
+  uint64 buyer_id = 2;
+  uint64 seller_id = 3;
+  uint64 feature_id = 4;
+  int32 status = 5;
+  string note = 6;
+  string price_psc = 7;
+  string price_irr = 8;
+  string requested_grace_period = 9;
+  string created_at = 10;
+}
+
+message AcceptBuyRequestRequest {
+  uint64 request_id = 1;
+  uint64 seller_id = 2;
+}
+
+message CreateSellRequestRequest {
+  uint64 feature_id = 1;
+  uint64 seller_id = 2;
+  string price_psc = 3;
+  string price_irr = 4;
+  string note = 5;
+}
+
+message SellRequestResponse {
+  uint64 id = 1;
+  uint64 seller_id = 2;
+  uint64 feature_id = 3;
+  string price_psc = 4;
+  string price_irr = 5;
+  string note = 6;
+  string created_at = 7;
+}
+
+message RequestGracePeriodRequest {
+  uint64 request_id = 1;
+  uint64 buyer_id = 2;
+  string grace_period = 3;
+}
+
+message GracePeriodResponse {
+  bool approved = 1;
+  string message = 2;
+}
+
+// FeatureProfitService handles hourly profit calculations
+service FeatureProfitService {
+  rpc GetHourlyProfits(GetHourlyProfitsRequest) returns (HourlyProfitsResponse);
+  rpc GetSingleProfit(GetSingleProfitRequest) returns (HourlyProfitResponse);
+  rpc GetProfitsByApplication(GetProfitsByApplicationRequest) returns (ProfitsByApplicationResponse);
+}
+
+// BuildingService handles building construction
+service BuildingService {
+  rpc GetBuildPackage(GetBuildPackageRequest) returns (BuildPackageResponse);
+  rpc BuildFeature(BuildFeatureRequest) returns (BuildFeatureResponse);
+  rpc GetBuildings(GetBuildingsRequest) returns (BuildingsResponse);
+  rpc UpdateBuilding(UpdateBuildingRequest) returns (BuildingResponse);
+  rpc DestroyBuilding(DestroyBuildingRequest) returns (BuildingResponse);
+}
+
+// Hourly Profit Messages
+
+message GetHourlyProfitsRequest {
+  uint64 user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message HourlyProfitsResponse {
+  repeated HourlyProfit profits = 1;
+  string total_maskoni_profit = 2;
+  string total_tejari_profit = 3;
+  string total_amozeshi_profit = 4;
+}
+
+message HourlyProfit {
+  uint64 id = 1;
+  uint64 feature_id = 2;
+  uint64 user_id = 3;
+  string asset = 4; // color: yellow, red, blue
+  string amount = 5; // formatted as string
+  string dead_line = 6; // timestamp
+  bool is_active = 7;
+}
+
+message GetSingleProfitRequest {
+  uint64 profit_id = 1;
+  uint64 user_id = 2;
+}
+
+message HourlyProfitResponse {
+  HourlyProfit profit = 1;
+  bool success = 2;
+}
+
+message GetProfitsByApplicationRequest {
+  uint64 user_id = 1;
+  string karbari = 2; // m, t, a
+}
+
+message ProfitsByApplicationResponse {
+  string total_amount = 1;
+  bool success = 2;
+}
+
+// Building Messages
+
+message GetBuildPackageRequest {
+  uint64 feature_id = 1;
+  int32 page = 2;
+}
+
+message BuildPackageResponse {
+  repeated BuildingModel models = 1;
+  repeated string coordinates = 2;
+}
+
+message BuildingModel {
+  uint64 id = 1;
+  string model_id = 2;
+  string name = 3;
+  string sku = 4;
+  string images = 5; // JSON array
+  string attributes = 6; // JSON array
+  string file = 7; // JSON object
+  string required_satisfaction = 8;
+}
+
+message BuildFeatureRequest {
+  uint64 feature_id = 1;
+  uint64 building_model_id = 2;
+  string launched_satisfaction = 3;
+  string rotation = 4;
+  string position = 5;
+  BuildingInformation information = 6;
+}
+
+message BuildingInformation {
+  string activity_line = 1;
+  string name = 2;
+  string address = 3;
+  string postal_code = 4;
+  string website = 5;
+  string description = 6;
+}
+
+message BuildFeatureResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetBuildingsRequest {
+  uint64 feature_id = 1;
+}
+
+message BuildingsResponse {
+  repeated Building buildings = 1;
+}
+
+message Building {
+  uint64 id = 1;
+  BuildingModel model = 2;
+  string construction_start_date = 3;
+  string construction_end_date = 4;
+  string launched_satisfaction = 5;
+  string rotation = 6;
+  string position = 7;
+  string bubble_diameter = 8;
+  string information = 9; // JSON
+}
+
+message UpdateBuildingRequest {
+  uint64 feature_id = 1;
+  uint64 building_model_id = 2;
+  string launched_satisfaction = 3;
+  string rotation = 4;
+  string position = 5;
+  BuildingInformation information = 6;
+}
+
+message BuildingResponse {
+  bool success = 1;
+  string message = 2;
+  Building building = 3;
+}
+
+message DestroyBuildingRequest {
+  uint64 feature_id = 1;
+  uint64 building_model_id = 2;
+}
+

@@ -1,0 +1,69 @@
+{{define "email/dynasty/join_request_received"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/dynasty/join_request_received/content"}}
+  <h1>درخواست پیوستن جدید</h1>
+  <p>
+    {{with .OwnerName}}سلام {{.}}،{{else}}سلام سرپرست گرامی،{{end}}
+    یک درخواست جدید برای پیوستن به خاندان {{with .DynastyName}}{{.}}{{else}}شما{{end}} ثبت شده است. پیش از پذیرش یا رد، اطلاعات درخواست را بررسی کن.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>نام خاندان</th>
+        <td>{{with .DynastyName}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .RequesterName}}
+      <tr>
+        <th>نام درخواست‌کننده</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .RequesterCode}}
+      <tr>
+        <th>شناسه درخواست‌کننده</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .Message}}
+      <tr>
+        <th>پیام همراه</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .SubmittedDate}}
+      <tr>
+        <th>تاریخ درخواست</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .SubmittedTime}}
+      <tr>
+        <th>ساعت درخواست</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    برای جلوگیری از سوء‌استفاده، هویت درخواست‌کننده را از طریق متارنگ بررسی کن و در صورت لزوم با او تماس بگیر.
+  </p>
+
+  <div style="text-align:center; margin:24px 0;">
+    {{with .ManageURL}}
+      <a href="{{.}}" class="button">مدیریت درخواست</a>
+    {{end}}
+    {{with .SecurityURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">گزارش مورد مشکوک</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    تصمیم‌گیری نکرده‌ای؟ درخواست‌ها پس از یک مدت مشخص منقضی می‌شوند تا صف سامان‌دهی شود.
+  </p>
+{{end}}
+
+

@@ -1,0 +1,266 @@
+# Prometheus Alerting Rules
+# Define alerting rules for high error rates, slow response times, and other critical metrics
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  metargb-alerts.yml: |
+    groups:
+      # Service availability alerts
+      - name: service_availability
+        interval: 30s
+        rules:
+          - alert: ServiceDown
+            expr: up{job=~"auth-service|commercial-service|features-service|levels-service|dynasty-service|support-service|calendar-service|storage-service"} == 0
+            for: 2m
+            labels:
+              severity: critical
+              team: platform
+            annotations:
+              summary: "Service {{ $labels.job }} is down"
+              description: "Service {{ $labels.job }} on pod {{ $labels.pod_name }} has been down for more than 2 minutes."
+          
+          - alert: ServiceHighRestart
+            expr: rate(kube_pod_container_status_restarts_total{namespace="metargb"}[15m]) > 0.1
+            for: 5m
+            labels:
+              severity: warning
+              team: platform
+            annotations:
+              summary: "High restart rate for {{ $labels.pod }}"
+              description: "Pod {{ $labels.pod }} is restarting frequently ({{ $value }} restarts/sec)."
+      
+      # Error rate alerts
+      - name: error_rates
+        interval: 30s
+        rules:
+          - alert: HighErrorRate
+            expr: |
+              (
+                sum(rate(grpc_server_handled_total{grpc_code!="OK",namespace="metargb"}[5m])) by (job, grpc_service)
+                /
+                sum(rate(grpc_server_handled_total{namespace="metargb"}[5m])) by (job, grpc_service)
+              ) > 0.01
+            for: 5m
+            labels:
+              severity: warning
+              team: backend
+            annotations:
+              summary: "High error rate on {{ $labels.job }}"
+              description: "Service {{ $labels.job }} has error rate of {{ $value | humanizePercentage }} on {{ $labels.grpc_service }}."
+          
+          - alert: CriticalErrorRate
+            expr: |
+              (
+                sum(rate(grpc_server_handled_total{grpc_code!="OK",namespace="metargb"}[5m])) by (job, grpc_service)
+                /
+                sum(rate(grpc_server_handled_total{namespace="metargb"}[5m])) by (job, grpc_service)
+              ) > 0.05
+            for: 2m
+            labels:
+              severity: critical
+              team: backend
+            annotations:
+              summary: "CRITICAL: Very high error rate on {{ $labels.job }}"
+              description: "Service {{ $labels.job }} has error rate of {{ $value | humanizePercentage }} on {{ $labels.grpc_service }}. Immediate attention required!"
+          
+          - alert: High5xxErrors
+            expr: |
+              (
+                sum(rate(grpc_server_handled_total{grpc_code=~"Internal|DataLoss|Unknown",namespace="metargb"}[5m])) by (job)
+                /
+                sum(rate(grpc_server_handled_total{namespace="metargb"}[5m])) by (job)
+              ) > 0.005
+            for: 5m
+            labels:
+              severity: warning
+              team: backend
+            annotations:
+              summary: "High 5xx error rate on {{ $labels.job }}"
+              description: "Service {{ $labels.job }} is returning 5xx errors at {{ $value | humanizePercentage }} rate."
+      
+      # Latency alerts
+      - name: latency
+        interval: 30s
+        rules:
+          - alert: HighLatency
+            expr: |
+              histogram_quantile(0.95,
+                sum(rate(grpc_server_handling_seconds_bucket{namespace="metargb"}[5m])) by (job, grpc_service, le)
+              ) > 0.5
+            for: 10m
+            labels:
+              severity: warning
+              team: backend
+            annotations:
+              summary: "High latency on {{ $labels.job }}"
+              description: "Service {{ $labels.job }} has p95 latency of {{ $value }}s on {{ $labels.grpc_service }}."
+          
+          - alert: VeryHighLatency
+            expr: |
+              histogram_quantile(0.95,
+                sum(rate(grpc_server_handling_seconds_bucket{namespace="metargb"}[5m])) by (job, grpc_service, le)
+              ) > 1.0
+            for: 5m
+            labels:
+              severity: critical
+              team: backend
+            annotations:
+              summary: "CRITICAL: Very high latency on {{ $labels.job }}"
+              description: "Service {{ $labels.job }} has p95 latency of {{ $value }}s on {{ $labels.grpc_service }}. SLA breach!"
+          
+          - alert: SlowDatabaseQueries
+            expr: |
+              histogram_quantile(0.95,
+                sum(rate(db_query_duration_seconds_bucket{namespace="metargb"}[5m])) by (job, le)
+              ) > 1.0
+            for: 10m
+            labels:
+              severity: warning
+              team: backend
+            annotations:
+              summary: "Slow database queries on {{ $labels.job }}"
+              description: "Service {{ $labels.job }} has slow DB queries with p95 latency of {{ $value }}s."
+      
+      # Resource usage alerts
+      - name: resource_usage
+        interval: 1m
+        rules:
+          - alert: HighMemoryUsage
+            expr: |
+              (
+                container_memory_working_set_bytes{namespace="metargb",container!=""}
+                /
+                container_spec_memory_limit_bytes{namespace="metargb",container!=""}
+              ) > 0.9
+            for: 5m
+            labels:
+              severity: warning
+              team: platform
+            annotations:
+              summary: "High memory usage on {{ $labels.pod }}"
+              description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit."
+          
+          - alert: HighCPUUsage
+            expr: |
+              (
+                rate(container_cpu_usage_seconds_total{namespace="metargb",container!=""}[5m])
+                /
+                container_spec_cpu_quota{namespace="metargb",container!=""} * 100000
+              ) > 0.9
+            for: 10m
+            labels:
+              severity: warning
+              team: platform
+            annotations:
+              summary: "High CPU usage on {{ $labels.pod }}"
+              description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of CPU limit."
+          
+          - alert: PodOOMKilled
+            expr: increase(kube_pod_container_status_terminated_reason{reason="OOMKilled",namespace="metargb"}[5m]) > 0
+            labels:
+              severity: critical
+              team: platform
+            annotations:
+              summary: "Pod {{ $labels.pod }} was OOM killed"
+              description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} was killed due to out of memory."
+      
+      # Database alerts
+      - name: database
+        interval: 1m
+        rules:
+          - alert: DatabaseConnectionPoolExhausted
+            expr: |
+              (
+                db_connections_in_use{namespace="metargb"}
+                /
+                db_connections_max{namespace="metargb"}
+              ) > 0.9
+            for: 5m
+            labels:
+              severity: warning
+              team: backend
+            annotations:
+              summary: "Database connection pool nearly exhausted on {{ $labels.job }}"
+              description: "Service {{ $labels.job }} is using {{ $value | humanizePercentage }} of database connections."
+          
+          - alert: DatabaseHighLatency
+            expr: mysql_global_status_queries > 1000
+            for: 10m
+            labels:
+              severity: warning
+              team: database
+            annotations:
+              summary: "High database query rate"
+              description: "MySQL is processing {{ $value }} queries, which may indicate high load."
+      
+      # Circuit breaker alerts
+      - name: circuit_breaker
+        interval: 30s
+        rules:
+          - alert: CircuitBreakerOpen
+            expr: |
+              sum(rate(istio_requests_total{response_code=~"5..",destination_workload_namespace="metargb"}[5m])) by (destination_workload)
+              /
+              sum(rate(istio_requests_total{destination_workload_namespace="metargb"}[5m])) by (destination_workload)
+              > 0.5
+            for: 2m
+            labels:
+              severity: critical
+              team: platform
+            annotations:
+              summary: "Circuit breaker likely open for {{ $labels.destination_workload }}"
+              description: "Service {{ $labels.destination_workload }} has 5xx error rate > 50%, circuit breaker may be triggered."
+      
+      # WebSocket alerts
+      - name: websocket
+        interval: 1m
+        rules:
+          - alert: WebSocketConnectionsDrop
+            expr: |
+              rate(websocket_connections_total{namespace="metargb"}[5m]) < -10
+            for: 5m
+            labels:
+              severity: warning
+              team: backend
+            annotations:
+              summary: "WebSocket connections dropping rapidly"
+              description: "WebSocket gateway is losing {{ $value }} connections per second."
+      
+      # Storage alerts
+      - name: storage
+        interval: 1m
+        rules:
+          - alert: PVCAlmostFull
+            expr: |
+              (
+                kubelet_volume_stats_used_bytes{namespace=~"metargb|monitoring|istio-system"}
+                /
+                kubelet_volume_stats_capacity_bytes{namespace=~"metargb|monitoring|istio-system"}
+              ) > 0.85
+            for: 10m
+            labels:
+              severity: warning
+              team: platform
+            annotations:
+              summary: "PVC {{ $labels.persistentvolumeclaim }} almost full"
+              description: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full."
+          
+          - alert: PVCCriticallyFull
+            expr: |
+              (
+                kubelet_volume_stats_used_bytes{namespace=~"metargb|monitoring|istio-system"}
+                /
+                kubelet_volume_stats_capacity_bytes{namespace=~"metargb|monitoring|istio-system"}
+              ) > 0.95
+            for: 5m
+            labels:
+              severity: critical
+              team: platform
+            annotations:
+              summary: "CRITICAL: PVC {{ $labels.persistentvolumeclaim }} critically full"
+              description: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full. Immediate action required!"
+

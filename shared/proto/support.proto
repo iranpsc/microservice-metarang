@@ -1,0 +1,193 @@
+syntax = "proto3";
+
+package support;
+
+import "common.proto";
+
+option go_package = "metargb/shared/pb/support";
+
+// TicketService handles support tickets
+service TicketService {
+  rpc CreateTicket(CreateTicketRequest) returns (TicketResponse);
+  rpc GetTickets(GetTicketsRequest) returns (TicketsResponse);
+  rpc GetTicket(GetTicketRequest) returns (TicketResponse);
+  rpc UpdateTicket(UpdateTicketRequest) returns (TicketResponse);
+  rpc AddResponse(AddResponseRequest) returns (TicketResponse);
+  rpc CloseTicket(CloseTicketRequest) returns (TicketResponse);
+}
+
+// ReportService handles user reports
+service ReportService {
+  rpc CreateReport(CreateReportRequest) returns (ReportResponse);
+  rpc GetReports(GetReportsRequest) returns (ReportsResponse);
+  rpc GetReport(GetReportRequest) returns (ReportResponse);
+}
+
+// UserEventReportService handles user event reports
+service UserEventReportService {
+  rpc CreateUserEvent(CreateUserEventRequest) returns (UserEventResponse);
+  rpc GetUserEvents(GetUserEventsRequest) returns (UserEventsResponse);
+  rpc GetUserEvent(GetUserEventRequest) returns (UserEventResponse);
+  rpc ReportUserEvent(ReportUserEventRequest) returns (UserEventReportResponse);
+  rpc SendEventReportResponse(SendEventReportResponseRequest) returns (common.Empty);
+}
+
+// Messages
+
+// Ticket Messages
+message CreateTicketRequest {
+  uint64 user_id = 1;
+  string title = 2;
+  string content = 3;
+  string attachment = 4; // URL or empty
+  uint64 receiver_id = 5; // optional
+  string department = 6;
+}
+
+message UpdateTicketRequest {
+  uint64 ticket_id = 1;
+  uint64 user_id = 2;
+  string title = 3;
+  string content = 4;
+  string attachment = 5;
+}
+
+message AddResponseRequest {
+  uint64 ticket_id = 1;
+  uint64 user_id = 2;
+  string response = 3;
+  string attachment = 4; // URL or empty
+}
+
+message CloseTicketRequest {
+  uint64 ticket_id = 1;
+  uint64 user_id = 2;
+}
+
+message GetTicketsRequest {
+  uint64 user_id = 1;
+  common.PaginationRequest pagination = 2;
+  int32 status_filter = 3; // optional, 0=all
+}
+
+message GetTicketRequest {
+  uint64 ticket_id = 1;
+  uint64 user_id = 2; // for authorization
+}
+
+message TicketResponse {
+  uint64 id = 1;
+  string title = 2;
+  string content = 3;
+  string attachment = 4;
+  int32 code = 5; // 6-digit code
+  string department = 6;
+  int32 status = 7; // 0=NEW, 1=ANSWERED, 2=RESOLVED, 3=UNRESOLVED, 4=TRACKING, 5=CLOSED
+  int32 importance = 8;
+  common.UserBasic sender = 9;
+  common.UserBasic receiver = 10;
+  repeated TicketResponseItem responses = 11;
+  string created_at = 12; // Jalali formatted
+  string updated_at = 13; // Jalali formatted
+}
+
+message TicketsResponse {
+  repeated TicketResponse tickets = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message TicketResponseItem {
+  uint64 id = 1;
+  uint64 ticket_id = 2;
+  string response = 3;
+  string attachment = 4;
+  string responser_name = 5;
+  uint64 responser_id = 6;
+  string created_at = 7; // Jalali formatted
+}
+
+// Report Messages
+message CreateReportRequest {
+  uint64 user_id = 1;
+  string reportable_type = 2; // User, Feature, Comment, etc.
+  uint64 reportable_id = 3;
+  string reason = 4;
+  string description = 5;
+}
+
+message GetReportsRequest {
+  uint64 user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message GetReportRequest {
+  uint64 report_id = 1;
+}
+
+message ReportResponse {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string reportable_type = 3;
+  uint64 reportable_id = 4;
+  string reason = 5;
+  string description = 6;
+  string created_at = 7; // Jalali formatted
+}
+
+message ReportsResponse {
+  repeated ReportResponse reports = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+// User Event Report Messages
+message CreateUserEventRequest {
+  uint64 user_id = 1;
+  string title = 2;
+  string description = 3;
+  string event_date = 4; // Jalali date
+}
+
+message GetUserEventsRequest {
+  uint64 user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message GetUserEventRequest {
+  uint64 event_id = 1;
+}
+
+message UserEventResponse {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string title = 3;
+  string description = 4;
+  string event_date = 5; // Jalali formatted
+  string created_at = 6; // Jalali formatted
+}
+
+message UserEventsResponse {
+  repeated UserEventResponse events = 1;
+  common.PaginationMeta pagination = 2;
+}
+
+message ReportUserEventRequest {
+  uint64 event_id = 1;
+  uint64 reporter_id = 2;
+  string suspicious_citizen = 3;
+  string event_description = 4;
+}
+
+message UserEventReportResponse {
+  uint64 id = 1;
+  uint64 event_id = 2;
+  string suspicious_citizen = 3;
+  string event_description = 4;
+  string created_at = 5; // Jalali formatted
+}
+
+message SendEventReportResponseRequest {
+  uint64 report_id = 1;
+  uint64 responder_id = 2;
+  string response = 3;
+}
+

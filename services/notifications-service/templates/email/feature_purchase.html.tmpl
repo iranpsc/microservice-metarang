@@ -1,0 +1,100 @@
+{{define "email/feature_purchase"}}
+{{template "base" .}}
+{{end}}
+
+{{define "email/feature_purchase/content"}}
+  <h1>ثبت موفق فضای VOD</h1>
+  <p>
+    {{with .RecipientName}}سلام {{.}}،{{else}}سلام شهروند عزیز،{{end}}
+    فضای VOD جدیدت با موفقیت در متارنگ ثبت شد. مشخصات کامل دارایی را در табли زیر مرور کن.
+  </p>
+
+  <table class="details-table" role="presentation">
+    <tbody>
+      <tr>
+        <th>شناسه شهروندی مالک</th>
+        <td>{{with .OwnerCode}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>شناسه VOD</th>
+        <td>{{with .FeatureID}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>متراژ</th>
+        <td>{{with .FeatureArea}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>کاربری</th>
+        <td>{{with .FeatureApplication}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>تراکم</th>
+        <td>{{with .FeatureDensity}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .FeatureCoordinates}}
+      <tr>
+        <th>مرزبندی</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .FeatureAddress}}
+      <tr>
+        <th>آدرس</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .SellerCode}}
+      <tr>
+        <th>شناسه فروشنده</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      <tr>
+        <th>مبلغ پرداختی (IRR)</th>
+        <td>{{with .PriceIRR}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      <tr>
+        <th>مبلغ پرداختی (PSC)</th>
+        <td>{{with .PricePSC}}{{.}}{{else}}—{{end}}</td>
+      </tr>
+      {{with .TransactionId}}
+      <tr>
+        <th>شناسه عملیات</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .TransactionDate}}
+      <tr>
+        <th>تاریخ معامله</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+      {{with .TransactionTime}}
+      <tr>
+        <th>ساعت معامله</th>
+        <td>{{.}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <p>
+    اگر این خرید بدون اطلاع تو انجام شده است، می‌توانی فوراً واریزی را قفل کنی تا انتقال دارایی متوقف شود و تیم امنیتی موضوع را بررسی کند.
+  </p>
+
+  <div style="text-align: center; margin: 24px 0;">
+    {{with .DisputeURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #fd7e14;">قفل واریزی</a>
+    {{end}}
+    {{with .SecurityURL}}
+      <a href="{{.}}" class="button" style="background-color:#3d1554; border:2px solid #795E8B;">پروتکل‌های امنیتی</a>
+    {{end}}
+  </div>
+
+  <p class="muted">
+    سؤالی داری؟ {{with .ContactURL}}<a href="{{.}}" style="color:#b0a7b7;">با ما تماس بگیر</a>{{end}}
+    {{with .FaqURL}} | <a href="{{.}}" style="color:#b0a7b7;">انجمن متاورس</a>{{end}}
+  </p>
+{{end}}
+
+
