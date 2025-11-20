@@ -267,7 +267,7 @@ services:
   health-check-service:
     build:
       context: .
-      dockerfile: ./health-check-service/Dockerfile
+      dockerfile: ./services/health-check-service/Dockerfile
     container_name: metargb-health-check-service
     ports:
       - "8090:8090"
