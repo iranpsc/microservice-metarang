@@ -3,6 +3,12 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
+# Copy go mod files
+COPY services/health-check-service/go.mod services/health-check-service/go.sum* ./
+
+# Download dependencies
+RUN go mod download
+
 # Copy source
 COPY services/health-check-service/main.go .
 

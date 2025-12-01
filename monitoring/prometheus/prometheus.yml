@@ -1,0 +1,132 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'metargb-cluster'
+    environment: 'development'
+
+# Scrape configurations
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # MetaRGB Microservices - Auth Service
+  - job_name: 'auth-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['auth-service:9090']
+        labels:
+          service: 'auth-service'
+          port: '50051'
+    metrics_path: '/metrics'
+
+  # MetaRGB Microservices - Commercial Service
+  - job_name: 'commercial-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['commercial-service:9090']
+        labels:
+          service: 'commercial-service'
+          port: '50052'
+    metrics_path: '/metrics'
+
+  # MetaRGB Microservices - Features Service
+  - job_name: 'features-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['features-service:9090']
+        labels:
+          service: 'features-service'
+          port: '50053'
+    metrics_path: '/metrics'
+
+  # MetaRGB Microservices - Levels Service
+  - job_name: 'levels-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['levels-service:9090']
+        labels:
+          service: 'levels-service'
+          port: '50054'
+    metrics_path: '/metrics'
+
+  # MetaRGB Microservices - Dynasty Service
+  - job_name: 'dynasty-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['dynasty-service:9090']
+        labels:
+          service: 'dynasty-service'
+          port: '50055'
+    metrics_path: '/metrics'
+
+  # MetaRGB Microservices - Calendar Service
+  - job_name: 'calendar-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['calendar-service:9090']
+        labels:
+          service: 'calendar-service'
+          port: '50058'
+    metrics_path: '/metrics'
+
+  # MetaRGB Microservices - Storage Service
+  - job_name: 'storage-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['storage-service:9090']
+        labels:
+          service: 'storage-service'
+          port: '50059'
+    metrics_path: '/metrics'
+
+  # Kong API Gateway
+  - job_name: 'kong'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['kong:8001']
+        labels:
+          service: 'kong'
+    metrics_path: '/metrics'
+
+  # Health Check Service - Exposes Prometheus metrics for all service health statuses
+  # Metrics include:
+  # - Service Availability: uptime percentage, downtime incidents, service health status
+  # - Dependency Health: database connection status, cache hit/miss rates, external API availability
+  # - Service Discovery: service registration status
+  # - Circuit Breaker: circuit breaker status (if Istio is configured)
+  - job_name: 'health-check-service'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['health-check-service:8090']
+        labels:
+          service: 'health-check-service'
+          type: 'monitoring'
+    metrics_path: '/metrics'
+
+  # Node Exporter - Host-level infrastructure metrics (CPU, Memory, Disk, Network)
+  - job_name: 'node-exporter'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          type: 'infrastructure'
+
+  # Note: MySQL and Redis exporters are optional and not currently deployed
+
