@@ -1,59 +1,261 @@
 _format_version: "3.0"
 
+# ============================================================================
 # MetaRGB API Gateway Configuration
-# This file maps HTTP REST endpoints to gRPC microservices
+# ============================================================================
+# This file maps HTTP REST endpoints to gRPC microservices.
+#
+# IMPORTANT: REST to gRPC Translation
+# ------------------------------------
+# Kong does NOT automatically translate REST/JSON requests to gRPC/protobuf.
+# The current configuration routes REST requests to gRPC endpoints, but
+# requires a translation layer to convert JSON to protobuf format.
+#
+# Options for REST to gRPC translation:
+# 1. Deploy a gRPC-Gateway service (recommended)
+# 2. Add HTTP annotations to proto files and generate gateway code
+# 3. Modify services to accept both REST/JSON and gRPC
+#
+# See docs/KONG_REST_TO_GRPC.md for detailed implementation guide.
+# ============================================================================
 
 services:
-  # Phase 2: Auth Service
-  - name: auth-service
-    url: grpc://auth-service:50051
-    protocol: grpc
+  # ============================================================================
+  # Auth Service - Authentication & User Management
+  # ============================================================================
+  # NOTE: Kong does not automatically translate REST/JSON to gRPC/protobuf.
+  # For full REST to gRPC translation, you need either:
+  # 1. A gRPC-Gateway service (recommended) that handles JSON↔protobuf conversion
+  # 2. HTTP annotations in proto files using gRPC-Gateway tool
+  # 3. Custom transformation plugins
+  #
+  # Current configuration routes REST requests to gRPC endpoints.
+  # The service layer should handle JSON/protobuf conversion or use a gateway.
+
+  # ============================================================================
+  # gRPC Gateway Service - REST to gRPC Translation
+  # Routes REST/JSON requests through gateway service for translation to gRPC
+  # ============================================================================
+  - name: grpc-gateway-service
+    url: http://grpc-gateway:8080
+    protocol: http
     routes:
-      - name: auth-routes
+      # Auth endpoints (No authentication required)
+      - name: auth-register-route
         paths:
-          - /api/auth
+          - /api/auth/register
+        methods:
+          - POST
         strip_path: false
         protocols:
           - http
           - https
-    plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/auth.proto
-      - name: cors
-
-  # Phase 2: User Service (part of auth-service)
-  - name: user-service
-    url: grpc://auth-service:50051
-    protocol: grpc
-    routes:
-      - name: user-routes
+      - name: auth-redirect-route
+        paths:
+          - /api/auth/redirect
+        methods:
+          - GET
+        strip_path: false
+        protocols:
+          - http
+          - https
+      - name: auth-callback-route
+        paths:
+          - /api/auth/callback
+        methods:
+          - GET
+        strip_path: false
+        protocols:
+          - http
+          - https
+      - name: auth-me-route
+        paths:
+          - /api/auth/me
+        methods:
+          - POST
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      - name: auth-logout-route
+        paths:
+          - /api/auth/logout
+        methods:
+          - POST
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      - name: auth-validate-token-route
+        paths:
+          - /api/auth/validate
+          - /api/auth/token/validate
+        methods:
+          - POST
+        strip_path: false
+        protocols:
+          - http
+          - https
+        # Validate token endpoint doesn't require JWT (it validates tokens itself)
+      - name: auth-request-security-route
+        paths:
+          - /api/auth/account-security/request
+        methods:
+          - POST
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      - name: auth-verify-security-route
+        paths:
+          - /api/auth/account-security/verify
+        methods:
+          - POST
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      # User endpoints
+      - name: user-get-route
         paths:
           - /api/user
           - /api/users
+        methods:
+          - GET
         strip_path: false
         protocols:
           - http
           - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      - name: user-update-route
+        paths:
+          - /api/user/profile
+        methods:
+          - PUT
+          - PATCH
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      # KYC endpoints
+      - name: kyc-submit-route
+        paths:
+          - /api/kyc/submit
+        methods:
+          - POST
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      - name: kyc-status-route
+        paths:
+          - /api/kyc/status
+        methods:
+          - GET
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
+      - name: kyc-bank-route
+        paths:
+          - /api/kyc/bank-account
+        methods:
+          - POST
+        strip_path: false
+        protocols:
+          - http
+          - https
+        plugins:
+          - name: jwt
+            config:
+              uri_param_names:
+                - token
+              header_names:
+                - Authorization
+              cookie_names:
+                - token
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/auth.proto
       - name: cors
-      - name: jwt
-        config:
-          uri_param_names:
-            - token
-          header_names:
-            - Authorization
-          cookie_names:
-            - token
       - name: rate-limiting
         config:
           minute: 100
           hour: 2000
 
-  # Phase 3: Commercial Service (Wallet & Transactions)
+  # ============================================================================
+  # Commercial Service (Wallet & Transactions)
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: commercial-service
     url: grpc://commercial-service:50052
     protocol: grpc
@@ -75,9 +277,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/commercial.proto
       - name: cors
       - name: jwt
         config:
@@ -92,7 +291,10 @@ services:
           minute: 60
           hour: 1000
 
-  # Phase 2: Features Service
+  # ============================================================================
+  # Features Service
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: features-service
     url: grpc://features-service:50053
     protocol: grpc
@@ -127,9 +329,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/features.proto
       - name: cors
       - name: jwt
         config:
@@ -144,8 +343,10 @@ services:
           minute: 100
           hour: 5000
 
-
-  # Phase 4: Dynasty Service
+  # ============================================================================
+  # Dynasty Service
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: dynasty-service
     url: grpc://dynasty-service:50055
     protocol: grpc
@@ -158,9 +359,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/dynasty.proto
       - name: cors
       - name: jwt
         config:
@@ -175,7 +373,10 @@ services:
           minute: 60
           hour: 2000
 
-  # Phase 4: Support Service
+  # ============================================================================
+  # Support Service
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: support-service
     url: grpc://support-service:50056
     protocol: grpc
@@ -190,9 +391,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/support.proto
       - name: cors
       - name: jwt
         config:
@@ -207,7 +405,10 @@ services:
           minute: 50
           hour: 1000
 
-  # Phase 4: Training Service
+  # ============================================================================
+  # Training Service
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: training-service
     url: grpc://training-service:50057
     protocol: grpc
@@ -221,9 +422,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/training.proto
       - name: cors
       - name: jwt
         config:
@@ -238,7 +436,10 @@ services:
           minute: 100
           hour: 3000
 
-  # Phase 4: Notifications Service
+  # ============================================================================
+  # Notifications Service
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: notifications-service
     url: grpc://notifications-service:50060
     protocol: grpc
@@ -251,9 +452,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/notifications.proto
       - name: cors
       - name: jwt
         config:
@@ -268,7 +466,10 @@ services:
           minute: 100
           hour: 2000
 
-  # Phase 5: Calendar Service
+  # ============================================================================
+  # Calendar Service
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: calendar-service
     url: grpc://calendar-service:50058
     protocol: grpc
@@ -281,9 +482,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/calendar.proto
       - name: cors
       - name: rate-limiting
         config:
@@ -328,7 +526,10 @@ services:
           minute: 50
           hour: 1000
 
-  # Protected storage endpoints (auth required)
+  # ============================================================================
+  # Storage Service (Protected endpoints - auth required)
+  # NOTE: Requires REST to gRPC translation layer - see docs/KONG_REST_TO_GRPC.md
+  # ============================================================================
   - name: storage-service
     url: grpc://storage-service:50059
     protocol: grpc
@@ -342,9 +543,6 @@ services:
           - http
           - https
     plugins:
-      - name: grpc-gateway
-        config:
-          proto: /kong/protos/storage.proto
       - name: cors
       - name: jwt
         config:

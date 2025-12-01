@@ -84,6 +84,30 @@ services:
       timeout: 3s
       retries: 3
 
+  # gRPC Gateway Service - REST to gRPC Translation
+  grpc-gateway:
+    build:
+      context: .
+      dockerfile: ./services/grpc-gateway/Dockerfile
+    container_name: metargb-grpc-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      HTTP_PORT: 8080
+      AUTH_SERVICE_ADDR: auth-service:50051
+    depends_on:
+      auth-service:
+        condition: service_started
+    networks:
+      - metargb-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
   # Commercial Service - Wallets & Transactions
   commercial-service:
     build:
@@ -304,13 +328,22 @@ services:
       - ./kong/kong.yml:/kong/kong.yml:ro
       - ./shared/proto:/kong/protos:ro
     depends_on:
-      - auth-service
-      - commercial-service
-      - features-service
-      - levels-service
-      - dynasty-service
-      - calendar-service
-      - storage-service
+      grpc-gateway:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      commercial-service:
+        condition: service_started
+      features-service:
+        condition: service_started
+      levels-service:
+        condition: service_started
+      dynasty-service:
+        condition: service_started
+      calendar-service:
+        condition: service_started
+      storage-service:
+        condition: service_started
     networks:
       - metargb-network
     restart: unless-stopped
