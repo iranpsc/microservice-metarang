@@ -102,7 +102,7 @@ Complete Jalali calendar support:
 - DateTime format: YYYY/MM/DD HH:MM:SS
 
 #### Notifications
-Integration with notification-service:
+Integration with notifications-service:
 - Ticket creation notifications
 - Response notifications
 - Matching Laravel's TicketRecieved notification structure
@@ -235,7 +235,7 @@ To ensure 100% compatibility, the following Laravel peculiarities were intention
 ### Integration Testing
 - [ ] Connect to MySQL database
 - [ ] Verify database queries work
-- [ ] Test with notification-service
+- [ ] Test with notifications-service
 - [ ] Test pagination with large datasets
 - [ ] Verify connection pooling
 - [ ] Test error scenarios
@@ -251,7 +251,7 @@ To ensure 100% compatibility, the following Laravel peculiarities were intention
 ### Prerequisites
 - Go 1.24+
 - MySQL database (shared with Laravel)
-- Access to notification-service
+- Access to notifications-service
 - Shared protobuf definitions compiled
 
 ### Steps

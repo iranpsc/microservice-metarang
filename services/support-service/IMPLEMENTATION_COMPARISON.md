@@ -61,7 +61,7 @@ This document provides a detailed comparison between the Laravel support/ticket 
 - `AddResponse()` - Add response and update status to ANSWERED
 - `CloseTicket()` - Close ticket (status = CLOSED)
 - `CheckAuthorization()` - Implements TicketPolicy logic
-- `sendTicketNotification()` - Sends notification via notification-service
+- `sendTicketNotification()` - Sends notification via notifications-service
 
 **Handler:** (`internal/handler/ticket_handler.go`)
 - gRPC methods matching Laravel controller:
@@ -195,7 +195,7 @@ This document provides a detailed comparison between the Laravel support/ticket 
 
 ### Notifications
 **Laravel:** Uses `TicketRecieved` notification (database + broadcast)
-**Go:** Integrates with notification-service via gRPC
+**Go:** Integrates with notifications-service via gRPC
 - Sends same notification structure
 - Includes sender info and ticket details
 

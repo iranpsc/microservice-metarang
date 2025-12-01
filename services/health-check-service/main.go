@@ -31,11 +31,11 @@ type ServiceStatus struct {
 
 // DependencyHealth represents health of external dependencies
 type DependencyHealth struct {
-	DatabaseConnection   DBConnectionStatus  `json:"database_connection"`
-	CacheMetrics         CacheMetrics        `json:"cache_metrics"`
-	ExternalAPIs         []ExternalAPIStatus `json:"external_apis"`
-	ThirdPartyServices   []ThirdPartyService `json:"third_party_services"`
-	CircuitBreakerStatus map[string]string   `json:"circuit_breaker_status,omitempty"`
+	DatabaseConnections  map[string]DBConnectionStatus `json:"database_connections"` // Map of service name to DB connection status
+	CacheMetrics         CacheMetrics                  `json:"cache_metrics"`
+	ExternalAPIs         []ExternalAPIStatus           `json:"external_apis"`
+	ThirdPartyServices   []ThirdPartyService           `json:"third_party_services"`
+	CircuitBreakerStatus map[string]string             `json:"circuit_breaker_status,omitempty"`
 }
 
 // DBConnectionStatus represents database connection health
@@ -131,12 +131,14 @@ type ServiceAvailabilityInfo struct {
 }
 
 var (
-	startTime       = time.Now()
-	lastHealthCheck = make(map[string]ServiceStatus)
-	serviceUptimes  = make(map[string]*ServiceUptime)
-	uptimeMu        sync.RWMutex
-	redisClient     *redis.Client
-	dbConnection    *sql.DB
+	startTime        = time.Now()
+	lastHealthCheck  = make(map[string]ServiceStatus)
+	serviceUptimes   = make(map[string]*ServiceUptime)
+	uptimeMu         sync.RWMutex
+	redisClient      *redis.Client
+	dbConnection     *sql.DB // Legacy connection for backward compatibility
+	serviceDBConnections = make(map[string]*sql.DB) // Map of service name to DB connection
+	dbConnectionsMu  sync.RWMutex
 )
 
 // Map service display names to Prometheus service labels
@@ -175,8 +177,11 @@ func main() {
 	// Initialize Redis client for cache metrics
 	initRedisClient()
 
-	// Initialize database connection for DB health checks
+	// Initialize database connection for DB health checks (legacy)
 	initDBConnection()
+
+	// Initialize database connections for each service
+	initServiceDBConnections()
 
 	// Start background goroutine to track uptime
 	go trackUptime()
@@ -234,6 +239,60 @@ func initDBConnection() {
 	dbConnection.SetMaxOpenConns(5)
 	dbConnection.SetMaxIdleConns(2)
 	dbConnection.SetConnMaxLifetime(5 * time.Minute)
+}
+
+// initServiceDBConnections initializes database connections for each service
+func initServiceDBConnections() {
+	dbHost := getEnv("DB_HOST", "mysql")
+	dbPort := getEnv("DB_PORT", "3306")
+	dbUser := getEnv("DB_USER", "metargb_user")
+	dbPassword := getEnv("DB_PASSWORD", "metargb_password")
+	dbName := getEnv("DB_DATABASE", "metargb_db")
+
+	// List of services that use database connections
+	services := []string{
+		"auth-service",
+		"commercial-service",
+		"features-service",
+		"levels-service",
+		"dynasty-service",
+		"calendar-service",
+		"notifications-service",
+		"support-service",
+		"storage-service",
+	}
+
+	for _, serviceName := range services {
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&timeout=2s&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+			dbUser, dbPassword, dbHost, dbPort, dbName)
+
+		db, err := sql.Open("mysql", dsn)
+		if err != nil {
+			log.Printf("⚠️  Warning: Failed to open database connection for %s: %v", serviceName, err)
+			continue
+		}
+
+		// Configure connection pool for each service
+		db.SetMaxOpenConns(5)
+		db.SetMaxIdleConns(2)
+		db.SetConnMaxLifetime(5 * time.Minute)
+
+		// Test connection
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		if err := db.PingContext(ctx); err != nil {
+			log.Printf("⚠️  Warning: Failed to ping database for %s: %v", serviceName, err)
+			cancel()
+			db.Close()
+			continue
+		}
+		cancel()
+
+		dbConnectionsMu.Lock()
+		serviceDBConnections[serviceName] = db
+		dbConnectionsMu.Unlock()
+
+		log.Printf("✅ Database connection initialized for %s", serviceName)
+	}
 }
 
 func trackUptime() {
@@ -410,13 +469,36 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 
 func checkDependencies(ctx context.Context) DependencyHealth {
 	deps := DependencyHealth{
-		ExternalAPIs:         []ExternalAPIStatus{},
+		DatabaseConnections:  make(map[string]DBConnectionStatus),
+		ExternalAPIs:          []ExternalAPIStatus{},
 		ThirdPartyServices:   []ThirdPartyService{},
 		CircuitBreakerStatus: make(map[string]string),
 	}
 
-	// Check database connection
-	deps.DatabaseConnection = checkDatabaseConnection(ctx)
+	// List of all services that should have database connections
+	allServices := []string{
+		"auth-service",
+		"commercial-service",
+		"features-service",
+		"levels-service",
+		"dynasty-service",
+		"calendar-service",
+		"notifications-service",
+		"support-service",
+		"storage-service",
+	}
+
+	// Check database connections for all services (create connection on-demand if needed)
+	for _, serviceName := range allServices {
+		// Ensure connection exists, create on-demand if needed
+		ensureServiceDBConnection(serviceName)
+		deps.DatabaseConnections[serviceName] = checkServiceDatabaseConnection(ctx, serviceName)
+	}
+
+	// Also check legacy database connection for backward compatibility
+	if dbConnection != nil {
+		deps.DatabaseConnections["legacy"] = checkDatabaseConnection(ctx)
+	}
 
 	// Check cache metrics
 	deps.CacheMetrics = checkCacheMetrics(ctx)
@@ -463,6 +545,87 @@ func checkDatabaseConnection(ctx context.Context) DBConnectionStatus {
 
 	// Get connection pool stats
 	stats := dbConnection.Stats()
+	status.PoolStats.OpenConnections = stats.OpenConnections
+	status.PoolStats.InUse = stats.InUse
+	status.PoolStats.Idle = stats.Idle
+
+	return status
+}
+
+// ensureServiceDBConnection ensures a database connection exists for a service, creating it if needed
+func ensureServiceDBConnection(serviceName string) {
+	dbConnectionsMu.RLock()
+	_, exists := serviceDBConnections[serviceName]
+	dbConnectionsMu.RUnlock()
+
+	if exists {
+		return // Connection already exists
+	}
+
+	// Create connection on-demand
+	dbHost := getEnv("DB_HOST", "mysql")
+	dbPort := getEnv("DB_PORT", "3306")
+	dbUser := getEnv("DB_USER", "metargb_user")
+	dbPassword := getEnv("DB_PASSWORD", "metargb_password")
+	dbName := getEnv("DB_DATABASE", "metargb_db")
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&timeout=2s&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+		dbUser, dbPassword, dbHost, dbPort, dbName)
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Printf("⚠️  Warning: Failed to open database connection for %s: %v", serviceName, err)
+		return
+	}
+
+	// Configure connection pool for each service
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Test connection (non-blocking, will be checked later)
+	dbConnectionsMu.Lock()
+	serviceDBConnections[serviceName] = db
+	dbConnectionsMu.Unlock()
+
+	log.Printf("✅ Database connection created for %s", serviceName)
+}
+
+// checkServiceDatabaseConnection checks database connection for a specific service
+func checkServiceDatabaseConnection(ctx context.Context, serviceName string) DBConnectionStatus {
+	status := DBConnectionStatus{
+		Host:      getEnv("DB_HOST", "mysql"),
+		Port:      3306,
+		Database:  getEnv("DB_DATABASE", "metargb_db"),
+		Status:    "unhealthy",
+		Connected: false,
+	}
+
+	dbConnectionsMu.RLock()
+	db, exists := serviceDBConnections[serviceName]
+	dbConnectionsMu.RUnlock()
+
+	if !exists || db == nil {
+		status.Error = fmt.Sprintf("Database connection not initialized for %s", serviceName)
+		return status
+	}
+
+	start := time.Now()
+	err := db.PingContext(ctx)
+	latency := time.Since(start)
+
+	if err != nil {
+		status.Error = err.Error()
+		status.Latency = latency.String()
+		return status
+	}
+
+	status.Status = "healthy"
+	status.Connected = true
+	status.Latency = latency.String()
+
+	// Get connection pool stats
+	stats := db.Stats()
 	status.PoolStats.OpenConnections = stats.OpenConnections
 	status.PoolStats.InUse = stats.InUse
 	status.PoolStats.Idle = stats.Idle
@@ -834,37 +997,108 @@ func exportDependencyHealthMetrics(w http.ResponseWriter) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// Database connection metrics
-	fmt.Fprintf(w, "\n# HELP db_connection_status Database connection status (1=connected, 0=disconnected)\n")
+	// Database connection metrics for each service
+	fmt.Fprintf(w, "\n# HELP db_connection_status Database connection status per service (1=connected, 0=disconnected)\n")
 	fmt.Fprintf(w, "# TYPE db_connection_status gauge\n")
 
-	dbStatus := checkDatabaseConnection(ctx)
-	dbValue := 0
-	if dbStatus.Connected {
-		dbValue = 1
-	}
-	fmt.Fprintf(w, "db_connection_status{host=\"%s\",database=\"%s\"} %d\n",
-		dbStatus.Host, dbStatus.Database, dbValue)
-
-	fmt.Fprintf(w, "\n# HELP db_connection_latency_seconds Database connection latency\n")
+	fmt.Fprintf(w, "\n# HELP db_connection_latency_seconds Database connection latency per service\n")
 	fmt.Fprintf(w, "# TYPE db_connection_latency_seconds gauge\n")
-	if dbStatus.Latency != "" {
-		// Parse latency string (e.g., "10ms" or "1.5s")
-		latency, _ := parseDuration(dbStatus.Latency)
-		fmt.Fprintf(w, "db_connection_latency_seconds{host=\"%s\"} %.4f\n", dbStatus.Host, latency.Seconds())
+
+	fmt.Fprintf(w, "\n# HELP db_connection_pool_open Database connection pool open connections per service\n")
+	fmt.Fprintf(w, "# TYPE db_connection_pool_open gauge\n")
+
+	fmt.Fprintf(w, "\n# HELP db_connection_pool_in_use Database connection pool in-use connections per service\n")
+	fmt.Fprintf(w, "# TYPE db_connection_pool_in_use gauge\n")
+
+	fmt.Fprintf(w, "\n# HELP db_connection_pool_idle Database connection pool idle connections per service\n")
+	fmt.Fprintf(w, "# TYPE db_connection_pool_idle gauge\n")
+
+	// List of all services that should have database connections
+	allServices := []string{
+		"auth-service",
+		"commercial-service",
+		"features-service",
+		"levels-service",
+		"dynasty-service",
+		"calendar-service",
+		"notifications-service",
+		"support-service",
+		"storage-service",
 	}
 
-	fmt.Fprintf(w, "\n# HELP db_connection_pool_open Database connection pool open connections\n")
-	fmt.Fprintf(w, "# TYPE db_connection_pool_open gauge\n")
-	fmt.Fprintf(w, "db_connection_pool_open{host=\"%s\"} %d\n", dbStatus.Host, dbStatus.PoolStats.OpenConnections)
+	// Check database connections for all services (create connection on-demand if needed)
+	// IMPORTANT: Always export metrics for ALL services, even if connection fails
+	// This ensures Grafana/Prometheus always has data for all services
+	log.Printf("📊 Exporting database connection metrics for %d services", len(allServices))
+	
+	dbHost := getEnv("DB_HOST", "mysql")
+	dbDatabase := getEnv("DB_DATABASE", "metargb_db")
+	
+	for _, serviceName := range allServices {
+		// Ensure connection exists, create on-demand if needed
+		ensureServiceDBConnection(serviceName)
+		
+		// Always check the connection status, even if connection doesn't exist
+		dbStatus := checkServiceDatabaseConnection(ctx, serviceName)
+		dbValue := 0
+		if dbStatus.Connected {
+			dbValue = 1
+		}
 
-	fmt.Fprintf(w, "\n# HELP db_connection_pool_in_use Database connection pool in-use connections\n")
-	fmt.Fprintf(w, "# TYPE db_connection_pool_in_use gauge\n")
-	fmt.Fprintf(w, "db_connection_pool_in_use{host=\"%s\"} %d\n", dbStatus.Host, dbStatus.PoolStats.InUse)
+		// CRITICAL: Always export status metric for EVERY service
+		// Use consistent host/database values to ensure metrics are properly grouped
+		// Value: 0 = disconnected, 1 = connected
+		fmt.Fprintf(w, "db_connection_status{service=\"%s\",host=\"%s\",database=\"%s\"} %d\n",
+			serviceName, dbHost, dbDatabase, dbValue)
 
-	fmt.Fprintf(w, "\n# HELP db_connection_pool_idle Database connection pool idle connections\n")
-	fmt.Fprintf(w, "# TYPE db_connection_pool_idle gauge\n")
-	fmt.Fprintf(w, "db_connection_pool_idle{host=\"%s\"} %d\n", dbStatus.Host, dbStatus.PoolStats.Idle)
+		// Export latency only if we have a valid connection and latency measurement
+		if dbStatus.Connected && dbStatus.Latency != "" {
+			// Parse latency string (e.g., "10ms" or "1.5s")
+			latency, err := parseDuration(dbStatus.Latency)
+			if err == nil {
+				fmt.Fprintf(w, "db_connection_latency_seconds{service=\"%s\",host=\"%s\"} %.4f\n",
+					serviceName, dbHost, latency.Seconds())
+			}
+		}
+
+		// Always export pool stats (will be 0 if connection doesn't exist)
+		// Use consistent host value for proper metric grouping
+		fmt.Fprintf(w, "db_connection_pool_open{service=\"%s\",host=\"%s\"} %d\n",
+			serviceName, dbHost, dbStatus.PoolStats.OpenConnections)
+
+		fmt.Fprintf(w, "db_connection_pool_in_use{service=\"%s\",host=\"%s\"} %d\n",
+			serviceName, dbHost, dbStatus.PoolStats.InUse)
+
+		fmt.Fprintf(w, "db_connection_pool_idle{service=\"%s\",host=\"%s\"} %d\n",
+			serviceName, dbHost, dbStatus.PoolStats.Idle)
+	}
+	log.Printf("✅ Finished exporting database connection metrics for %d services", len(allServices))
+
+	// Also export legacy database connection for backward compatibility
+	if dbConnection != nil {
+		dbStatus := checkDatabaseConnection(ctx)
+		dbValue := 0
+		if dbStatus.Connected {
+			dbValue = 1
+		}
+		fmt.Fprintf(w, "db_connection_status{service=\"legacy\",host=\"%s\",database=\"%s\"} %d\n",
+			dbStatus.Host, dbStatus.Database, dbValue)
+
+		if dbStatus.Latency != "" {
+			latency, _ := parseDuration(dbStatus.Latency)
+			fmt.Fprintf(w, "db_connection_latency_seconds{service=\"legacy\",host=\"%s\"} %.4f\n",
+				dbStatus.Host, latency.Seconds())
+		}
+
+		fmt.Fprintf(w, "db_connection_pool_open{service=\"legacy\",host=\"%s\"} %d\n",
+			dbStatus.Host, dbStatus.PoolStats.OpenConnections)
+
+		fmt.Fprintf(w, "db_connection_pool_in_use{service=\"legacy\",host=\"%s\"} %d\n",
+			dbStatus.Host, dbStatus.PoolStats.InUse)
+
+		fmt.Fprintf(w, "db_connection_pool_idle{service=\"legacy\",host=\"%s\"} %d\n",
+			dbStatus.Host, dbStatus.PoolStats.Idle)
+	}
 
 	// Cache metrics
 	fmt.Fprintf(w, "\n# HELP cache_status Cache status (1=healthy, 0=unhealthy)\n")
