@@ -32,7 +32,7 @@ func TestRequestAccountSecurityCreatesAndDispatchesOTP(t *testing.T) {
 	activityRepo := newFakeActivityRepository()
 	smsClient := &fakeSMSServiceClient{}
 
-	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "")
+	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "", "", "")
 
 	if err := svc.RequestAccountSecurity(ctx, 1, 15, " 09123456789 "); err != nil {
 		t.Fatalf("RequestAccountSecurity returned error: %v", err)
@@ -112,7 +112,7 @@ func TestRequestAccountSecurityUpdatesExistingRecord(t *testing.T) {
 	}
 	accountRepo.records[1] = existing
 
-	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "")
+	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "", "", "")
 
 	if err := svc.RequestAccountSecurity(ctx, 1, 20, ""); err != nil {
 		t.Fatalf("RequestAccountSecurity returned error: %v", err)
@@ -157,7 +157,7 @@ func TestRequestAccountSecurityValidations(t *testing.T) {
 	activityRepo := newFakeActivityRepository()
 	smsClient := &fakeSMSServiceClient{}
 
-	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "")
+	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "", "", "")
 
 	t.Run("invalid duration", func(t *testing.T) {
 		err := svc.RequestAccountSecurity(ctx, 1, 3, "09111111111")
@@ -196,7 +196,7 @@ func TestRequestAccountSecurityNotificationError(t *testing.T) {
 	activityRepo := newFakeActivityRepository()
 	smsClient := &fakeSMSServiceClient{err: errors.New("dispatch failure")}
 
-	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "")
+	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "", "", "")
 
 	err := svc.RequestAccountSecurity(ctx, 1, 15, "09122223333")
 	if err == nil || err.Error() == "" {
@@ -240,7 +240,7 @@ func TestVerifyAccountSecuritySuccess(t *testing.T) {
 		Code:         string(hashed),
 	}
 
-	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "")
+	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "", "", "")
 
 	err = svc.VerifyAccountSecurity(ctx, 1, plainCode, " 127.0.0.1 ", " Mozilla/5.0 ")
 	if err != nil {
@@ -312,7 +312,7 @@ func TestVerifyAccountSecurityFailures(t *testing.T) {
 	}
 	accountRepo.otps[security.ID] = &models.Otp{ID: 7, UserID: 1, VerifiableID: security.ID, Code: string(hashed)}
 
-	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "")
+	svc := NewAuthService(userRepo, nil, accountRepo, activityRepo, nil, nil, smsClient, "", "", "", "", "")
 
 	t.Run("invalid code", func(t *testing.T) {
 		err := svc.VerifyAccountSecurity(ctx, 1, "000000", "", "")

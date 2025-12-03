@@ -156,6 +156,7 @@ var serviceNameMap = map[string]string{
 	"Kong Admin API":         "kong",
 	"WebSocket Gateway":      "websocket-gateway",
 	"Storage Service (HTTP)": "storage-service",
+	"gRPC Gateway":           "grpc-gateway",
 }
 
 // Map service labels to their running ports
@@ -171,6 +172,7 @@ var servicePortMap = map[string]string{
 	"storage-service":    "50059",
 	"kong":               "8000",
 	"websocket-gateway":  "3000",
+	"grpc-gateway":       "8080",
 }
 
 func main() {
@@ -811,6 +813,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	services = append(services, checkHTTP(ctx, "Kong API Gateway", "http://kong:8001/status"))
 	services = append(services, checkHTTP(ctx, "WebSocket Gateway", "http://websocket-gateway:3000/health"))
 	services = append(services, checkHTTP(ctx, "Storage Service (HTTP)", "http://storage-service:8059/health"))
+	services = append(services, checkHTTP(ctx, "gRPC Gateway", "http://grpc-gateway:8080/health"))
 
 	// Update lastHealthCheck with fresh data
 	for _, s := range services {
@@ -845,6 +848,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 			{"Storage Service (gRPC)", "storage-service", 50059},
 			{"Kong API Gateway", "kong", 0},
 			{"WebSocket Gateway", "websocket-gateway", 0},
+			{"gRPC Gateway", "grpc-gateway", 0},
 		}
 		for _, svc := range expectedServices {
 			lastHealthCheck[svc.displayName] = ServiceStatus{

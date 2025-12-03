@@ -108,8 +108,7 @@ message RegisterResponse {
 }
 
 message RedirectRequest {
-  string redirect_to = 1;
-  string back_url = 2;
+  string back_url = 1;
 }
 
 message RedirectResponse {

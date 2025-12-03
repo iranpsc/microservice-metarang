@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"metargb/auth-service/internal/models"
@@ -61,7 +62,16 @@ func (r *tokenRepository) Create(ctx context.Context, userID uint64, name string
 }
 
 func (r *tokenRepository) ValidateToken(ctx context.Context, token string) (*models.User, error) {
-	tokenHash := hashToken(token)
+	// Extract plain token part if token is in format {id}|{plainToken}
+	// Tokens can be either:
+	// 1. Full format: "123|piSZrgcQzybhwnpeOWVABqXxurr2L3KIkBA8eK0c" - extract part after |
+	// 2. Plain format: "piSZrgcQzybhwnpeOWVABqXxurr2L3KIkBA8eK0c" - use as-is
+	plainToken := token
+	if idx := strings.Index(token, "|"); idx != -1 {
+		plainToken = token[idx+1:]
+	}
+	
+	tokenHash := hashToken(plainToken)
 
 	query := `
 		SELECT pat.id, pat.tokenable_id, pat.expires_at, pat.last_used_at,

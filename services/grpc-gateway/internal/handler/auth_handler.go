@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -54,12 +55,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 // Redirect handles GET /api/auth/redirect
 func (h *AuthHandler) Redirect(w http.ResponseWriter, r *http.Request) {
-	redirectTo := r.URL.Query().Get("redirect_to")
 	backURL := r.URL.Query().Get("back_url")
 
 	grpcReq := &pb.RedirectRequest{
-		RedirectTo: redirectTo,
-		BackUrl:    backURL,
+		BackUrl: backURL,
 	}
 
 	resp, err := h.authClient.Redirect(r.Context(), grpcReq)
@@ -87,11 +86,16 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"token":        resp.Token,
-		"expires_at":   resp.ExpiresAt,
-		"redirect_url": resp.RedirectUrl,
-	})
+	// Redirect to the frontend URL with token and expires_at query parameters
+	// According to spec: "Responds with a redirect to whichever cached URL is present"
+	if resp.RedirectUrl != "" {
+		// Log redirect for debugging
+		http.Redirect(w, r, resp.RedirectUrl, http.StatusFound)
+		return
+	}
+
+	// Fallback: if no redirect URL, return error with details for debugging
+	writeError(w, http.StatusInternalServerError, fmt.Sprintf("redirect URL not configured (empty response from auth service)"))
 }
 
 // GetMe handles POST /api/auth/me

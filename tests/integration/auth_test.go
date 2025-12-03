@@ -45,8 +45,7 @@ func TestAuthFlow(t *testing.T) {
 
 	t.Run("Redirect", func(t *testing.T) {
 		req := &pb.RedirectRequest{
-			RedirectTo: "https://example.com/dashboard",
-			BackUrl:    "https://example.com",
+			BackUrl: "https://example.com",
 		}
 
 		resp, err := client.Redirect(ctx, req)

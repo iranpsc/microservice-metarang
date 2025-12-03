@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -25,7 +26,7 @@ import (
 
 type AuthService interface {
 	Register(ctx context.Context, backURL, referral string) (string, error)
-	Redirect(ctx context.Context, redirectTo, backURL string) (string, string, error) // returns url and state
+	Redirect(ctx context.Context, backURL string) (string, string, error) // returns url and state
 	Callback(ctx context.Context, state, code, cachedState string) (*CallbackResult, error)
 	GetMe(ctx context.Context, token string) (*UserDetails, error)
 	Logout(ctx context.Context, userID uint64, ip, userAgent string) error
@@ -45,6 +46,8 @@ type authService struct {
 	oauthServerURL      string
 	oauthClientID       string
 	oauthClientSecret   string
+	appURL              string
+	frontEndURL         string
 	httpClient          *http.Client
 }
 
@@ -102,8 +105,19 @@ func NewAuthService(
 	observerService ObserverService,
 	helperService HelperService,
 	notificationsClient notificationspb.SMSServiceClient,
-	oauthServerURL, oauthClientID, oauthClientSecret string,
+	oauthServerURL, oauthClientID, oauthClientSecret, appURL, frontEndURL string,
 ) AuthService {
+	// Validate OAuth configuration
+	if oauthServerURL == "" {
+		log.Printf("Warning: OAUTH_SERVER_URL is not set")
+	}
+	if oauthClientID == "" {
+		log.Printf("Warning: OAUTH_CLIENT_ID is not set")
+	}
+	if oauthClientSecret == "" {
+		log.Printf("Warning: OAUTH_CLIENT_SECRET is not set - this will cause OAuth token exchange to fail")
+	}
+
 	return &authService{
 		userRepo:            userRepo,
 		tokenRepo:           tokenRepo,
@@ -115,6 +129,8 @@ func NewAuthService(
 		oauthServerURL:      oauthServerURL,
 		oauthClientID:       oauthClientID,
 		oauthClientSecret:   oauthClientSecret,
+		appURL:              appURL,
+		frontEndURL:         frontEndURL,
 		httpClient:          &http.Client{Timeout: 30 * time.Second},
 	}
 }
@@ -130,16 +146,22 @@ func (s *authService) Register(ctx context.Context, backURL, referral string) (s
 	return redirectURL, nil
 }
 
-func (s *authService) Redirect(ctx context.Context, redirectTo, backURL string) (string, string, error) {
+func (s *authService) Redirect(ctx context.Context, backURL string) (string, string, error) {
 	// Generate state token
 	state, err := generateState()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate state: %w", err)
 	}
 
+	// Ensure appURL is set, fallback to oauthServerURL if not configured
+	redirectURI := s.appURL + "/api/auth/callback"
+	if s.appURL == "" {
+		redirectURI = s.oauthServerURL + "/auth/callback"
+	}
+
 	params := url.Values{}
 	params.Set("client_id", s.oauthClientID)
-	params.Set("redirect_uri", s.oauthServerURL+"/auth/callback")
+	params.Set("redirect_uri", redirectURI)
 	params.Set("response_type", "code")
 	params.Set("scope", "")
 	params.Set("state", state)
@@ -260,10 +282,27 @@ func (s *authService) Callback(ctx context.Context, state, code, cachedState str
 		}
 	}
 
+	// Build redirect URL with token and expires_at query parameters
+	// TODO: Retrieve redirect_to and back_url from cache (prefer redirect_to over back_url)
+	// For now, use FRONT_END_URL as fallback
+	redirectBaseURL := s.frontEndURL
+	if redirectBaseURL == "" {
+		log.Printf("Warning: FRONT_END_URL is not set, using default fallback")
+		redirectBaseURL = "http://localhost:3000" // Default fallback
+	}
+
+	// Construct redirect URL with token and expires_at query parameters
+	redirectParams := url.Values{}
+	redirectParams.Set("token", plainToken)
+	redirectParams.Set("expires_at", fmt.Sprintf("%d", int32(time.Until(expiresAt).Minutes())))
+	redirectURL := fmt.Sprintf("%s?%s", redirectBaseURL, redirectParams.Encode())
+
+	log.Printf("Callback successful for user %d, redirecting to: %s", user.ID, redirectURL)
+
 	result := &CallbackResult{
 		Token:       plainToken,
 		ExpiresAt:   int32(time.Until(expiresAt).Minutes()),
-		RedirectURL: "", // Should be populated from cache
+		RedirectURL: redirectURL,
 	}
 
 	return result, nil
@@ -579,11 +618,17 @@ type OAuthUserData struct {
 }
 
 func (s *authService) exchangeCodeForToken(ctx context.Context, code string) (*OAuthTokenResponse, error) {
+	// Use the same redirect_uri logic as in Redirect function
+	redirectURI := s.appURL + "/api/auth/callback"
+	if s.appURL == "" {
+		redirectURI = s.oauthServerURL + "/auth/callback"
+	}
+
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
 	data.Set("client_id", s.oauthClientID)
 	data.Set("client_secret", s.oauthClientSecret)
-	data.Set("redirect_uri", s.oauthServerURL+"/auth/callback")
+	data.Set("redirect_uri", redirectURI)
 	data.Set("code", code)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", s.oauthServerURL+"/oauth/token", bytes.NewBufferString(data.Encode()))

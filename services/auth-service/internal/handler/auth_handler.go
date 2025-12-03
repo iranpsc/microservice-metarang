@@ -39,12 +39,12 @@ func (h *authHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 }
 
 func (h *authHandler) Redirect(ctx context.Context, req *pb.RedirectRequest) (*pb.RedirectResponse, error) {
-	url, _, err := h.authService.Redirect(ctx, req.RedirectTo, req.BackUrl)
+	url, _, err := h.authService.Redirect(ctx, req.BackUrl)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "redirect failed: %v", err)
 	}
 
-	// TODO: Store state and redirect_to/back_url in cache (Redis)
+	// TODO: Store state and back_url in cache (Redis)
 	// For now, we're returning the URL and the state would be managed by Kong/gateway
 
 	return &pb.RedirectResponse{

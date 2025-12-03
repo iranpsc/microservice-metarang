@@ -76,5 +76,6 @@ docker/*.env.*
 *.swp
 __pycache__/
 coverage-final.json
+.env
 
 

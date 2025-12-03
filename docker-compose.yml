@@ -56,6 +56,8 @@ services:
     container_name: metargb-auth-service
     ports:
       - "50051:50051"
+    env_file:
+      - ./services/auth-service/config.env
     environment:
       GRPC_PORT: 50051
       DB_HOST: mysql
@@ -67,9 +69,7 @@ services:
       REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379/0
       KAVENEGAR_API_KEY: ${KAVENEGAR_API_KEY:-}
-      OAUTH_SERVER_URL: ${OAUTH_SERVER_URL:-}
-      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-}
-      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:-}
+      # OAUTH_SERVER_URL, OAUTH_CLIENT_ID, and OAUTH_CLIENT_SECRET are loaded from config.env via env_file
     depends_on:
       mysql:
         condition: service_healthy

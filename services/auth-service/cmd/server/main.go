@@ -24,9 +24,12 @@ import (
 )
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: .env file not found: %v", err)
+	// Load environment variables from config.env
+	if err := godotenv.Load("config.env"); err != nil {
+		// Fallback to .env if config.env not found
+		if err2 := godotenv.Load(); err2 != nil {
+			log.Printf("Warning: config.env and .env files not found: %v, %v", err, err2)
+		}
 	}
 
 	// Database connection
@@ -109,6 +112,8 @@ func main() {
 		getEnv("OAUTH_SERVER_URL", ""),
 		getEnv("OAUTH_CLIENT_ID", ""),
 		getEnv("OAUTH_CLIENT_SECRET", ""),
+		getEnv("APP_URL", "http://localhost:8000"),
+		getEnv("FRONT_END_URL", "http://localhost:3000"),
 	)
 	userService := service.NewUserService(userRepo)
 	kycService := service.NewKYCService(kycRepo)
