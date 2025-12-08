@@ -14,12 +14,14 @@ import (
 	"metargb/features-service/internal/service"
 	"metargb/features-service/pkg/threed_client"
 	pb "metargb/shared/pb/features"
+	"metargb/shared/pkg/auth"
 	"metargb/shared/pkg/db"
 	"metargb/shared/pkg/logger"
 	"metargb/shared/pkg/metrics"
 
 	_ "github.com/go-sql-driver/mysql"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -128,13 +130,39 @@ func main() {
 	profitHandler := handler.NewProfitHandler(profitService)
 	buildingHandler := handler.NewBuildingHandler(buildingService)
 
+	// Initialize token validator for authentication
+	// Connect to auth service for token validation
+	authServiceAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, err := grpc.Dial(authServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Warn("Failed to connect to auth service - authentication disabled", "error", err)
+	} else {
+		defer authConn.Close()
+		log.Info("Connected to auth service", "addr", authServiceAddr)
+	}
+
+	// Create token validator using auth service
+	var tokenValidator auth.TokenValidator
+	if authConn != nil {
+		tokenValidator = auth.NewAuthServiceTokenValidator(authConn)
+	}
+
 	// Create gRPC server with interceptors
 	serviceMetrics := metrics.NewMetrics("features")
+
+	// Build interceptor chain
+	interceptors := []grpc.UnaryServerInterceptor{
+		logger.UnaryServerInterceptor(log),
+		metrics.UnaryServerInterceptor(serviceMetrics),
+	}
+
+	// Add auth interceptor if token validator is available
+	if tokenValidator != nil {
+		interceptors = append(interceptors, auth.UnaryServerInterceptor(tokenValidator))
+	}
+
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			logger.UnaryServerInterceptor(log),
-			metrics.UnaryServerInterceptor(serviceMetrics),
-		),
+		grpc.ChainUnaryInterceptor(interceptors...),
 	)
 
 	// Register services

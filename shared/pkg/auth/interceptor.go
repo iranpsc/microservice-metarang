@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
+
+// ErrInvalidToken is returned when a token validation fails
+var ErrInvalidToken = errors.New("invalid token")
 
 // UserContextKey is the key for user data in context
 type UserContextKey struct{}
@@ -131,11 +135,15 @@ func extractToken(authHeader string) string {
 func shouldSkipAuth(fullMethod string) bool {
 	// List of methods that don't require authentication
 	publicMethods := []string{
+		// Health checks
 		"/grpc.health.v1.Health/Check",
 		"/grpc.health.v1.Health/Watch",
+		// Auth service public endpoints (OAuth flow)
 		"/auth.AuthService/Register",
 		"/auth.AuthService/Login",
+		"/auth.AuthService/Redirect",
 		"/auth.AuthService/Callback",
+		"/auth.AuthService/ValidateToken", // Other services call this to validate tokens
 	}
 
 	for _, method := range publicMethods {
@@ -164,4 +172,3 @@ type wrappedServerStream struct {
 func (w *wrappedServerStream) Context() context.Context {
 	return w.ctx
 }
-

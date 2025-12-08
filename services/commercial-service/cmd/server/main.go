@@ -14,11 +14,13 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"metargb/commercial-service/internal/handler"
 	"metargb/commercial-service/internal/parsian"
 	"metargb/commercial-service/internal/repository"
 	"metargb/commercial-service/internal/service"
+	"metargb/shared/pkg/auth"
 )
 
 func main() {
@@ -106,8 +108,31 @@ func main() {
 		paymentConfig,
 	)
 
+	// Initialize token validator for authentication
+	// Connect to auth service for token validation
+	authServiceAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, err := grpc.Dial(authServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Printf("Warning: Failed to connect to auth service - authentication disabled: %v", err)
+	} else {
+		defer authConn.Close()
+		log.Printf("Connected to auth service at %s", authServiceAddr)
+	}
+
+	// Create token validator using auth service
+	var tokenValidator auth.TokenValidator
+	if authConn != nil {
+		tokenValidator = auth.NewAuthServiceTokenValidator(authConn)
+	}
+
+	// Build gRPC server options with interceptors
+	var serverOpts []grpc.ServerOption
+	if tokenValidator != nil {
+		serverOpts = append(serverOpts, grpc.UnaryInterceptor(auth.UnaryServerInterceptor(tokenValidator)))
+	}
+
 	// Create gRPC server
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Register handlers
 	handler.RegisterWalletHandler(grpcServer, walletService)
@@ -146,4 +171,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
-
