@@ -158,13 +158,13 @@ func mapAccountSecurityError(err error) error {
 		errors.Is(err, service.ErrPhoneRequired),
 		errors.Is(err, service.ErrInvalidOTPCode),
 		errors.Is(err, service.ErrPhoneAlreadyTaken):
-		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
+		return status.Errorf(codes.InvalidArgument, "%v", err)
 	case errors.Is(err, service.ErrAccountSecurityNotFound):
-		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
+		return status.Errorf(codes.InvalidArgument, "%v", err)
 	case errors.Is(err, service.ErrUserNotFound):
-		return status.Errorf(codes.NotFound, "%s", err.Error())
+		return status.Errorf(codes.NotFound, "%v", err)
 	case errors.Is(err, service.ErrAccountSecurityAlreadyUnlocked):
-		return status.Errorf(codes.FailedPrecondition, "%s", err.Error())
+		return status.Errorf(codes.FailedPrecondition, "%v", err)
 	default:
 		return status.Errorf(codes.Internal, "account security operation failed: %v", err)
 	}
