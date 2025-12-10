@@ -202,6 +202,20 @@ kubectl apply -f k8s/kong/routes.yaml
 4. Update documentation
 5. Run linters before commit
 
+### Development Rules
+
+**IMPORTANT**: All developers (including LLMs) must follow the project development rules:
+
+- **`.cursorrules`** - Rules for LLM assistants (Cursor, GitHub Copilot, etc.)
+- **`docs/DEVELOPMENT_RULES.md`** - Comprehensive development guide for human developers
+
+Key principles:
+- Maintain 100% API compatibility with Laravel monolith
+- Follow layered architecture (handler/service/repository)
+- Use dependency injection
+- Handle all errors properly
+- Write tests for new code
+
 ## License
 
 Proprietary - MetaRGB Platform
