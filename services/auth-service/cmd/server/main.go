@@ -24,11 +24,33 @@ import (
 )
 
 func main() {
+	// Panic recovery to catch any early failures
+	defer func() {
+		if r := recover(); r != nil {
+			log.Fatalf("Panic: %v", r)
+		}
+	}()
+
 	// Load environment variables from config.env
-	if err := godotenv.Load("config.env"); err != nil {
+	// Try multiple possible paths for config.env
+	configPaths := []string{
+		"config.env",
+		"./config.env",
+		"../config.env",
+		"../../config.env",
+		"services/auth-service/config.env",
+	}
+	var configLoaded bool
+	for _, configPath := range configPaths {
+		if err := godotenv.Load(configPath); err == nil {
+			configLoaded = true
+			break
+		}
+	}
+	if !configLoaded {
 		// Fallback to .env if config.env not found
 		if err2 := godotenv.Load(); err2 != nil {
-			log.Printf("Warning: config.env and .env files not found: %v, %v", err, err2)
+			log.Printf("Warning: config.env and .env files not found, using environment variables only")
 		}
 	}
 
@@ -68,7 +90,19 @@ func main() {
 	activityRepo := repository.NewActivityRepository(db)
 
 	// Initialize Redis publisher for WebSocket broadcasting
-	redisURL := getEnv("REDIS_URL", "redis://localhost:6379/0")
+	redisURL := getEnv("REDIS_URL", "")
+	if redisURL == "" {
+		// Construct REDIS_URL from individual components if not set
+		redisHost := getEnv("REDIS_HOST", "localhost")
+		redisPort := getEnv("REDIS_PORT", "6379")
+		redisPassword := getEnv("REDIS_PASSWORD", "")
+		redisDB := getEnv("REDIS_DB", "0")
+		if redisPassword != "" {
+			redisURL = fmt.Sprintf("redis://:%s@%s:%s/%s", redisPassword, redisHost, redisPort, redisDB)
+		} else {
+			redisURL = fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB)
+		}
+	}
 	redisPublisher, err := pubsub.NewRedisPublisher(redisURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)

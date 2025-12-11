@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -95,7 +94,7 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fallback: if no redirect URL, return error with details for debugging
-	writeError(w, http.StatusInternalServerError, fmt.Sprintf("redirect URL not configured (empty response from auth service)"))
+	writeError(w, http.StatusInternalServerError, "redirect URL not configured (empty response from auth service)")
 }
 
 // GetMe handles POST /api/auth/me
