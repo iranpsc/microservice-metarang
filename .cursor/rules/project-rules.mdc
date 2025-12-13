@@ -1,0 +1,613 @@
+---
+alwaysApply: true
+---
+
+# MetaRGB Microservices - Development Rules for LLMs
+
+## CRITICAL: API Compatibility Requirement
+
+**ALL microservices MUST maintain 100% API compatibility with the Laravel monolith:**
+- Exact JSON field names and types
+- Exact HTTP status codes
+- Exact validation error formats
+- Exact date/time formats (Jalali calendar support)
+- Exact URL structures
+- Golden JSON tests verify byte-for-byte compatibility
+
+**Before making any API changes, verify compatibility with existing Laravel endpoints.**
+
+---
+
+## Architecture Patterns
+
+### 1. Service Structure (MANDATORY)
+
+Every service MUST follow this exact structure:
+
+```
+service-name/
+├── cmd/server/main.go          # Entry point, dependency injection
+├── internal/
+│   ├── handler/                # gRPC handlers (presentation layer)
+│   ├── service/                # Business logic (domain layer)
+│   ├── repository/             # Data access (persistence layer)
+│   ├── models/                 # Domain models
+│   └── pubsub/                 # Redis pub/sub (if needed)
+├── config.env.sample           # Configuration template
+└── Dockerfile                  # Container definition
+```
+
+### 2. Layered Architecture (MANDATORY)
+
+**Handler Layer (`internal/handler/`):**
+- ONLY handles gRPC request/response conversion
+- Maps service errors to gRPC status codes
+- Input validation (required fields, format checks)
+- NO business logic
+- Pattern: `Register{Service}Handler(grpcServer, service, ...)`
+
+**Service Layer (`internal/service/`):**
+- Contains ALL business logic
+- Orchestrates repository calls
+- Calls other services via gRPC clients
+- Error handling and validation
+- Returns domain errors (not gRPC errors)
+
+**Repository Layer (`internal/repository/`):**
+- ONLY database operations (SQL queries)
+- NO business logic
+- Returns standard Go errors
+- Uses `context.Context` for all operations
+- Pattern: `New{Entity}Repository(db *sql.DB) {Entity}Repository`
+
+### 3. Dependency Injection Pattern
+
+**ALWAYS use constructor injection in `main.go`:**
+
+```go
+// 1. Initialize repositories
+userRepo := repository.NewUserRepository(db)
+tokenRepo := repository.NewTokenRepository(db)
+
+// 2. Initialize services (depend on repositories)
+authService := service.NewAuthService(userRepo, tokenRepo, ...)
+
+// 3. Register handlers (depend on services)
+handler.RegisterAuthHandler(grpcServer, authService, tokenRepo)
+```
+
+**NEVER use global variables or singletons.**
+
+---
+
+## Protocol Buffers (gRPC)
+
+### Proto File Rules
+
+1. **Location**: ALL `.proto` files MUST be in `shared/proto/`
+2. **Naming**: Use snake_case for proto files: `auth.proto`, `commercial.proto`
+3. **Package**: Use lowercase: `package auth;`
+4. **Go Package**: `option go_package = "metargb/shared/pb/auth";`
+5. **Generate Code**: Run `make proto` after ANY proto changes
+6. **Versioning**: Use proto3 syntax: `syntax = "proto3";`
+
+### Service Definition Rules
+
+```protobuf
+service AuthService {
+  rpc MethodName(RequestMessage) returns (ResponseMessage);
+  // Use google.protobuf.Empty for void returns
+  rpc Delete(DeleteRequest) returns (google.protobuf.Empty);
+}
+```
+
+### Message Naming
+
+- Request messages: `{Method}Request` (e.g., `GetUserRequest`)
+- Response messages: `{Method}Response` (e.g., `GetUserResponse`)
+- Use descriptive field names matching Laravel API exactly
+
+---
+
+## Error Handling
+
+### Service Layer Errors
+
+**Define custom error variables:**
+
+```go
+var (
+    ErrUserNotFound = errors.New("user not found")
+    ErrInvalidInput = errors.New("invalid input")
+)
+```
+
+**Return errors, don't log in service layer:**
+
+```go
+func (s *service) GetUser(ctx context.Context, id uint64) (*User, error) {
+    user, err := s.repo.FindByID(ctx, id)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get user: %w", err)
+    }
+    if user == nil {
+        return nil, ErrUserNotFound
+    }
+    return user, nil
+}
+```
+
+### Handler Layer Error Mapping
+
+**Map service errors to gRPC status codes:**
+
+```go
+func (h *handler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error) {
+    user, err := h.service.GetUser(ctx, req.UserId)
+    if err != nil {
+        return nil, mapError(err)  // Map to gRPC status
+    }
+    return convertToProto(user), nil
+}
+
+func mapError(err error) error {
+    switch {
+    case errors.Is(err, service.ErrUserNotFound):
+        return status.Errorf(codes.NotFound, "%s", err.Error())
+    case errors.Is(err, service.ErrInvalidInput):
+        return status.Errorf(codes.InvalidArgument, "%s", err.Error())
+    default:
+        return status.Errorf(codes.Internal, "operation failed: %v", err)
+    }
+}
+```
+
+### gRPC Status Code Mapping
+
+- `codes.OK` - Success
+- `codes.InvalidArgument` - Validation errors, bad input
+- `codes.NotFound` - Resource not found
+- `codes.Unauthenticated` - Missing/invalid token
+- `codes.PermissionDenied` - Authorization failure
+- `codes.FailedPrecondition` - Business rule violation
+- `codes.Internal` - Unexpected server errors
+
+### Validation Error Response Format
+
+**ALL validation error responses MUST follow this exact JSON structure:**
+
+```json
+{
+    "message": "Field validation error message",
+    "errors": {
+        "field_name": [
+            "Field-specific error message"
+        ]
+    }
+}
+```
+
+**Rules:**
+1. **`message` field**: Contains a general validation error message (e.g., first error or summary)
+2. **`errors` object**: Maps field names to arrays of error messages for that field
+3. **Field names**: Use snake_case matching the request field names exactly
+4. **Multiple errors per field**: Each field can have multiple error messages in its array
+5. **Language**: Error messages MUST support multiple locales based on app locale (not hardcoded to any specific language)
+6. **HTTP Status**: Return `422 Unprocessable Entity` or equivalent gRPC `InvalidArgument` status code
+
+**Example (Persian locale):**
+```json
+{
+    "message": "فیلد تلفن همراه الزامی است",
+    "errors": {
+        "mobile": [
+            "فیلد تلفن همراه الزامی است"
+        ]
+    }
+}
+```
+
+**Example (English locale):**
+```json
+{
+    "message": "The mobile field is required",
+    "errors": {
+        "mobile": [
+            "The mobile field is required"
+        ]
+    }
+}
+```
+
+**Example (multiple field errors):**
+```json
+{
+    "message": "The given data was invalid",
+    "errors": {
+        "mobile": [
+            "The mobile field is required"
+        ],
+        "email": [
+            "The email field must be a valid email address",
+            "The email has already been taken"
+        ]
+    }
+}
+```
+
+**Implementation Note:** When returning validation errors from handlers, format them according to the current app locale before serializing to JSON.
+
+---
+
+## Database Patterns
+
+### Repository Interface Pattern
+
+**ALWAYS define interfaces:**
+
+```go
+type UserRepository interface {
+    Create(ctx context.Context, user *models.User) error
+    FindByID(ctx context.Context, id uint64) (*models.User, error)
+    Update(ctx context.Context, user *models.User) error
+}
+```
+
+### SQL Query Rules
+
+1. **Use `context.Context` for ALL queries:**
+   ```go
+   err := r.db.QueryRowContext(ctx, query, args...).Scan(...)
+   ```
+
+2. **Handle `sql.ErrNoRows` explicitly:**
+   ```go
+   if err == sql.ErrNoRows {
+       return nil, nil  // Not found, return nil
+   }
+   ```
+
+3. **Wrap errors with context:**
+   ```go
+   if err != nil {
+       return nil, fmt.Errorf("failed to find user: %w", err)
+   }
+   ```
+
+4. **Use prepared statements (via ExecContext/QueryContext)**
+5. **Always use `defer rows.Close()` for QueryContext**
+
+### Database Connection
+
+**Connection pool settings (in `main.go`):**
+```go
+db.SetMaxOpenConns(25)
+db.SetMaxIdleConns(5)
+db.SetConnMaxLifetime(5 * time.Minute)
+```
+
+### Shared Database Pattern
+
+- All services connect to the SAME MySQL instance
+- Use table-level permissions per service
+- Schema managed in `scripts/schema.sql`
+- NEVER create tables in code - use migrations
+
+---
+
+## Service Communication
+
+### gRPC Client Pattern
+
+**Initialize clients in `main.go`:**
+
+```go
+// Dial to other service
+conn, err := grpc.Dial(
+    getEnv("NOTIFICATIONS_SERVICE_ADDR", "notifications-service:50051"),
+    grpc.WithTransportCredentials(insecure.NewCredentials()),
+)
+if err != nil {
+    log.Fatalf("Failed to connect: %v", err)
+}
+defer conn.Close()
+
+// Create client
+client := notificationspb.NewSMSServiceClient(conn)
+
+// Pass to service
+authService := service.NewAuthService(..., client, ...)
+```
+
+**Use clients in service layer, NOT handler layer.**
+
+### Service Addresses
+
+- Use environment variables: `{SERVICE}_SERVICE_ADDR`
+- Default format: `{service-name}:{port}`
+- Ports: 50051-50060 (see README.md for mapping)
+
+---
+
+## Configuration Management
+
+### Environment Variables
+
+1. **ALWAYS use `config.env` files** (not `.env`)
+2. **Provide `config.env.sample`** with all required variables
+3. **Load in `main.go` using `godotenv.Load("config.env")`**
+4. **Use `getEnv(key, defaultValue)` helper function**
+
+### Required Environment Variables
+
+Every service MUST support:
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`
+- `GRPC_PORT` (service-specific port)
+- Service-specific variables (e.g., `OAUTH_SERVER_URL` for auth-service)
+
+---
+
+## Code Style & Conventions
+
+### Naming Conventions
+
+- **Packages**: lowercase, single word (`handler`, `service`, `repository`)
+- **Interfaces**: `{Entity}Repository`, `{Entity}Service`
+- **Structs**: `{entity}Repository`, `{entity}Service`, `{entity}Handler`
+- **Constructors**: `New{Entity}Repository`, `New{Entity}Service`
+- **Functions**: PascalCase for exported, camelCase for private
+
+### File Organization
+
+- **One interface per file** (repository interfaces)
+- **One handler per service** (can have multiple methods)
+- **Group related functions** in service files
+
+### Context Usage
+
+**ALWAYS pass `context.Context` as first parameter:**
+
+```go
+func (r *repo) FindByID(ctx context.Context, id uint64) (*User, error)
+func (s *service) GetUser(ctx context.Context, id uint64) (*User, error)
+func (h *handler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error)
+```
+
+---
+
+## Testing Requirements
+
+### Test Structure
+
+1. **Unit tests**: Test service layer with mocked repositories
+2. **Integration tests**: Test full flow with real database
+3. **Golden tests**: Verify API compatibility with Laravel
+
+### Test File Naming
+
+- `{entity}_repository_test.go`
+- `{entity}_service_test.go`
+- `{entity}_handler_test.go`
+
+### Running Tests
+
+```bash
+make test-unit        # Unit tests
+make test-integration # Integration tests
+make test-golden      # API compatibility tests
+```
+
+**ALWAYS run tests before committing changes.**
+
+---
+
+## Authentication & Authorization
+
+### Token Validation
+
+- Use `shared/pkg/auth/interceptor.go` for gRPC authentication
+- Validate tokens via `auth-service.ValidateToken` gRPC call
+- Extract user from context: `auth.GetUserFromContext(ctx)`
+
+### Public Endpoints
+
+**Skip authentication for:**
+- Health checks
+- OAuth flow endpoints (Register, Redirect, Callback)
+- ValidateToken (used by other services)
+
+---
+
+## Logging
+
+### Structured Logging
+
+- Use JSON structured logs
+- Log levels: DEBUG, INFO, WARN, ERROR
+- Include request ID in logs (from context)
+- Log to stdout (containerized logging)
+
+### Logging Rules
+
+- **Handler**: Log request/response (INFO level)
+- **Service**: Log business events (INFO), errors (ERROR)
+- **Repository**: Log errors only (ERROR level)
+
+---
+
+## Protocol Buffer Generation
+
+### After Proto Changes
+
+1. **Edit `.proto` file** in `shared/proto/`
+2. **Run `make proto`** to generate Go code
+3. **Verify generated code** in `shared/pb/`
+4. **Update service implementation** to use new types
+
+**NEVER manually edit generated files in `shared/pb/`**
+
+---
+
+## Docker & Containerization
+
+### Dockerfile Rules
+
+1. **Multi-stage builds** (build stage + runtime stage)
+2. **Use Alpine Linux** for smaller images
+3. **Set working directory**: `WORKDIR /app`
+4. **Copy only necessary files**
+5. **Expose gRPC port**: `EXPOSE {GRPC_PORT}`
+
+### Container Naming
+
+- Container names: `metargb-{service-name}`
+- Image names: `metargb/{service-name}:{version}`
+
+---
+
+## Database Schema Rules
+
+### Schema Management
+
+- **Schema file**: `scripts/schema.sql`
+- **NEVER create tables in code**
+- **Use migrations** for schema changes
+- **Check `deleted_at`** for soft deletes
+
+### Table Naming
+
+- Use Laravel naming conventions (snake_case, plural)
+- Preserve exact table names from Laravel monolith
+
+---
+
+## Shared Packages
+
+### Using Shared Code
+
+**Available shared packages:**
+- `metargb/shared/pb/{service}` - Generated proto code
+- `metargb/shared/pkg/auth` - Authentication utilities
+- `metargb/shared/pkg/db` - Database utilities
+- `metargb/shared/pkg/logger` - Logging utilities
+- `metargb/shared/pkg/metrics` - Prometheus metrics
+- `metargb/shared/pkg/helpers` - Helper functions
+
+**ALWAYS use shared packages instead of duplicating code.**
+
+---
+
+## API Gateway (Kong)
+
+### Route Configuration
+
+- Routes defined in `kong/kong.yml`
+- REST endpoints map to gRPC services
+- Authentication handled by Kong (calls auth-service)
+
+### Adding New Routes
+
+1. **Add route in `kong/kong.yml`**
+2. **Validate**: `make kong-validate`
+3. **Reload**: `make kong-reload`
+
+---
+
+## Service Mesh (Istio)
+
+### mTLS Configuration
+
+- All service-to-service traffic encrypted
+- Configured in `k8s/istio/`
+- Services automatically get sidecar proxies
+
+---
+
+## Development Workflow
+
+### Before Making Changes
+
+1. **Read existing code** in similar services
+2. **Check proto definitions** in `shared/proto/`
+3. **Review Laravel API** for compatibility
+4. **Understand data flow** (handler → service → repository)
+
+### Making Changes
+
+1. **Update proto** (if API changes)
+2. **Generate code**: `make proto`
+3. **Implement handler** (thin layer)
+4. **Implement service** (business logic)
+5. **Implement repository** (data access)
+6. **Write tests**
+7. **Update Kong config** (if new endpoints)
+
+### After Making Changes
+
+1. **Run tests**: `make test-all`
+2. **Check linting**: Fix any linter errors
+3. **Update documentation** if needed
+4. **Verify API compatibility** with golden tests
+
+---
+
+## Common Pitfalls to Avoid
+
+### ❌ DON'T
+
+- Put business logic in handlers
+- Put SQL queries in service layer
+- Use global variables or singletons
+- Skip error handling
+- Hardcode service addresses
+- Create tables in code
+- Edit generated proto code
+- Return gRPC errors from service layer
+- Skip context.Context in function signatures
+- Ignore API compatibility requirements
+
+### ✅ DO
+
+- Follow layered architecture strictly
+- Use dependency injection
+- Handle all errors properly
+- Use environment variables for configuration
+- Pass context.Context everywhere
+- Write tests for new code
+- Maintain API compatibility
+- Use shared packages
+- Follow existing patterns in codebase
+
+---
+
+## Code Review Checklist
+
+Before submitting code, verify:
+
+- [ ] Follows layered architecture (handler/service/repository)
+- [ ] Uses dependency injection
+- [ ] All errors handled and mapped correctly
+- [ ] Context.Context used in all functions
+- [ ] Repository interface defined
+- [ ] Service errors are domain errors (not gRPC)
+- [ ] Handler maps errors to gRPC status codes
+- [ ] Proto files updated and code generated
+- [ ] Tests written and passing
+- [ ] API compatibility maintained
+- [ ] Configuration uses environment variables
+- [ ] No hardcoded values
+- [ ] Logging is structured
+- [ ] Documentation updated if needed
+
+---
+
+## Questions?
+
+When in doubt:
+1. **Check existing similar code** in other services
+2. **Review architecture documentation** in `docs/ARCHITECTURE.md`
+3. **Follow patterns** from `auth-service` (reference implementation)
+4. **Maintain API compatibility** with Laravel monolith
+
+**Remember: Consistency and compatibility are more important than clever solutions.**
+
