@@ -1,12 +1,15 @@
 package service
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"metargb/notifications-service/internal/models"
+	"metargb/notifications-service/internal/repository"
 )
 
 // MockNotificationRepository is a mock implementation that wraps the repository
@@ -181,8 +184,8 @@ func TestNotificationService_GetNotifications(t *testing.T) {
 	}{
 		{
 			name:   "successful get notifications",
-			userID:  123,
-			filter:  models.NotificationFilter{Page: 1, PerPage: 10},
+			userID: 123,
+			filter: models.NotificationFilter{Page: 1, PerPage: 10},
 			setupMocks: func(repo *MockNotificationRepository) {
 				notifications := []models.Notification{
 					{
@@ -215,4 +218,3 @@ func TestNotificationService_GetNotifications(t *testing.T) {
 // Note: The service currently uses concrete repository type
 // In a production system, you'd want to use an interface for better testability
 // This test demonstrates the pattern but may need adaptation based on actual service structure
-

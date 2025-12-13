@@ -20,1250 +20,17 @@
   "panels": [
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
-      "id": 99,
-      "panels": [],
-      "title": "Service Health",
-      "type": "row"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "displayMode": "auto"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "text": "Down"
-                },
-                "1": {
-                  "color": "green",
-                  "text": "Up"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "red", "value": null},
-              {"color": "green", "value": 1}
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 100
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "0": {
-                        "color": "red",
-                        "text": "Down"
-                      },
-                      "1": {
-                        "color": "green",
-                        "text": "Up"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {"color": "red", "value": null},
-                    {"color": "green", "value": 1}
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Service"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 180
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Port(s)"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Protocol"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 120
-              }
-            ]
-          }
-        ]
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
       },
-      "gridPos": {"x": 0, "y": 1, "w": 24, "h": 8},
-      "id": 22,
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Service"
-          }
-        ],
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": ["sum"],
-          "show": false
-        },
-        "frameIndex": 0
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "service_health_status{service=~\"auth-service|commercial-service|features-service|levels-service|dynasty-service|calendar-service|storage-service|mysql|redis|kong|websocket-gateway|grpc-gateway|health-check-service|prometheus|grafana\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Services Status and Running Ports",
-      "description": "Service ports: auth-service (50051), commercial-service (50052), features-service (50053), levels-service (50054), dynasty-service (50055), calendar-service (50058), storage-service (50059 gRPC, 8059 HTTP), grpc-gateway (8080), websocket-gateway (3000), health-check-service (8090), kong (8000 proxy, 8001 admin), mysql (3308), redis (6379), prometheus (9090), grafana (3001)",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true
-            },
-            "indexByName": {
-              "Value": 0,
-              "service": 1
-            },
-            "renameByName": {
-              "Value": "Status",
-              "service": "Service"
-            }
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 16},
       "id": 100,
       "panels": [],
       "title": "Request Metrics",
       "type": "row"
     },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Port(s)",
-            "mode": "unary",
-            "reducer": "sum",
-            "replaceFields": false,
-            "unary": {
-              "fieldName": "Service",
-              "operator": "abs"
-            }
-          }
-        },
     {
       "datasource": "Prometheus",
       "fieldConfig": {
@@ -1314,7 +81,10 @@
       "id": 2,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -1417,7 +187,10 @@
       "id": 3,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -1519,7 +292,10 @@
       "id": 4,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -1569,7 +345,12 @@
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 26},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
       "id": 101,
       "panels": [],
       "title": "System Resources",
@@ -1635,7 +416,10 @@
       "id": 9,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -1711,7 +495,10 @@
       "id": 10,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -1779,7 +566,10 @@
       "id": 11,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -1852,7 +642,10 @@
       "id": 12,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -1920,7 +713,9 @@
         "orientation": "auto",
         "reduceOptions": {
           "values": false,
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": ""
         },
         "showThresholdLabels": false,
@@ -1986,7 +781,10 @@
       "id": 16,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -2011,7 +809,12 @@
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 57},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
       "id": 102,
       "panels": [],
       "title": "Database Metrics",
@@ -2046,8 +849,14 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "green", "value": 1}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           }
         },
@@ -2066,7 +875,12 @@
           }
         ]
       },
-      "gridPos": {"x": 0, "y": 58, "w": 24, "h": 8},
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 8
+      },
       "id": 17,
       "options": {
         "showHeader": true,
@@ -2161,11 +975,19 @@
           "unit": "s"
         }
       },
-      "gridPos": {"x": 0, "y": 66, "w": 12, "h": 8},
+      "gridPos": {
+        "x": 0,
+        "y": 66,
+        "w": 12,
+        "h": 8
+      },
       "id": 19,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -2224,11 +1046,19 @@
           "unit": "short"
         }
       },
-      "gridPos": {"x": 12, "y": 66, "w": 12, "h": 8},
+      "gridPos": {
+        "x": 12,
+        "y": 66,
+        "w": 12,
+        "h": 8
+      },
       "id": 20,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom"
         },
@@ -2260,7 +1090,10 @@
   "refresh": "10s",
   "schemaVersion": 27,
   "style": "dark",
-  "tags": ["metargb", "microservices"],
+  "tags": [
+    "metargb",
+    "microservices"
+  ],
   "templating": {
     "list": []
   },
@@ -2269,7 +1102,17 @@
     "to": "now"
   },
   "timepicker": {
-    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
   },
   "timezone": "",
   "title": "MetaRGB Microservices Overview",
