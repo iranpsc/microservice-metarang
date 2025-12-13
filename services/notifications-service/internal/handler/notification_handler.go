@@ -29,7 +29,8 @@ func RegisterNotificationHandler(grpcServer *grpc.Server, svc service.Notificati
 	pb.RegisterNotificationServiceServer(grpcServer, handler)
 }
 
-func (h *NotificationHandler) SendNotification(ctx context.Context, req *pb.SendNotificationRequest) (*pb.NotificationResponse, error) {	if req.UserId == 0 {
+func (h *NotificationHandler) SendNotification(ctx context.Context, req *pb.SendNotificationRequest) (*pb.NotificationResponse, error) {
+	if req.UserId == 0 {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 	if req.Type == "" {
@@ -50,7 +51,10 @@ func (h *NotificationHandler) SendNotification(ctx context.Context, req *pb.Send
 		Data:      req.Data,
 		SendSMS:   req.SendSms,
 		SendEmail: req.SendEmail,
-	}	result, err := h.service.SendNotification(ctx, input)	if err != nil {
+	}
+
+	result, err := h.service.SendNotification(ctx, input)
+	if err != nil {
 		return nil, handleServiceError(err)
 	}
 
@@ -60,7 +64,8 @@ func (h *NotificationHandler) SendNotification(ctx context.Context, req *pb.Send
 	}, nil
 }
 
-func (h *NotificationHandler) GetNotifications(ctx context.Context, req *pb.GetNotificationsRequest) (*pb.NotificationsResponse, error) {	if req.UserId == 0 {
+func (h *NotificationHandler) GetNotifications(ctx context.Context, req *pb.GetNotificationsRequest) (*pb.NotificationsResponse, error) {
+	if req.UserId == 0 {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
@@ -76,7 +81,10 @@ func (h *NotificationHandler) GetNotifications(ctx context.Context, req *pb.GetN
 		if req.Pagination.PerPage > 0 {
 			filter.PerPage = req.Pagination.PerPage
 		}
-	}	notifications, total, err := h.service.GetNotifications(ctx, req.UserId, filter)	if err != nil {
+	}
+
+	notifications, total, err := h.service.GetNotifications(ctx, req.UserId, filter)
+	if err != nil {
 		return nil, handleServiceError(err)
 	}
 
