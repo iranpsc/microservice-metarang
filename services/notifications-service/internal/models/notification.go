@@ -12,6 +12,7 @@ type Notification struct {
 	Data      map[string]string
 	ReadAt    *time.Time
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // NotificationResult captures the outcome of a notification dispatch request.

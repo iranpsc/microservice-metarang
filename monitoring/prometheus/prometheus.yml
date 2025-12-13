@@ -6,6 +6,16 @@ global:
     cluster: 'metargb-cluster'
     environment: 'development'
 
+# Alerting rules
+rule_files:
+  - "alerting_rules.yml"
+
+# Alertmanager configuration (optional - uncomment when alertmanager is deployed)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
 # Scrape configurations
 scrape_configs:
   # Scrape Prometheus itself
@@ -45,7 +55,10 @@ scrape_configs:
   # Individual microservices metrics endpoints (optional - only if services expose metrics on port 9090)
   # These are commented out by default since most services don't expose metrics directly.
   # Uncomment and configure if you add Prometheus metrics endpoints to individual services.
-  
+
+  # Note: Services need to be updated to expose /metrics endpoints on port 9090
+  # for individual service metrics (Golden Signals: latency, errors, request rates)
+
   # - job_name: 'auth-service'
   #   scrape_interval: 15s
   #   scrape_timeout: 10s

@@ -1,34 +1,68 @@
-# Build stage
+# Multi-stage build for Support Service
 FROM golang:1.24-alpine AS builder
 
-WORKDIR /app
+# Install build dependencies
+RUN apk add --no-cache git make protoc protobuf-dev
 
-# Copy go mod files
-COPY go.mod go.sum ./
-COPY ../../shared /app/shared
+WORKDIR /workspace
+
+# Create the proper directory structure
+RUN mkdir -p /workspace/metargb/support-service /workspace/metargb/shared
+
+# Copy shared module first
+COPY ./shared/go.mod /workspace/metargb/shared/
+COPY ./shared/ /workspace/metargb/shared/
+
+# Copy support service
+COPY ./services/support-service/go.mod ./services/support-service/go.sum* /workspace/metargb/support-service/
+COPY ./services/support-service/ /workspace/metargb/support-service/
+
+# Setup go workspace
+WORKDIR /workspace
+RUN echo 'go 1.24.0' > go.work && \
+    echo '' >> go.work && \
+    echo 'use (' >> go.work && \
+    echo '    ./metargb/support-service' >> go.work && \
+    echo '    ./metargb/shared' >> go.work && \
+    echo ')' >> go.work
 
 # Download dependencies
+WORKDIR /workspace/metargb/support-service
+
+# Update replace directive for Docker context
+RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod
+
 RUN go mod download
 
-# Copy source code
-COPY . .
+# Build the application  
+WORKDIR /workspace
+ENV GOWORK=/workspace/go.work
+RUN cd /workspace/metargb/support-service && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o /app/support-service ./cmd/server
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server
-
-# Runtime stage
+# Final stage
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates tzdata
 
-WORKDIR /root/
+WORKDIR /app
 
-# Copy the binary from builder
-COPY --from=builder /app/server .
+# Copy binary from builder
+COPY --from=builder /app/support-service .
+
+# Create non-root user
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 # Expose gRPC port
-EXPOSE 50054
+EXPOSE 50056
 
-# Run the binary
-CMD ["./server"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD nc -z localhost 50056 || exit 1
+
+# Run the application
+ENTRYPOINT ["/app/support-service"]
 

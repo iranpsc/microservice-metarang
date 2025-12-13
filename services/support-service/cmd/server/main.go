@@ -54,7 +54,7 @@ func main() {
 	reportRepo := repository.NewReportRepository(db)
 	userEventRepo := repository.NewUserEventRepository(db)
 
-	notificationServiceAddr := getEnv("NOTIFICATION_SERVICE_ADDR", "localhost:50054")
+	notificationServiceAddr := getEnv("NOTIFICATION_SERVICE_ADDR", "notifications-service:50058")
 
 	ticketService := service.NewTicketService(ticketRepo, notificationServiceAddr)
 	reportService := service.NewReportService(reportRepo)
@@ -66,7 +66,7 @@ func main() {
 	handler.RegisterReportHandler(grpcServer, reportService)
 	handler.RegisterUserEventHandler(grpcServer, userEventService)
 
-	port := getEnv("GRPC_PORT", "50054")
+	port := getEnv("GRPC_PORT", "50056")
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)

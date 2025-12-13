@@ -60,11 +60,11 @@ RUN addgroup -g 1000 appuser && \
 USER appuser
 
 # Expose gRPC port
-EXPOSE 50059
+EXPOSE 50060
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD nc -z localhost 50059 || exit 1
+  CMD nc -z localhost 50060 || exit 1
 
 # Run the application
 ENTRYPOINT ["/app/storage-service"]

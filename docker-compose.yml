@@ -213,9 +213,9 @@ services:
       dockerfile: ./services/calendar-service/Dockerfile
     container_name: metargb-calendar-service
     ports:
-      - "50058:50058"
+      - "50059:50059"
     environment:
-      GRPC_PORT: 50058
+      GRPC_PORT: 50059
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metargb_db
@@ -228,6 +228,78 @@ services:
       - metargb-network
     restart: unless-stopped
 
+  # Support Service - Tickets & Reports
+  support-service:
+    build:
+      context: .
+      dockerfile: ./services/support-service/Dockerfile
+    container_name: metargb-support-service
+    ports:
+      - "50056:50056"
+    environment:
+      GRPC_PORT: 50056
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: metargb_db
+      DB_USER: metargb_user
+      DB_PASSWORD: metargb_password
+      NOTIFICATION_SERVICE_ADDR: notifications-service:50058
+    depends_on:
+      mysql:
+        condition: service_healthy
+      notifications-service:
+        condition: service_started
+    networks:
+      - metargb-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50056"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Notifications Service - Multi-channel Notifications
+  notifications-service:
+    build:
+      context: .
+      dockerfile: ./services/notifications-service/Dockerfile
+    container_name: metargb-notifications-service
+    ports:
+      - "50058:50058"
+    environment:
+      GRPC_PORT: 50058
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: metargb_db
+      DB_USER: metargb_user
+      DB_PASSWORD: metargb_password
+      DB_MAX_OPEN_CONNS: 25
+      DB_MAX_IDLE_CONNS: 5
+      DB_CONN_MAX_LIFETIME: 5m
+      REDIS_ADDR: redis:6379
+      REDIS_DB: 0
+      SMS_PROVIDER: kavenegar
+      SMS_API_KEY: ${KAVENEGAR_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_NAME: MetaRGB Notifications
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - metargb-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50058"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
   # Storage Service - File Upload & Management
   storage-service:
     build:
@@ -235,10 +307,10 @@ services:
       dockerfile: ./services/storage-service/Dockerfile
     container_name: metargb-storage-service
     ports:
-      - "50059:50059"  # gRPC port
+      - "50060:50060"  # gRPC port
       - "8059:8059"    # HTTP REST API port
     environment:
-      GRPC_PORT: 50059
+      GRPC_PORT: 50060
       HTTP_PORT: 8059
       DB_HOST: mysql
       DB_PORT: 3306
@@ -341,6 +413,10 @@ services:
       dynasty-service:
         condition: service_started
       calendar-service:
+        condition: service_started
+      support-service:
+        condition: service_started
+      notifications-service:
         condition: service_started
       storage-service:
         condition: service_started

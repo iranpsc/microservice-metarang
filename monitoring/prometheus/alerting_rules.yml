@@ -1,0 +1,164 @@
+groups:
+  # Critical alerts - immediate response required
+  - name: critical_alerts
+    rules:
+      # Service availability alerts
+      - alert: ServiceDown
+        expr: service_health_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.service }} is down"
+          description: "Service {{ $labels.service }} has been down for more than 1 minute"
+          runbook_url: "https://github.com/your-org/metargb/wiki/Service-Down-Response"
+
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: (service_health_unhealthy / service_health_total) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          category: errors
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | printf \"%.2f\" }}% (threshold: 5%)"
+          runbook_url: "https://github.com/your-org/metargb/wiki/High-Error-Rate-Response"
+
+      # Resource saturation alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: critical
+          category: saturation
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | printf \"%.2f\" }}% (threshold: 90%)"
+          runbook_url: "https://github.com/your-org/metargb/wiki/High-CPU-Usage-Response"
+
+      - alert: HighMemoryUsage
+        expr: 100 - ((node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100) > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: saturation
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | printf \"%.2f\" }}% (threshold: 95%)"
+          runbook_url: "https://github.com/your-org/metargb/wiki/High-Memory-Usage-Response"
+
+  # Warning alerts - investigation needed
+  - name: warning_alerts
+    rules:
+      # Moderate error rate
+      - alert: ModerateErrorRate
+        expr: (service_health_unhealthy / service_health_total) * 100 > 1
+        for: 10m
+        labels:
+          severity: warning
+          category: errors
+        annotations:
+          summary: "Moderate error rate detected"
+          description: "Error rate is {{ $value | printf \"%.2f\" }}% (threshold: 1%)"
+          runbook_url: "https://github.com/your-org/metargb/wiki/Error-Rate-Investigation"
+
+      # Resource usage warnings
+      - alert: ModerateCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 70
+        for: 15m
+        labels:
+          severity: warning
+          category: saturation
+        annotations:
+          summary: "Moderate CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | printf \"%.2f\" }}% (threshold: 70%)"
+          runbook_url: "https://github.com/your-org/metargb/wiki/CPU-Usage-Investigation"
+
+      # Cache performance warnings
+      - alert: LowCacheHitRate
+        expr: cache_hit_rate < 80
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | printf \"%.2f\" }}% (threshold: 80%)"
+          runbook_url: "https://github.com/your-org/metargb/wiki/Cache-Performance-Investigation"
+
+      # Database connection warnings
+      - alert: DatabaseConnectionIssues
+        expr: db_connection_status == 0
+        for: 2m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Database connection issues for {{ $labels.service }}"
+          description: "Service {{ $labels.service }} cannot connect to database"
+          runbook_url: "https://github.com/your-org/metargb/wiki/Database-Connection-Issues"
+
+  # Info alerts - monitoring/tracking
+  - name: info_alerts
+    rules:
+      # Service recovery
+      - alert: ServiceRecovered
+        expr: service_health_status == 1
+        for: 1m
+        labels:
+          severity: info
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.service }} has recovered"
+          description: "Service {{ $labels.service }} is now healthy"
+
+      # High traffic detection
+      - alert: HighTrafficSpike
+        expr: increase(service_health_total[5m]) > 100
+        for: 1m
+        labels:
+          severity: info
+          category: traffic
+        annotations:
+          summary: "High traffic spike detected"
+          description: "Traffic has increased by {{ $value | printf \"%.0f\" }} requests in 5 minutes"
+
+      # Deployment monitoring (placeholder - would need deployment metrics)
+      - alert: DeploymentCompleted
+        expr: up{job="health-check-service"} == 1
+        for: 30s
+        labels:
+          severity: info
+          category: deployment
+        annotations:
+          summary: "Health check service is running"
+          description: "Infrastructure monitoring is operational"
+
+  # Future alerts for when individual service metrics are available
+  - name: future_service_alerts
+    rules:
+      # These alerts require individual service metrics endpoints
+      # Uncomment and modify when services expose /metrics endpoints
+
+      # - alert: HighLatency
+      #   expr: histogram_quantile(0.95, rate(metargb_request_duration_seconds_bucket[5m])) > 1
+      #   for: 5m
+      #   labels:
+      #     severity: critical
+      #     category: latency
+      #   annotations:
+      #     summary: "High P95 latency for {{ $labels.service }}"
+      #     description: "P95 latency is {{ $value | printf \"%.2f\" }}s (threshold: 1s)"
+      #     runbook_url: "https://github.com/your-org/metargb/wiki/High-Latency-Response"
+
+      # - alert: HighIndividualServiceErrorRate
+      #   expr: rate(metargb_requests_total{status=~"5.."}[5m]) / rate(metargb_requests_total[5m]) * 100 > 5
+      #   for: 5m
+      #   labels:
+      #     severity: critical
+      #     category: errors
+      #   annotations:
+      #     summary: "High error rate for {{ $labels.service }}"
+      #     description: "Error rate for {{ $labels.service }} is {{ $value | printf \"%.2f\" }}% (threshold: 5%)"

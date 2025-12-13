@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 )
 
 // RedisPublisher handles publishing events to Redis for WebSocket broadcasting
@@ -23,6 +24,12 @@ func NewRedisPublisher(redisURL string) (RedisPublisher, error) {
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
+	}
+
+	// Disable maint notifications to avoid warning about maint_notifications command
+	// This feature is not available in Redis 7 and causes a harmless warning
+	opts.MaintNotificationsConfig = &maintnotifications.Config{
+		Mode: maintnotifications.ModeDisabled,
 	}
 
 	client := redis.NewClient(opts)

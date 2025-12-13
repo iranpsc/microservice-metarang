@@ -54,7 +54,30 @@ Prometheus is configured to scrape metrics from:
 ### Grafana Dashboards
 
 Pre-configured dashboards:
+- **Golden Signals - Critical Metrics**: Focused dashboard showing the four SRE Golden Signals (Latency, Traffic, Errors, Saturation) plus critical infrastructure metrics
 - **MetaRGB Microservices Overview**: Main dashboard showing service health, request rates, latency, and errors
+
+### Alerting Rules
+
+Prometheus alerting rules are configured in `prometheus/alerting_rules.yml` with the following alert categories:
+
+#### Critical Alerts (Immediate Response)
+- **ServiceDown**: Service health status = 0 for >1 minute
+- **HighErrorRate**: Error rate > 5% for >5 minutes
+- **HighCPUUsage**: CPU usage > 90% for >5 minutes
+- **HighMemoryUsage**: Memory usage > 95% for >2 minutes
+
+#### Warning Alerts (Investigation Needed)
+- **ModerateErrorRate**: Error rate > 1% for >10 minutes
+- **ModerateCPUUsage**: CPU usage > 70% for >15 minutes
+- **LowCacheHitRate**: Cache hit rate < 80% for >10 minutes
+- **DatabaseConnectionIssues**: Database connection failures
+
+#### Info Alerts (Monitoring)
+- **ServiceRecovered**: Services that have recovered from downtime
+- **HighTrafficSpike**: Traffic spikes (>100 requests/5min increase)
+
+**Note**: Individual service latency alerts require services to expose `/metrics` endpoints on port 9090.
 
 ### Adding Custom Dashboards
 
