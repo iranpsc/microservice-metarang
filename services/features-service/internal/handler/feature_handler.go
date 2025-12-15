@@ -2,12 +2,19 @@ package handler
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"metargb/features-service/internal/service"
 	pb "metargb/shared/pb/features"
+	"metargb/shared/pkg/auth"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+type pbEmpty = emptypb.Empty
 
 type FeatureHandler struct {
 	pb.UnimplementedFeatureServiceServer
@@ -21,13 +28,35 @@ func NewFeatureHandler(service *service.FeatureService) *FeatureHandler {
 }
 
 // ListFeatures retrieves features within a bounding box
+// Implements GET /api/features with optional authentication
 func (h *FeatureHandler) ListFeatures(ctx context.Context, req *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error) {
-	// Validate points (must have exactly 4 points for bbox)
-	if len(req.Points) != 4 {
-		return nil, status.Errorf(codes.InvalidArgument, "exactly 4 points required for bounding box")
+	// Validate points (must have at least 4 points for bbox per documentation)
+	if len(req.Points) < 4 {
+		return nil, status.Errorf(codes.InvalidArgument, "points array must have at least 4 elements")
 	}
 
-	features, err := h.service.ListFeatures(ctx, req.Points, req.LoadBuildings, req.UserFeaturesLocation)
+	// Validate point format (regex: /^([0-9]+(\.[0-9]+)?,[0-9]+(\.[0-9]+)?)$/)
+	for i, point := range req.Points {
+		parts := strings.Split(point, ",")
+		if len(parts) != 2 {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid point format at index %d: %s (expected 'x,y')", i, point)
+		}
+		// Validate numeric format (basic check - full regex would be more complex)
+		if _, err := strconv.ParseFloat(parts[0], 64); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid x coordinate at index %d: %s", i, parts[0])
+		}
+		if _, err := strconv.ParseFloat(parts[1], 64); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid y coordinate at index %d: %s", i, parts[1])
+		}
+	}
+
+	// Extract authenticated user ID from context (optional)
+	authUserID := uint64(0)
+	if user, err := auth.GetUserFromContext(ctx); err == nil && user != nil {
+		authUserID = user.UserID
+	}
+
+	features, err := h.service.ListFeatures(ctx, req.Points, req.LoadBuildings, req.UserFeaturesLocation, authUserID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list features: %v", err)
 	}
@@ -104,4 +133,3 @@ func (h *FeatureHandler) GetMyFeatures(ctx context.Context, req *pb.GetMyFeature
 		Features: features,
 	}, nil
 }
-

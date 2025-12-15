@@ -117,4 +117,3 @@ func (r *ImageRepository) DeleteImage(ctx context.Context, id uint64) error {
 
 	return nil
 }
-

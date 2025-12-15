@@ -28,7 +28,7 @@ func (r *userVariableRepository) GetReferralProfitLimit(ctx context.Context, use
 		WHERE user_id = ?
 		LIMIT 1
 	`
-	
+
 	var limit float64
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&limit)
 	if err == sql.ErrNoRows {
@@ -51,7 +51,7 @@ func (r *userVariableRepository) GetWithdrawProfit(ctx context.Context, userID u
 		WHERE user_id = ?
 		LIMIT 1
 	`
-	
+
 	var days int
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&days)
 	if err == sql.ErrNoRows {
@@ -64,4 +64,3 @@ func (r *userVariableRepository) GetWithdrawProfit(ctx context.Context, userID u
 
 	return days, nil
 }
-

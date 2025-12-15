@@ -1,12 +1,16 @@
 # Health Check Service Dockerfile
 FROM golang:1.24-alpine AS builder
 
+# Install build dependencies (git needed for GOPROXY=direct)
+RUN apk add --no-cache git
+
 WORKDIR /app
 
 # Copy go mod files
 COPY services/health-check-service/go.mod services/health-check-service/go.sum* ./
 
 # Download dependencies
+ENV GOPROXY=https://proxy.golang.org,direct
 RUN go mod download
 
 # Copy source

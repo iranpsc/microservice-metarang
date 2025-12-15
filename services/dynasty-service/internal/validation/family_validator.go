@@ -40,7 +40,7 @@ func (v *FamilyValidator) ValidateAddFamilyMember(ctx context.Context, senderID,
 			}
 		}
 	}
-	
+
 	// RULE 2: Cannot add self
 	if senderID == receiverID {
 		return &ValidationError{
@@ -48,7 +48,7 @@ func (v *FamilyValidator) ValidateAddFamilyMember(ctx context.Context, senderID,
 			Code:    403,
 		}
 	}
-	
+
 	// RULE 3: Sender must have dynasty
 	hasDynasty, err := v.validationRepo.CheckUserHasDynasty(ctx, senderID)
 	if err != nil {
@@ -60,7 +60,7 @@ func (v *FamilyValidator) ValidateAddFamilyMember(ctx context.Context, senderID,
 			Code:    403,
 		}
 	}
-	
+
 	// RULE 4: No duplicate pending requests
 	hasPending, err := v.validationRepo.CheckPendingRequest(ctx, senderID, receiverID)
 	if err != nil {
@@ -72,7 +72,7 @@ func (v *FamilyValidator) ValidateAddFamilyMember(ctx context.Context, senderID,
 			Code:    403,
 		}
 	}
-	
+
 	// RULE 5: No previously rejected requests
 	wasRejected, err := v.validationRepo.CheckRejectedRequest(ctx, senderID, receiverID)
 	if err != nil {
@@ -84,7 +84,7 @@ func (v *FamilyValidator) ValidateAddFamilyMember(ctx context.Context, senderID,
 			Code:    403,
 		}
 	}
-	
+
 	// RULE 6: Receiver not already in another family
 	inFamily, err := v.validationRepo.CheckUserInFamily(ctx, receiverID)
 	if err != nil {
@@ -96,11 +96,11 @@ func (v *FamilyValidator) ValidateAddFamilyMember(ctx context.Context, senderID,
 			Code:    403,
 		}
 	}
-	
+
 	// RULE 7 & 8: Relationship-specific limits
 	// Get sender's dynasty and family
 	// This will be checked in the service layer with actual family ID
-	
+
 	return nil
 }
 
@@ -132,20 +132,20 @@ func (v *FamilyValidator) ValidateRelationshipLimits(ctx context.Context, family
 			Message: "شما قبلا بیش از 4 عضو در سلسله خود دارید.",
 		},
 	}
-	
+
 	// Check if relationship has a limit
 	limit, hasLimit := limits[relationship]
 	if !hasLimit {
 		// No limit for this relationship (e.g., brother, sister)
 		return nil
 	}
-	
+
 	// Count existing members with this relationship
 	count, err := v.validationRepo.CountFamilyMembersByRelationship(ctx, familyID, relationship)
 	if err != nil {
 		return fmt.Errorf("failed to count family members: %w", err)
 	}
-	
+
 	// Check if limit exceeded
 	if count >= limit.Max {
 		return &ValidationError{
@@ -153,7 +153,7 @@ func (v *FamilyValidator) ValidateRelationshipLimits(ctx context.Context, family
 			Code:    403,
 		}
 	}
-	
+
 	return nil
 }
 
@@ -168,14 +168,13 @@ func (v *FamilyValidator) ValidateRelationship(relationship string) error {
 		"wife":      true,
 		"offspring": true,
 	}
-	
+
 	if !validRelationships[relationship] {
 		return &ValidationError{
 			Message: "نوع رابطه نامعتبر است.",
 			Code:    400,
 		}
 	}
-	
+
 	return nil
 }
-

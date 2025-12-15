@@ -70,7 +70,7 @@ func (r *tokenRepository) ValidateToken(ctx context.Context, token string) (*mod
 	if idx := strings.Index(token, "|"); idx != -1 {
 		plainToken = token[idx+1:]
 	}
-	
+
 	tokenHash := hashToken(plainToken)
 
 	query := `
@@ -157,7 +157,7 @@ func (r *tokenRepository) updateLastUsedAt(tokenID uint64) {
 func generatePlainToken() string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	const length = 40
-	
+
 	seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
 	b := make([]byte, length)
 	for i := range b {
@@ -171,4 +171,3 @@ func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
-

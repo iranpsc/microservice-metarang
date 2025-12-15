@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"metargb/notifications-service/internal/models"
+
+	"github.com/google/uuid"
 )
 
 // NotificationRepository handles database interactions for notifications.
@@ -107,25 +108,31 @@ func (r *NotificationRepository) ListNotifications(ctx context.Context, userID u
 	}
 	offset := (page - 1) * perPage
 
+	// Build WHERE clause with optional unread filter
+	whereClause := "notifiable_type = ? AND notifiable_id = ?"
+	if filter.UnreadOnly {
+		whereClause += " AND read_at IS NULL"
+	}
+
 	// Get total count
 	var total int64
-	countQuery := `
+	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) FROM notifications 
-		WHERE notifiable_type = ? AND notifiable_id = ?
-	`
+		WHERE %s
+	`, whereClause)
 	err := r.db.QueryRowContext(ctx, countQuery, "App\\User", userID).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count notifications: %w", err)
 	}
 
 	// Fetch notifications
-	query := `
+	query := fmt.Sprintf(`
 		SELECT id, data, read_at, created_at, updated_at
 		FROM notifications
-		WHERE notifiable_type = ? AND notifiable_id = ?
+		WHERE %s
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
-	`
+	`, whereClause)
 
 	rows, err := r.db.QueryContext(ctx, query, "App\\User", userID, perPage, offset)
 	if err != nil {
@@ -222,6 +229,55 @@ func (r *NotificationRepository) MarkAllAsRead(ctx context.Context, userID uint6
 	}
 
 	return nil
+}
+
+// GetNotificationByID retrieves a single notification by ID for a specific user.
+func (r *NotificationRepository) GetNotificationByID(ctx context.Context, notificationID string, userID uint64) (*models.Notification, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("database connection is nil")
+	}
+
+	query := `
+		SELECT id, data, read_at, created_at, updated_at
+		FROM notifications
+		WHERE id = ? AND notifiable_type = ? AND notifiable_id = ?
+		LIMIT 1
+	`
+
+	var notif models.Notification
+	var dataJSON string
+	var readAt sql.NullTime
+
+	err := r.db.QueryRowContext(ctx, query, notificationID, "App\\User", userID).Scan(
+		&notif.ID,
+		&dataJSON,
+		&readAt,
+		&notif.CreatedAt,
+		&notif.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil // Not found
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get notification: %w", err)
+	}
+
+	// Parse JSON data
+	var data notificationData
+	if err := json.Unmarshal([]byte(dataJSON), &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal notification data: %w", err)
+	}
+
+	notif.UserID = userID
+	notif.Type = data.Type
+	notif.Title = data.Title
+	notif.Message = data.Message
+	notif.Data = data.Data
+	if readAt.Valid {
+		notif.ReadAt = &readAt.Time
+	}
+
+	return &notif, nil
 }
 
 // hashStringToUint64 converts a string to a uint64 hash

@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"metargb/features-service/internal/models"
 	"metargb/features-service/internal/service"
 	pb "metargb/shared/pb/features"
+	"metargb/shared/pkg/helpers"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,42 +25,61 @@ func NewProfitHandler(service *service.ProfitService) *ProfitHandler {
 
 // GetHourlyProfits retrieves all hourly profits for a user with totals by karbari
 // Implements Laravel's FeatureHourlyProfitController@index
+// Returns HourlyProfitResource format with feature_db_id, feature_id (properties.id), karbari, formatted amounts (3 decimals), and Jalali dates
 func (h *ProfitHandler) GetHourlyProfits(ctx context.Context, req *pb.GetHourlyProfitsRequest) (*pb.HourlyProfitsResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
 	}
 
-	profitsRaw, totalMaskoni, totalTejari, totalAmozeshi, err := h.service.GetHourlyProfits(ctx, req.UserId, req.Page, req.PageSize)
+	// Default page size to 10 if not specified (matching Laravel's simplePaginate(10))
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	page := req.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	profits, totalMaskoni, totalTejari, totalAmozeshi, err := h.service.GetHourlyProfits(ctx, req.UserId, page, pageSize)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get hourly profits: %v", err)
 	}
 
-	// Convert internal models to protobuf
-	profits := []*pb.HourlyProfit{}
-	if profitsSlice, ok := profitsRaw.([]*models.FeatureHourlyProfit); ok {
-		for _, p := range profitsSlice {
-			profits = append(profits, &pb.HourlyProfit{
-				Id:        p.ID,
-				FeatureId: p.FeatureID,
-				UserId:    p.UserID,
-				Asset:     p.Asset,
-				Amount:    fmt.Sprintf("%.6f", p.Amount),
-				DeadLine:  p.Deadline.Format("2006-01-02 15:04:05"),
-				IsActive:  p.IsActive,
-			})
+	// Convert internal models to protobuf with proper formatting
+	// Matching Laravel's HourlyProfitResource format
+	profitsProto := []*pb.HourlyProfit{}
+	for _, p := range profits {
+		// Format amount with 3 decimals (matching Laravel's number_format($this->amount, 3))
+		amountFormatted := fmt.Sprintf("%.3f", p.Amount)
+
+		// Format deadline as Jalali date (Y/m/d format)
+		deadlineJalali := helpers.FormatJalaliDate(p.Deadline)
+
+		profitProto := &pb.HourlyProfit{
+			Id:        p.ID,
+			FeatureId: p.FeatureID,
+			UserId:    p.UserID,
+			Asset:     p.Asset,
+			Amount:    amountFormatted,
+			DeadLine:  deadlineJalali,
+			IsActive:  p.IsActive,
 		}
+
+		profitsProto = append(profitsProto, profitProto)
 	}
 
 	return &pb.HourlyProfitsResponse{
-		Profits:              profits,
-		TotalMaskoniProfit:   totalMaskoni,
-		TotalTejariProfit:    totalTejari,
-		TotalAmozeshiProfit:  totalAmozeshi,
+		Profits:             profitsProto,
+		TotalMaskoniProfit:  totalMaskoni,
+		TotalTejariProfit:   totalTejari,
+		TotalAmozeshiProfit: totalAmozeshi,
 	}, nil
 }
 
 // GetSingleProfit retrieves and processes a single profit
 // Implements Laravel's FeatureHourlyProfitController@getSingleProfit
+// Returns HourlyProfitResource format after crediting wallet and resetting profit
 func (h *ProfitHandler) GetSingleProfit(ctx context.Context, req *pb.GetSingleProfitRequest) (*pb.HourlyProfitResponse, error) {
 	if req.ProfitId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "profit_id is required")
@@ -68,16 +88,29 @@ func (h *ProfitHandler) GetSingleProfit(ctx context.Context, req *pb.GetSinglePr
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
 	}
 
-	amount, err := h.service.GetSingleProfit(ctx, req.ProfitId, req.UserId)
+	profit, err := h.service.GetSingleProfit(ctx, req.ProfitId, req.UserId)
 	if err != nil {
+		if err.Error() == "unauthorized" {
+			return nil, status.Errorf(codes.PermissionDenied, "unauthorized")
+		}
 		return nil, status.Errorf(codes.Internal, "failed to get single profit: %v", err)
 	}
 
+	// Format amount with 3 decimals (matching Laravel's number_format($this->amount, 3))
+	amountFormatted := fmt.Sprintf("%.3f", profit.Amount)
+
+	// Format deadline as Jalali date (Y/m/d format)
+	deadlineJalali := helpers.FormatJalaliDate(profit.Deadline)
+
 	return &pb.HourlyProfitResponse{
 		Profit: &pb.HourlyProfit{
-			Id:     req.ProfitId,
-			UserId: req.UserId,
-			Amount: fmt.Sprintf("%.6f", amount),
+			Id:        profit.ID,
+			FeatureId: profit.FeatureID,
+			UserId:    profit.UserID,
+			Asset:     profit.Asset,
+			Amount:    amountFormatted,
+			DeadLine:  deadlineJalali,
+			IsActive:  profit.IsActive,
 		},
 		Success: true,
 	}, nil
@@ -85,24 +118,27 @@ func (h *ProfitHandler) GetSingleProfit(ctx context.Context, req *pb.GetSinglePr
 
 // GetProfitsByApplication retrieves profits by karbari (m/t/a) and transfers to wallet
 // Implements Laravel's FeatureHourlyProfitController@getProfitsByApplication
+// Returns empty JSON object {} (HTTP 200) as per Laravel implementation
 func (h *ProfitHandler) GetProfitsByApplication(ctx context.Context, req *pb.GetProfitsByApplicationRequest) (*pb.ProfitsByApplicationResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
 	}
 
-	// Validate karbari
+	// Validate karbari (required|in:m,t,a)
+	if req.Karbari == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "karbari is required")
+	}
 	if req.Karbari != "m" && req.Karbari != "t" && req.Karbari != "a" {
 		return nil, status.Errorf(codes.InvalidArgument, "karbari must be one of: m, t, a")
 	}
 
-	totalAmount, err := h.service.GetProfitsByApplication(ctx, req.UserId, req.Karbari)
+	_, err := h.service.GetProfitsByApplication(ctx, req.UserId, req.Karbari)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get profits by application: %v", err)
 	}
 
+	// Return success response (Laravel returns empty JSON object {})
 	return &pb.ProfitsByApplicationResponse{
-		TotalAmount: fmt.Sprintf("%.6f", totalAmount),
-		Success:     true,
+		Success: true,
 	}, nil
 }
-

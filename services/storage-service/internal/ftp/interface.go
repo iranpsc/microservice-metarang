@@ -14,4 +14,3 @@ type FTPClientInterface interface {
 // Ensure both clients implement the interface
 var _ FTPClientInterface = (*FTPClient)(nil)
 var _ FTPClientInterface = (*MockFTPClient)(nil)
-

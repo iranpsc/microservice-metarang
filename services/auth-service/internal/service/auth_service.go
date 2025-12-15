@@ -26,8 +26,8 @@ import (
 
 type AuthService interface {
 	Register(ctx context.Context, backURL, referral string) (string, error)
-	Redirect(ctx context.Context, backURL string) (string, string, error) // returns url and state
-	Callback(ctx context.Context, state, code, cachedState string) (*CallbackResult, error)
+	Redirect(ctx context.Context, redirectTo, backURL string) (string, string, error) // returns url and state
+	Callback(ctx context.Context, state, code string) (*CallbackResult, error)
 	GetMe(ctx context.Context, token string) (*UserDetails, error)
 	Logout(ctx context.Context, userID uint64, ip, userAgent string) error
 	ValidateToken(ctx context.Context, token string) (*models.User, error)
@@ -38,6 +38,7 @@ type AuthService interface {
 type authService struct {
 	userRepo            repository.UserRepository
 	tokenRepo           repository.TokenRepository
+	cacheRepo           repository.CacheRepository
 	accountSecurityRepo repository.AccountSecurityRepository
 	activityRepo        repository.ActivityRepository
 	observerService     ObserverService
@@ -100,6 +101,7 @@ var (
 func NewAuthService(
 	userRepo repository.UserRepository,
 	tokenRepo repository.TokenRepository,
+	cacheRepo repository.CacheRepository,
 	accountSecurityRepo repository.AccountSecurityRepository,
 	activityRepo repository.ActivityRepository,
 	observerService ObserverService,
@@ -121,6 +123,7 @@ func NewAuthService(
 	return &authService{
 		userRepo:            userRepo,
 		tokenRepo:           tokenRepo,
+		cacheRepo:           cacheRepo,
 		accountSecurityRepo: accountSecurityRepo,
 		activityRepo:        activityRepo,
 		observerService:     observerService,
@@ -136,24 +139,54 @@ func NewAuthService(
 }
 
 func (s *authService) Register(ctx context.Context, backURL, referral string) (string, error) {
+	// Build redirect_uri pointing to auth.redirect route (not auth/redirect)
+	redirectURI := s.appURL + "/api/auth/redirect"
+	if s.appURL == "" {
+		redirectURI = s.oauthServerURL + "/auth/redirect"
+	}
+
 	params := url.Values{}
 	params.Set("client_id", s.oauthClientID)
-	params.Set("redirect_uri", s.oauthServerURL+"/auth/redirect") // This should be your callback URL
-	params.Set("referral", referral)
-	params.Set("back_url", backURL)
+	params.Set("redirect_uri", redirectURI)
+	if referral != "" {
+		params.Set("referral", referral)
+	}
+	if backURL != "" {
+		params.Set("back_url", backURL)
+	}
 
 	redirectURL := fmt.Sprintf("%s/register?%s", s.oauthServerURL, params.Encode())
 	return redirectURL, nil
 }
 
-func (s *authService) Redirect(ctx context.Context, backURL string) (string, string, error) {
-	// Generate state token
+func (s *authService) Redirect(ctx context.Context, redirectTo, backURL string) (string, string, error) {
+	// Generate cryptographically random state (40 characters)
 	state, err := generateState()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate state: %w", err)
 	}
 
-	// Ensure appURL is set, fallback to oauthServerURL if not configured
+	// Cache state for 5 minutes
+	ttl := 5 * time.Minute
+	if err := s.cacheRepo.SetState(ctx, state, ttl); err != nil {
+		return "", "", fmt.Errorf("failed to cache state: %w", err)
+	}
+
+	// Cache redirect_to if provided
+	if redirectTo != "" {
+		if err := s.cacheRepo.SetRedirectTo(ctx, state, redirectTo, ttl); err != nil {
+			return "", "", fmt.Errorf("failed to cache redirect_to: %w", err)
+		}
+	}
+
+	// Cache back_url if provided
+	if backURL != "" {
+		if err := s.cacheRepo.SetBackURL(ctx, state, backURL, ttl); err != nil {
+			return "", "", fmt.Errorf("failed to cache back_url: %w", err)
+		}
+	}
+
+	// Build OAuth authorize URL
 	redirectURI := s.appURL + "/api/auth/callback"
 	if s.appURL == "" {
 		redirectURI = s.oauthServerURL + "/auth/callback"
@@ -170,10 +203,15 @@ func (s *authService) Redirect(ctx context.Context, backURL string) (string, str
 	return authURL, state, nil
 }
 
-func (s *authService) Callback(ctx context.Context, state, code, cachedState string) (*CallbackResult, error) {
-	// Validate state
-	if state != cachedState {
-		return nil, fmt.Errorf("invalid state value")
+func (s *authService) Callback(ctx context.Context, state, code string) (*CallbackResult, error) {
+	// Retrieve and remove cached state (pull semantics)
+	// Throws InvalidArgumentException if missing or doesn't match
+	stateExists, err := s.cacheRepo.GetState(ctx, state)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve state: %w", err)
+	}
+	if !stateExists {
+		return nil, fmt.Errorf("invalid state value: state not found or already consumed")
 	}
 
 	// Exchange code for token
@@ -273,7 +311,7 @@ func (s *authService) Callback(ctx context.Context, state, code, cachedState str
 	tokenParts := splitToken(token)
 	plainToken := tokenParts[1]
 
-	// Trigger login observer (activity tracking, events, notifications, WebSocket)
+	// Trigger login observer (fires logedIn event)
 	// Note: IP and UserAgent should be extracted from gRPC metadata
 	if s.observerService != nil {
 		if err := s.observerService.OnUserLogin(ctx, user, user.IP, ""); err != nil {
@@ -282,13 +320,21 @@ func (s *authService) Callback(ctx context.Context, state, code, cachedState str
 		}
 	}
 
-	// Build redirect URL with token and expires_at query parameters
-	// TODO: Retrieve redirect_to and back_url from cache (prefer redirect_to over back_url)
-	// For now, use FRONT_END_URL as fallback
-	redirectBaseURL := s.frontEndURL
+	// Restore and consume cached redirect_to and back_url (prefer redirect_to)
+	redirectTo, _ := s.cacheRepo.GetRedirectTo(ctx, state)
+	backURL, _ := s.cacheRepo.GetBackURL(ctx, state)
+
+	// Determine redirect base URL (prefer redirect_to, fallback to back_url, then frontEndURL)
+	redirectBaseURL := redirectTo
 	if redirectBaseURL == "" {
-		log.Printf("Warning: FRONT_END_URL is not set, using default fallback")
-		redirectBaseURL = "http://localhost:3000" // Default fallback
+		redirectBaseURL = backURL
+	}
+	if redirectBaseURL == "" {
+		redirectBaseURL = s.frontEndURL
+		if redirectBaseURL == "" {
+			log.Printf("Warning: No redirect URL cached and FRONT_END_URL is not set")
+			redirectBaseURL = "http://localhost:3000" // Default fallback
+		}
 	}
 
 	// Construct redirect URL with token and expires_at query parameters

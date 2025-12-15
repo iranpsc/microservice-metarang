@@ -47,7 +47,7 @@ func (r *transactionRepository) Update(ctx context.Context, transaction *models.
 		SET user_id = ?, asset = ?, amount = ?, action = ?, status = ?, token = ?, ref_id = ?, payable_type = ?, payable_id = ?, updated_at = ?
 		WHERE id = ?
 	`
-	
+
 	_, err := r.db.ExecContext(ctx, query,
 		transaction.UserID,
 		transaction.Asset,
@@ -61,7 +61,7 @@ func (r *transactionRepository) Update(ctx context.Context, transaction *models.
 		time.Now(),
 		transaction.ID,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}

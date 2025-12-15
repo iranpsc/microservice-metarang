@@ -11,7 +11,7 @@ type SellRequestRepository struct {
 	db *sql.DB
 }
 
-func NewSellRequestRepository(db *sql.DB) *SellRequestRepository{
+func NewSellRequestRepository(db *sql.DB) *SellRequestRepository {
 	return &SellRequestRepository{db: db}
 }
 
@@ -105,3 +105,66 @@ func (r *SellRequestRepository) IsUnderpriced(ctx context.Context, featureID uin
 	return underpriced, err
 }
 
+// ListBySellerID retrieves all sell requests for a seller (status = 0 means open)
+// Implements GET /api/sell-requests - lists all open sell offers for authenticated seller
+func (r *SellRequestRepository) ListBySellerID(ctx context.Context, sellerID uint64) ([]*models.SellFeatureRequest, error) {
+	query := `
+		SELECT id, seller_id, feature_id, price_psc, price_irr, ` + "`limit`" + `, status, created_at, updated_at
+		FROM sell_feature_requests
+		WHERE seller_id = ?
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	requests := []*models.SellFeatureRequest{}
+	for rows.Next() {
+		req := &models.SellFeatureRequest{}
+		if err := rows.Scan(
+			&req.ID, &req.SellerID, &req.FeatureID,
+			&req.PricePSC, &req.PriceIRR, &req.Limit, &req.Status,
+			&req.CreatedAt, &req.UpdatedAt,
+		); err != nil {
+			continue
+		}
+		requests = append(requests, req)
+	}
+
+	return requests, nil
+}
+
+// FindByID retrieves a sell request by ID
+// Implements DELETE /api/sell-requests/{sellRequest} - authorization check
+func (r *SellRequestRepository) FindByID(ctx context.Context, id uint64) (*models.SellFeatureRequest, error) {
+	request := &models.SellFeatureRequest{}
+
+	query := `
+		SELECT id, seller_id, feature_id, price_psc, price_irr, ` + "`limit`" + `, status, created_at, updated_at
+		FROM sell_feature_requests
+		WHERE id = ?
+	`
+
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&request.ID, &request.SellerID, &request.FeatureID,
+		&request.PricePSC, &request.PriceIRR, &request.Limit, &request.Status,
+		&request.CreatedAt, &request.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	return request, err
+}
+
+// Delete hard deletes a sell request
+// Implements DELETE /api/sell-requests/{sellRequest}
+func (r *SellRequestRepository) Delete(ctx context.Context, id uint64) error {
+	query := "DELETE FROM sell_feature_requests WHERE id = ?"
+	_, err := r.db.ExecContext(ctx, query, id)
+	return err
+}

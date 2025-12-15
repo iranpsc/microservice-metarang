@@ -131,14 +131,14 @@ type ServiceAvailabilityInfo struct {
 }
 
 var (
-	startTime        = time.Now()
-	lastHealthCheck  = make(map[string]ServiceStatus)
-	serviceUptimes   = make(map[string]*ServiceUptime)
-	uptimeMu         sync.RWMutex
-	redisClient      *redis.Client
-	dbConnection     *sql.DB // Legacy connection for backward compatibility
+	startTime            = time.Now()
+	lastHealthCheck      = make(map[string]ServiceStatus)
+	serviceUptimes       = make(map[string]*ServiceUptime)
+	uptimeMu             sync.RWMutex
+	redisClient          *redis.Client
+	dbConnection         *sql.DB                    // Legacy connection for backward compatibility
 	serviceDBConnections = make(map[string]*sql.DB) // Map of service name to DB connection
-	dbConnectionsMu  sync.RWMutex
+	dbConnectionsMu      sync.RWMutex
 )
 
 // Map service display names to Prometheus service labels
@@ -472,7 +472,7 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 func checkDependencies(ctx context.Context) DependencyHealth {
 	deps := DependencyHealth{
 		DatabaseConnections:  make(map[string]DBConnectionStatus),
-		ExternalAPIs:          []ExternalAPIStatus{},
+		ExternalAPIs:         []ExternalAPIStatus{},
 		ThirdPartyServices:   []ThirdPartyService{},
 		CircuitBreakerStatus: make(map[string]string),
 	}
@@ -1034,14 +1034,14 @@ func exportDependencyHealthMetrics(w http.ResponseWriter) {
 	// IMPORTANT: Always export metrics for ALL services, even if connection fails
 	// This ensures Grafana/Prometheus always has data for all services
 	log.Printf("📊 Exporting database connection metrics for %d services", len(allServices))
-	
+
 	dbHost := getEnv("DB_HOST", "mysql")
 	dbDatabase := getEnv("DB_DATABASE", "metargb_db")
-	
+
 	for _, serviceName := range allServices {
 		// Ensure connection exists, create on-demand if needed
 		ensureServiceDBConnection(serviceName)
-		
+
 		// Always check the connection status, even if connection doesn't exist
 		dbStatus := checkServiceDatabaseConnection(ctx, serviceName)
 		dbValue := 0

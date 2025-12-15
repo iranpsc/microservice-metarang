@@ -3,10 +3,10 @@ package handler
 import (
 	"context"
 
-	"metargb/levels-service/internal/service"
-	pb "metargb/shared/pb/levels"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"metargb/levels-service/internal/service"
+	pb "metargb/shared/pb/levels"
 )
 
 type ActivityHandler struct {
@@ -128,4 +128,3 @@ func (h *ActivityHandler) RecordFollower(ctx context.Context, req *pb.RecordFoll
 		Success: true,
 	}, nil
 }
-

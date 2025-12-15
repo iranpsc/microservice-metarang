@@ -63,4 +63,3 @@ func (r *LockedAssetRepository) DeleteAllForFeature(ctx context.Context, feature
 	_, err := r.db.ExecContext(ctx, query, featureID)
 	return err
 }
-

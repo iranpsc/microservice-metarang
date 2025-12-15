@@ -29,15 +29,19 @@ RUN echo 'go 1.24.0' > go.work && \
 # Download dependencies
 WORKDIR /workspace/metargb/calendar-service
 
-# Update replace directive for Docker context
+# Update replace directive for Docker context (before downloading dependencies)
 RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod || true
 
 # Ensure metargb/shared is in the go.mod
 RUN go get metargb/shared@v0.0.0 || true
 
-RUN go mod download
+# Fix replace directive again after copying source (since go.mod gets overwritten)
+RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod || true
 
-# Build the application  
+# Use GOPROXY with fallback instead of direct-only (faster and more reliable)
+ENV GOPROXY=https://proxy.golang.org,direct
+
+# Build the application (go build will download dependencies automatically)  
 WORKDIR /workspace
 ENV GOWORK=/workspace/go.work
 RUN cd /workspace/metargb/calendar-service && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o /app/calendar-service ./cmd/server

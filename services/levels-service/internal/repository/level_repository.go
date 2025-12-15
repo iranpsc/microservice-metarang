@@ -22,7 +22,7 @@ func NewLevelRepository(db *sql.DB) *LevelRepository {
 // Implements Laravel: $user->levels()->orderByDesc('id')->first()
 func (r *LevelRepository) GetUserLatestLevel(ctx context.Context, userID uint64) (*pb.Level, error) {
 	query := `
-		SELECT l.id, l.name, l.slug, l.score, l.background_image,
+		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
 		       COALESCE(i.url, '') as image_url
 		FROM levels l
 		INNER JOIN level_user lu ON l.id = lu.level_id
@@ -31,11 +31,11 @@ func (r *LevelRepository) GetUserLatestLevel(ctx context.Context, userID uint64)
 		ORDER BY l.id DESC
 		LIMIT 1
 	`
-	
+
 	var level pb.Level
 	var imageURL sql.NullString
 	var backgroundImage sql.NullString
-	
+
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&level.Id,
 		&level.Name,
@@ -44,21 +44,21 @@ func (r *LevelRepository) GetUserLatestLevel(ctx context.Context, userID uint64)
 		&backgroundImage,
 		&imageURL,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user has no level")
 		}
 		return nil, err
 	}
-	
+
 	if imageURL.Valid {
 		level.ImageUrl = imageURL.String
 	}
 	if backgroundImage.Valid {
 		level.BackgroundImage = backgroundImage.String
 	}
-	
+
 	return &level, nil
 }
 
@@ -66,40 +66,40 @@ func (r *LevelRepository) GetUserLatestLevel(ctx context.Context, userID uint64)
 // Implements Laravel: Level::where('score', '<', $score)->orderBy('score')->get()
 func (r *LevelRepository) GetLevelsBelowScore(ctx context.Context, score int32) ([]*pb.Level, error) {
 	query := `
-		SELECT l.id, l.name, l.slug, l.score, l.background_image,
+		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
 		       COALESCE(i.url, '') as image_url
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
-		WHERE l.score < ?
-		ORDER BY l.score ASC
+		WHERE CAST(l.score AS UNSIGNED) < ?
+		ORDER BY CAST(l.score AS UNSIGNED) ASC
 	`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, score)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var levels []*pb.Level
 	for rows.Next() {
 		var level pb.Level
 		var imageURL sql.NullString
 		var backgroundImage sql.NullString
-		
+
 		if err := rows.Scan(&level.Id, &level.Name, &level.Slug, &level.Score, &backgroundImage, &imageURL); err != nil {
 			return nil, err
 		}
-		
+
 		if imageURL.Valid {
 			level.ImageUrl = imageURL.String
 		}
 		if backgroundImage.Valid {
 			level.BackgroundImage = backgroundImage.String
 		}
-		
+
 		levels = append(levels, &level)
 	}
-	
+
 	return levels, nil
 }
 
@@ -107,19 +107,19 @@ func (r *LevelRepository) GetLevelsBelowScore(ctx context.Context, score int32) 
 // Used for calculating progress percentage
 func (r *LevelRepository) GetNextLevel(ctx context.Context, currentScore int32) (*pb.Level, error) {
 	query := `
-		SELECT l.id, l.name, l.slug, l.score, l.background_image,
+		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
 		       COALESCE(i.url, '') as image_url
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
-		WHERE l.score > ?
-		ORDER BY l.score ASC
+		WHERE CAST(l.score AS UNSIGNED) > ?
+		ORDER BY CAST(l.score AS UNSIGNED) ASC
 		LIMIT 1
 	`
-	
+
 	var level pb.Level
 	var imageURL sql.NullString
 	var backgroundImage sql.NullString
-	
+
 	err := r.db.QueryRowContext(ctx, query, currentScore).Scan(
 		&level.Id,
 		&level.Name,
@@ -128,21 +128,21 @@ func (r *LevelRepository) GetNextLevel(ctx context.Context, currentScore int32) 
 		&backgroundImage,
 		&imageURL,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // No next level
 		}
 		return nil, err
 	}
-	
+
 	if imageURL.Valid {
 		level.ImageUrl = imageURL.String
 	}
 	if backgroundImage.Valid {
 		level.BackgroundImage = backgroundImage.String
 	}
-	
+
 	return &level, nil
 }
 
@@ -150,39 +150,39 @@ func (r *LevelRepository) GetNextLevel(ctx context.Context, currentScore int32) 
 // Implements Laravel: Level::select('id', 'name', 'slug')->with('image')->get()
 func (r *LevelRepository) GetAllLevels(ctx context.Context) ([]*pb.Level, error) {
 	query := `
-		SELECT l.id, l.name, l.slug, l.score, l.background_image,
+		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
 		       COALESCE(i.url, '') as image_url
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
-		ORDER BY l.score ASC
+		ORDER BY CAST(l.score AS UNSIGNED) ASC
 	`
-	
+
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var levels []*pb.Level
 	for rows.Next() {
 		var level pb.Level
 		var imageURL sql.NullString
 		var backgroundImage sql.NullString
-		
+
 		if err := rows.Scan(&level.Id, &level.Name, &level.Slug, &level.Score, &backgroundImage, &imageURL); err != nil {
 			return nil, err
 		}
-		
+
 		if imageURL.Valid {
 			level.ImageUrl = imageURL.String
 		}
 		if backgroundImage.Valid {
 			level.BackgroundImage = backgroundImage.String
 		}
-		
+
 		levels = append(levels, &level)
 	}
-	
+
 	return levels, nil
 }
 
@@ -190,17 +190,17 @@ func (r *LevelRepository) GetAllLevels(ctx context.Context) ([]*pb.Level, error)
 // Implements Laravel: Level::find($id)->load('image', 'generalInfo')
 func (r *LevelRepository) FindByID(ctx context.Context, id uint64) (*pb.Level, error) {
 	query := `
-		SELECT l.id, l.name, l.slug, l.score, l.background_image,
+		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
 		       COALESCE(i.url, '') as image_url
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
 		WHERE l.id = ?
 	`
-	
+
 	var level pb.Level
 	var imageURL sql.NullString
 	var backgroundImage sql.NullString
-	
+
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&level.Id,
 		&level.Name,
@@ -209,24 +209,24 @@ func (r *LevelRepository) FindByID(ctx context.Context, id uint64) (*pb.Level, e
 		&backgroundImage,
 		&imageURL,
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if imageURL.Valid {
 		level.ImageUrl = imageURL.String
 	}
 	if backgroundImage.Valid {
 		level.BackgroundImage = backgroundImage.String
 	}
-	
+
 	// Load general info
 	generalInfo, err := r.GetLevelGeneralInfo(ctx, id)
 	if err == nil {
 		level.GeneralInfo = generalInfo
 	}
-	
+
 	return &level, nil
 }
 
@@ -234,17 +234,17 @@ func (r *LevelRepository) FindByID(ctx context.Context, id uint64) (*pb.Level, e
 // Implements Laravel: Level::where('slug', $slug)->firstOrFail()
 func (r *LevelRepository) FindBySlug(ctx context.Context, slug string) (*pb.Level, error) {
 	query := `
-		SELECT l.id, l.name, l.slug, l.score, l.background_image,
+		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
 		       COALESCE(i.url, '') as image_url
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
 		WHERE l.slug = ?
 	`
-	
+
 	var level pb.Level
 	var imageURL sql.NullString
 	var backgroundImage sql.NullString
-	
+
 	err := r.db.QueryRowContext(ctx, query, slug).Scan(
 		&level.Id,
 		&level.Name,
@@ -253,24 +253,24 @@ func (r *LevelRepository) FindBySlug(ctx context.Context, slug string) (*pb.Leve
 		&backgroundImage,
 		&imageURL,
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if imageURL.Valid {
 		level.ImageUrl = imageURL.String
 	}
 	if backgroundImage.Valid {
 		level.BackgroundImage = backgroundImage.String
 	}
-	
+
 	// Load general info
 	generalInfo, err := r.GetLevelGeneralInfo(ctx, level.Id)
 	if err == nil {
 		level.GeneralInfo = generalInfo
 	}
-	
+
 	return &level, nil
 }
 
@@ -278,41 +278,37 @@ func (r *LevelRepository) FindBySlug(ctx context.Context, slug string) (*pb.Leve
 // Implements Laravel: $level->generalInfo
 func (r *LevelRepository) GetLevelGeneralInfo(ctx context.Context, levelID uint64) (*pb.LevelGeneralInfo, error) {
 	query := `
-		SELECT id, level_id, score, rank, description,
-		       COALESCE(subcategories, '') as subcategories,
-		       COALESCE(persian_font, '') as persian_font,
-		       COALESCE(english_font, '') as english_font,
-		       COALESCE(file_volume, '') as file_volume,
-		       COALESCE(used_colors, '') as used_colors,
-		       COALESCE(points, '') as points,
-		       COALESCE(lines, '') as lines,
-		       COALESCE(has_animation, 0) as has_animation,
-		       COALESCE(designer, '') as designer,
-		       COALESCE(model_designer, '') as model_designer,
-		       COALESCE(creation_date, '') as creation_date,
+		SELECT id, level_id, score, rank, description, subcategories,
+		       persian_font, english_font, file_volume, used_colors, points, lines,
+		       has_animation, designer, model_designer, creation_date,
 		       COALESCE(png_file, '') as png_file,
 		       COALESCE(fbx_file, '') as fbx_file,
 		       COALESCE(gif_file, '') as gif_file
 		FROM level_general_infos
 		WHERE level_id = ?
 	`
-	
+
 	var info pb.LevelGeneralInfo
-	
+	var subcategoriesInt int
+	var pointsInt, linesInt int
+	var fileVolumeFloat float64
+	var hasAnimationInt int8
+	var rankInt int
+
 	err := r.db.QueryRowContext(ctx, query, levelID).Scan(
 		&info.Id,
 		&info.LevelId,
 		&info.Score,
-		&info.Rank,
+		&rankInt,
 		&info.Description,
-		&info.Subcategories,
+		&subcategoriesInt,
 		&info.PersianFont,
 		&info.EnglishFont,
-		&info.FileVolume,
+		&fileVolumeFloat,
 		&info.UsedColors,
-		&info.Points,
-		&info.Lines,
-		&info.HasAnimation,
+		&pointsInt,
+		&linesInt,
+		&hasAnimationInt,
 		&info.Designer,
 		&info.ModelDesigner,
 		&info.CreationDate,
@@ -320,11 +316,22 @@ func (r *LevelRepository) GetLevelGeneralInfo(ctx context.Context, levelID uint6
 		&info.FbxFile,
 		&info.GifFile,
 	)
-	
+
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Missing general info is allowed per API docs
+		}
 		return nil, err
 	}
-	
+
+	// Convert types to match proto (strings where needed)
+	info.Rank = fmt.Sprintf("%d", rankInt)
+	info.Subcategories = fmt.Sprintf("%d", subcategoriesInt)
+	info.FileVolume = fmt.Sprintf("%g", fileVolumeFloat)
+	info.Points = fmt.Sprintf("%d", pointsInt)
+	info.Lines = fmt.Sprintf("%d", linesInt)
+	info.HasAnimation = hasAnimationInt != 0
+
 	return &info, nil
 }
 
@@ -332,29 +339,16 @@ func (r *LevelRepository) GetLevelGeneralInfo(ctx context.Context, levelID uint6
 // Implements Laravel: $level->prize
 func (r *LevelRepository) GetLevelPrize(ctx context.Context, levelID uint64) (*pb.LevelPrize, error) {
 	query := `
-		SELECT id, level_id,
-		       COALESCE(psc, 0) as psc,
-		       COALESCE(blue, 0) as blue,
-		       COALESCE(red, 0) as red,
-		       COALESCE(yellow, 0) as yellow,
-		       COALESCE(union_license, 0) as union_license,
-		       COALESCE(union_members_count, 0) as union_members_count,
-		       COALESCE(observing_license, 0) as observing_license,
-		       COALESCE(gate_license, 0) as gate_license,
-		       COALESCE(lawyer_license, 0) as lawyer_license,
-		       COALESCE(city_counsil_entry, 0) as city_counsil_entry,
-		       COALESCE(special_residence_property, 0) as special_residence_property,
-		       COALESCE(property_on_area, 0) as property_on_area,
-		       COALESCE(judge_entry, 0) as judge_entry,
-		       satisfaction,
-		       effect
-		FROM prizes
+		SELECT id, level_id, psc, blue, red, yellow, effect, satisfaction, created_at
+		FROM level_prizes
 		WHERE level_id = ?
 	`
-	
+
 	var prize pb.LevelPrize
-	var psc, blue, red, yellow, specialProp, propArea int64
-	
+	var psc, blue, red, yellow, effect int64
+	var satisfaction float64
+	var createdAt sql.NullTime
+
 	err := r.db.QueryRowContext(ctx, query, levelID).Scan(
 		&prize.Id,
 		&prize.LevelId,
@@ -362,31 +356,33 @@ func (r *LevelRepository) GetLevelPrize(ctx context.Context, levelID uint64) (*p
 		&blue,
 		&red,
 		&yellow,
-		&prize.UnionLicense,
-		&prize.UnionMembersCount,
-		&prize.ObservingLicense,
-		&prize.GateLicense,
-		&prize.LawyerLicense,
-		&prize.CityCounsilEntry,
-		&specialProp,
-		&propArea,
-		&prize.JudgeEntry,
-		&prize.Satisfaction,
-		&prize.Effect,
+		&effect,
+		&satisfaction,
+		&createdAt,
 	)
-	
+
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Missing prize is allowed per API docs
+		}
 		return nil, err
 	}
-	
+
 	// Convert integers to strings for consistency with Laravel
 	prize.Psc = fmt.Sprintf("%d", psc)
 	prize.Blue = fmt.Sprintf("%d", blue)
 	prize.Red = fmt.Sprintf("%d", red)
 	prize.Yellow = fmt.Sprintf("%d", yellow)
-	prize.SpecialResidenceProperty = fmt.Sprintf("%d", specialProp)
-	prize.PropertyOnArea = fmt.Sprintf("%d", propArea)
-	
+	prize.Effect = effect
+
+	// Format satisfaction to 2 decimal places as per API docs
+	prize.Satisfaction = fmt.Sprintf("%.2f", satisfaction)
+
+	// Format created_at in Jalali format (for now, just format as ISO, will need Jalali conversion)
+	if createdAt.Valid {
+		prize.CreatedAt = createdAt.Time.Format("2006-01-02 15:04:05")
+	}
+
 	return &prize, nil
 }
 
@@ -394,30 +390,41 @@ func (r *LevelRepository) GetLevelPrize(ctx context.Context, levelID uint64) (*p
 // Implements Laravel: $level->gem
 func (r *LevelRepository) GetLevelGem(ctx context.Context, levelID uint64) (*pb.LevelGem, error) {
 	query := `
-		SELECT id, level_id,
-		       COALESCE(name, '') as name,
-		       COALESCE(slug, '') as slug,
-		       COALESCE(description, '') as description,
-		       COALESCE(image_url, '') as image_url
+		SELECT id, level_id, name, description, thread, points, volume, color,
+		       has_animation, lines, png_file, fbx_file, encryption, designer
 		FROM level_gems
 		WHERE level_id = ?
 	`
-	
+
 	var gem pb.LevelGem
-	
+	var encryptionInt int8
+
 	err := r.db.QueryRowContext(ctx, query, levelID).Scan(
 		&gem.Id,
 		&gem.LevelId,
 		&gem.Name,
-		&gem.Slug,
 		&gem.Description,
-		&gem.ImageUrl,
+		&gem.Thread,
+		&gem.Points,
+		&gem.Volume,
+		&gem.Color,
+		&gem.HasAnimation,
+		&gem.Lines,
+		&gem.PngFile,
+		&gem.FbxFile,
+		&encryptionInt,
+		&gem.Designer,
 	)
-	
+
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Missing gem is allowed per API docs
+		}
 		return nil, err
 	}
-	
+
+	gem.Encryption = encryptionInt != 0
+
 	return &gem, nil
 }
 
@@ -425,22 +432,58 @@ func (r *LevelRepository) GetLevelGem(ctx context.Context, levelID uint64) (*pb.
 // Implements Laravel: $level->gift
 func (r *LevelRepository) GetLevelGift(ctx context.Context, levelID uint64) (*pb.LevelGift, error) {
 	query := `
-		SELECT id, level_id
+		SELECT id, level_id, name, description, monthly_capacity_count, store_capacity,
+		       sell_capacity, features, sell, vod_document_registration, seller_link,
+		       designer, three_d_model_volume, three_d_model_points, three_d_model_lines,
+		       has_animation, png_file, fbx_file, gif_file, rent, vod_count,
+		       start_vod_id, end_vod_id
 		FROM level_gifts
 		WHERE level_id = ?
 	`
-	
+
 	var gift pb.LevelGift
-	
+	var storeCapacity, sellCapacity, sell, vodDocReg, hasAnim, rent int8
+
 	err := r.db.QueryRowContext(ctx, query, levelID).Scan(
 		&gift.Id,
 		&gift.LevelId,
+		&gift.Name,
+		&gift.Description,
+		&gift.MonthlyCapacityCount,
+		&storeCapacity,
+		&sellCapacity,
+		&gift.Features,
+		&sell,
+		&vodDocReg,
+		&gift.SellerLink,
+		&gift.Designer,
+		&gift.ThreeDModelVolume,
+		&gift.ThreeDModelPoints,
+		&gift.ThreeDModelLines,
+		&hasAnim,
+		&gift.PngFile,
+		&gift.FbxFile,
+		&gift.GifFile,
+		&rent,
+		&gift.VodCount,
+		&gift.StartVodId,
+		&gift.EndVodId,
 	)
-	
+
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Missing gift is allowed per API docs
+		}
 		return nil, err
 	}
-	
+
+	gift.StoreCapacity = storeCapacity != 0
+	gift.SellCapacity = sellCapacity != 0
+	gift.Sell = sell != 0
+	gift.VodDocumentRegistration = vodDocReg != 0
+	gift.HasAnimation = hasAnim != 0
+	gift.Rent = rent != 0
+
 	return &gift, nil
 }
 
@@ -448,22 +491,69 @@ func (r *LevelRepository) GetLevelGift(ctx context.Context, levelID uint64) (*pb
 // Implements Laravel: $level->licenses
 func (r *LevelRepository) GetLevelLicenses(ctx context.Context, levelID uint64) (*pb.LevelLicense, error) {
 	query := `
-		SELECT id, level_id
+		SELECT id, level_id, create_union, add_memeber_to_union, observation_license,
+		       gate_license, lawyer_license, city_counsile_entry,
+		       establish_special_residential_property, establish_property_on_surface,
+		       judge_entry, upload_image, delete_image, inter_level_general_points,
+		       inter_level_special_points, rent_out_satisfaction,
+		       access_to_answer_questions_unit, create_challenge_questions, upload_music
 		FROM level_licenses
 		WHERE level_id = ?
 	`
-	
+
 	var license pb.LevelLicense
-	
+	var createUnion, addMember, obsLicense, gateLicense, lawyerLicense, cityEntry,
+		establishSpecialProp, establishPropSurface, judgeEntry, uploadImg, deleteImg,
+		interGenPoints, interSpecialPoints, rentSatisfaction, accessQuestions,
+		createChallenge, uploadMusic int8
+
 	err := r.db.QueryRowContext(ctx, query, levelID).Scan(
 		&license.Id,
 		&license.LevelId,
+		&createUnion,
+		&addMember,
+		&obsLicense,
+		&gateLicense,
+		&lawyerLicense,
+		&cityEntry,
+		&establishSpecialProp,
+		&establishPropSurface,
+		&judgeEntry,
+		&uploadImg,
+		&deleteImg,
+		&interGenPoints,
+		&interSpecialPoints,
+		&rentSatisfaction,
+		&accessQuestions,
+		&createChallenge,
+		&uploadMusic,
 	)
-	
+
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Missing licenses is allowed per API docs
+		}
 		return nil, err
 	}
-	
+
+	license.CreateUnion = createUnion != 0
+	license.AddMemeberToUnion = addMember != 0
+	license.ObservationLicense = obsLicense != 0
+	license.GateLicense = gateLicense != 0
+	license.LawyerLicense = lawyerLicense != 0
+	license.CityCounsileEntry = cityEntry != 0
+	license.EstablishSpecialResidentialProperty = establishSpecialProp != 0
+	license.EstablishPropertyOnSurface = establishPropSurface != 0
+	license.JudgeEntry = judgeEntry != 0
+	license.UploadImage = uploadImg != 0
+	license.DeleteImage = deleteImg != 0
+	license.InterLevelGeneralPoints = interGenPoints != 0
+	license.InterLevelSpecialPoints = interSpecialPoints != 0
+	license.RentOutSatisfaction = rentSatisfaction != 0
+	license.AccessToAnswerQuestionsUnit = accessQuestions != 0
+	license.CreateChallengeQuestions = createChallenge != 0
+	license.UploadMusic = uploadMusic != 0
+
 	return &license, nil
 }
 
@@ -471,22 +561,22 @@ func (r *LevelRepository) GetLevelLicenses(ctx context.Context, levelID uint64) 
 // Implements Laravel: Level::where('score', '<=', $user->score)->whereNotIn('id', $user->levels->pluck('id'))->first()
 func (r *LevelRepository) GetNextLevelForScore(ctx context.Context, userID uint64, score int32) (*pb.Level, error) {
 	query := `
-		SELECT l.id, l.name, l.slug, l.score, l.background_image,
+		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
 		       COALESCE(i.url, '') as image_url
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
-		WHERE l.score <= ?
+		WHERE CAST(l.score AS UNSIGNED) <= ?
 		  AND l.id NOT IN (
 		      SELECT level_id FROM level_user WHERE user_id = ?
 		  )
-		ORDER BY l.score DESC
+		ORDER BY CAST(l.score AS UNSIGNED) DESC
 		LIMIT 1
 	`
-	
+
 	var level pb.Level
 	var imageURL sql.NullString
 	var backgroundImage sql.NullString
-	
+
 	err := r.db.QueryRowContext(ctx, query, score, userID).Scan(
 		&level.Id,
 		&level.Name,
@@ -495,21 +585,21 @@ func (r *LevelRepository) GetNextLevelForScore(ctx context.Context, userID uint6
 		&backgroundImage,
 		&imageURL,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // No new level to achieve
 		}
 		return nil, err
 	}
-	
+
 	if imageURL.Valid {
 		level.ImageUrl = imageURL.String
 	}
 	if backgroundImage.Valid {
 		level.BackgroundImage = backgroundImage.String
 	}
-	
+
 	return &level, nil
 }
 
@@ -540,4 +630,3 @@ func (r *LevelRepository) RecordReceivedPrize(ctx context.Context, userID, prize
 	_, err := r.db.ExecContext(ctx, query, userID, prizeID)
 	return err
 }
-

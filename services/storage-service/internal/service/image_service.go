@@ -64,4 +64,3 @@ func (s *ImageService) DeleteImage(ctx context.Context, imageID uint64) error {
 
 	return nil
 }
-

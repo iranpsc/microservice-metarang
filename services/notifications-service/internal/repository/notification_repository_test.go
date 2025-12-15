@@ -16,10 +16,10 @@ import (
 func TestCreateNotification(t *testing.T) {
 
 	tests := []struct {
-		name        string
+		name         string
 		notification *models.Notification
-		setupMock   func(sqlmock.Sqlmock)
-		expectError bool
+		setupMock    func(sqlmock.Sqlmock)
+		expectError  bool
 	}{
 		{
 			name: "successful creation",
@@ -35,14 +35,14 @@ func TestCreateNotification(t *testing.T) {
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`INSERT INTO notifications`).
 					WithArgs(
-						sqlmock.AnyArg(), // id
-						"system",         // type
-						"App\\User",      // notifiable_type
-						uint64(123),      // notifiable_id
-						sqlmock.AnyArg(), // data (JSON)
+						sqlmock.AnyArg(),  // id
+						"system",          // type
+						"App\\User",       // notifiable_type
+						uint64(123),       // notifiable_id
+						sqlmock.AnyArg(),  // data (JSON)
 						(*time.Time)(nil), // read_at
-						sqlmock.AnyArg(), // created_at
-						sqlmock.AnyArg(), // updated_at
+						sqlmock.AnyArg(),  // created_at
+						sqlmock.AnyArg(),  // updated_at
 					).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
@@ -103,8 +103,8 @@ func TestListNotifications(t *testing.T) {
 	}{
 		{
 			name:   "successful list",
-			userID:  123,
-			filter:  models.NotificationFilter{Page: 1, PerPage: 10},
+			userID: 123,
+			filter: models.NotificationFilter{Page: 1, PerPage: 10},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// Count query
 				mock.ExpectQuery(`SELECT COUNT(*) FROM notifications WHERE notifiable_type = ? AND notifiable_id = ?`).
@@ -137,8 +137,8 @@ func TestListNotifications(t *testing.T) {
 		},
 		{
 			name:   "empty result",
-			userID:  456,
-			filter:  models.NotificationFilter{Page: 1, PerPage: 10},
+			userID: 456,
+			filter: models.NotificationFilter{Page: 1, PerPage: 10},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT(*) FROM notifications WHERE notifiable_type = ? AND notifiable_id = ?`).
 					WithArgs("App\\User", uint64(456)).
@@ -180,16 +180,16 @@ func TestListNotifications(t *testing.T) {
 func TestMarkAsRead(t *testing.T) {
 
 	tests := []struct {
-		name          string
+		name           string
 		notificationID string
-		userID        uint64
-		setupMock     func(sqlmock.Sqlmock)
-		expectError   bool
+		userID         uint64
+		setupMock      func(sqlmock.Sqlmock)
+		expectError    bool
 	}{
 		{
-			name:          "successful mark as read",
+			name:           "successful mark as read",
 			notificationID: "550e8400-e29b-41d4-a716-446655440000",
-			userID:        123,
+			userID:         123,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`UPDATE notifications SET read_at = NOW\(\), updated_at = NOW\(\) WHERE id = \? AND notifiable_type = \? AND notifiable_id = \?`).
 					WithArgs("550e8400-e29b-41d4-a716-446655440000", "App\\User", uint64(123)).
@@ -198,9 +198,9 @@ func TestMarkAsRead(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:          "notification not found",
+			name:           "notification not found",
 			notificationID: "550e8400-e29b-41d4-a716-446655440001",
-			userID:        123,
+			userID:         123,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectExec(`UPDATE notifications SET read_at = NOW\(\), updated_at = NOW\(\) WHERE id = \? AND notifiable_type = \? AND notifiable_id = \?`).
 					WithArgs("550e8400-e29b-41d4-a716-446655440001", "App\\User", uint64(123)).
@@ -276,3 +276,128 @@ func TestMarkAllAsRead(t *testing.T) {
 	}
 }
 
+func TestListNotifications_UnreadOnly(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewNotificationRepository(db)
+
+	filter := models.NotificationFilter{
+		Page:       1,
+		PerPage:    10,
+		UnreadOnly: true,
+	}
+
+	// Count query with unread filter
+	mock.ExpectQuery(`SELECT COUNT(*) FROM notifications WHERE notifiable_type = ? AND notifiable_id = ? AND read_at IS NULL`).
+		WithArgs("App\\User", uint64(123)).
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
+
+	// List query with unread filter
+	rows := sqlmock.NewRows([]string{"id", "data", "read_at", "created_at", "updated_at"}).
+		AddRow(
+			"550e8400-e29b-41d4-a716-446655440000",
+			`{"type":"system","title":"Test","message":"Message","data":{}}`,
+			nil,
+			time.Now(),
+			time.Now(),
+		)
+
+	mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE notifiable_type = ? AND notifiable_id = ? AND read_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`).
+		WithArgs("App\\User", uint64(123), 10, 0).
+		WillReturnRows(rows)
+
+	notifications, total, err := repo.ListNotifications(context.Background(), 123, filter)
+
+	assert.NoError(t, err)
+	assert.Len(t, notifications, 1)
+	assert.Equal(t, int64(1), total)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetNotificationByID(t *testing.T) {
+	tests := []struct {
+		name           string
+		notificationID string
+		userID         uint64
+		setupMock      func(sqlmock.Sqlmock)
+		expectError    bool
+		expectNil      bool
+	}{
+		{
+			name:           "successful get",
+			notificationID: "550e8400-e29b-41d4-a716-446655440000",
+			userID:         123,
+			setupMock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "data", "read_at", "created_at", "updated_at"}).
+					AddRow(
+						"550e8400-e29b-41d4-a716-446655440000",
+						`{"type":"system","title":"Test","message":"Message","data":{"key":"value"}}`,
+						nil,
+						time.Now(),
+						time.Now(),
+					)
+				mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE id = ? AND notifiable_type = ? AND notifiable_id = ? LIMIT 1`).
+					WithArgs("550e8400-e29b-41d4-a716-446655440000", "App\\User", uint64(123)).
+					WillReturnRows(rows)
+			},
+			expectError: false,
+			expectNil:   false,
+		},
+		{
+			name:           "not found",
+			notificationID: "550e8400-e29b-41d4-a716-446655440001",
+			userID:         123,
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE id = ? AND notifiable_type = ? AND notifiable_id = ? LIMIT 1`).
+					WithArgs("550e8400-e29b-41d4-a716-446655440001", "App\\User", uint64(123)).
+					WillReturnError(sql.ErrNoRows)
+			},
+			expectError: false,
+			expectNil:   true,
+		},
+		{
+			name:           "database error",
+			notificationID: "550e8400-e29b-41d4-a716-446655440002",
+			userID:         123,
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE id = ? AND notifiable_type = ? AND notifiable_id = ? LIMIT 1`).
+					WithArgs("550e8400-e29b-41d4-a716-446655440002", "App\\User", uint64(123)).
+					WillReturnError(sql.ErrConnDone)
+			},
+			expectError: true,
+			expectNil:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+			require.NoError(t, err)
+			defer db.Close()
+			repo := NewNotificationRepository(db)
+
+			tt.setupMock(mock)
+
+			notification, err := repo.GetNotificationByID(context.Background(), tt.notificationID, tt.userID)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tt.expectNil {
+				assert.Nil(t, notification)
+			} else if !tt.expectError {
+				assert.NotNil(t, notification)
+				if notification != nil {
+					assert.Equal(t, tt.notificationID, notification.ID)
+					assert.Equal(t, tt.userID, notification.UserID)
+				}
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}

@@ -10,6 +10,7 @@ option go_package = "metargb/shared/pb/training";
 service VideoService {
   rpc GetVideos(GetVideosRequest) returns (VideosResponse);
   rpc GetVideo(GetVideoRequest) returns (VideoResponse);
+  rpc GetVideoByFileName(GetVideoByFileNameRequest) returns (VideoResponse);
   rpc SearchVideos(SearchVideosRequest) returns (VideosResponse);
   rpc IncrementView(IncrementViewRequest) returns (common.Empty);
   rpc AddInteraction(AddInteractionRequest) returns (common.Empty);
@@ -54,6 +55,12 @@ message GetVideosRequest {
 message GetVideoRequest {
   string slug = 1;
   uint64 user_id = 2; // optional for view tracking
+  string ip_address = 3; // optional for view tracking
+}
+
+message GetVideoByFileNameRequest {
+  string file_name = 1; // partial file name to match
+  string ip_address = 2; // optional for view tracking
 }
 
 message SearchVideosRequest {

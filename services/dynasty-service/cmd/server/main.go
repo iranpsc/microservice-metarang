@@ -18,6 +18,8 @@ import (
 	"metargb/dynasty-service/internal/handler"
 	"metargb/dynasty-service/internal/repository"
 	"metargb/dynasty-service/internal/service"
+
+	dynastypb "metargb/shared/pb/dynasty"
 )
 
 func main() {
@@ -65,18 +67,30 @@ func main() {
 
 	// Initialize services
 	dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, notificationServiceAddr)
-	joinRequestService := service.NewJoinRequestService(joinRequestRepo, dynastyRepo, familyRepo, notificationServiceAddr)
+	joinRequestService := service.NewJoinRequestService(joinRequestRepo, dynastyRepo, familyRepo, prizeRepo, notificationServiceAddr)
 	familyService := service.NewFamilyService(familyRepo, dynastyRepo)
 	prizeService := service.NewPrizeService(prizeRepo)
+	permissionService := service.NewPermissionService(joinRequestRepo, familyRepo, dynastyRepo)
+	userSearchService := service.NewUserSearchService(db)
 
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
-	// Register handlers
-	handler.RegisterDynastyHandler(grpcServer, dynastyService)
-	handler.RegisterJoinRequestHandler(grpcServer, joinRequestService)
-	handler.RegisterFamilyHandler(grpcServer, familyService)
-	handler.RegisterPrizeHandler(grpcServer, prizeService)
+	// Create unified handler with all services
+	dynastyHandler := handler.NewDynastyHandler(
+		dynastyService,
+		joinRequestService,
+		familyService,
+		prizeService,
+		permissionService,
+		userSearchService,
+	)
+
+	// Register all services on the same handler
+	dynastypb.RegisterDynastyServiceServer(grpcServer, dynastyHandler)
+	dynastypb.RegisterJoinRequestServiceServer(grpcServer, dynastyHandler)
+	dynastypb.RegisterFamilyServiceServer(grpcServer, dynastyHandler)
+	dynastypb.RegisterDynastyPrizeServiceServer(grpcServer, dynastyHandler)
 
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50053")
@@ -110,4 +124,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
-

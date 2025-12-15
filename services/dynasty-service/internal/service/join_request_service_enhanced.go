@@ -12,14 +12,14 @@ import (
 
 // JoinRequestServiceEnhanced provides enhanced join request operations with full validation
 type JoinRequestServiceEnhanced struct {
-	joinRequestRepo  *repository.JoinRequestRepository
-	dynastyRepo      *repository.DynastyRepository
-	familyRepo       *repository.FamilyRepository
-	validationRepo   *repository.ValidationRepository
-	messageRepo      *repository.MessageRepository
-	prizeRepo        *repository.PrizeRepository
-	validator        *validation.FamilyValidator
-	
+	joinRequestRepo *repository.JoinRequestRepository
+	dynastyRepo     *repository.DynastyRepository
+	familyRepo      *repository.FamilyRepository
+	validationRepo  *repository.ValidationRepository
+	messageRepo     *repository.MessageRepository
+	prizeRepo       *repository.PrizeRepository
+	validator       *validation.FamilyValidator
+
 	// gRPC clients (to be injected)
 	// authClient         auth.AuthServiceClient
 	// notificationClient notification.NotificationServiceClient
@@ -34,7 +34,7 @@ func NewJoinRequestServiceEnhanced(
 	prizeRepo *repository.PrizeRepository,
 ) *JoinRequestServiceEnhanced {
 	validator := validation.NewFamilyValidator(validationRepo)
-	
+
 	return &JoinRequestServiceEnhanced{
 		joinRequestRepo: joinRequestRepo,
 		dynastyRepo:     dynastyRepo,
@@ -53,18 +53,18 @@ func (s *JoinRequestServiceEnhanced) SendJoinRequest(
 	relationship string,
 	permissions *models.ChildPermission,
 ) (*models.JoinRequest, string, string, error) {
-	
+
 	// Validate relationship type
 	if err := s.validator.ValidateRelationship(relationship); err != nil {
 		return nil, "", "", err
 	}
-	
+
 	// Check if sender is under 18 (would call Auth service)
 	isUnder18, err := s.joinRequestRepo.CheckUserAge(ctx, fromUserID)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("failed to check user age: %w", err)
 	}
-	
+
 	// Validate permissions for offspring relationship
 	if relationship == "offspring" && permissions != nil {
 		toUserUnder18, err := s.joinRequestRepo.CheckUserAge(ctx, toUserID)
@@ -75,35 +75,35 @@ func (s *JoinRequestServiceEnhanced) SendJoinRequest(
 			return nil, "", "", fmt.Errorf("شما مجاز به تعریف دسترسی برای فرزند بالای 18 سال نیستید.")
 		}
 	}
-	
+
 	// Run all validation rules
 	if err := s.validator.ValidateAddFamilyMember(ctx, fromUserID, toUserID, relationship, isUnder18); err != nil {
 		return nil, "", "", err
 	}
-	
+
 	// Get sender's dynasty and family to check relationship limits
 	dynasty, err := s.dynastyRepo.GetDynastyByUserID(ctx, fromUserID)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("failed to get dynasty: %w", err)
 	}
-	
+
 	familyID, err := s.validationRepo.GetFamilyByDynastyID(ctx, dynasty.ID)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("failed to get family: %w", err)
 	}
-	
+
 	// Validate relationship limits
 	if err := s.validator.ValidateRelationshipLimits(ctx, familyID, relationship); err != nil {
 		return nil, "", "", err
 	}
-	
+
 	// Get user details (would call Auth service in real implementation)
 	// For now, we'll use placeholder data
 	senderCode := fmt.Sprintf("USER-%d", fromUserID)
 	receiverCode := fmt.Sprintf("USER-%d", toUserID)
 	senderName := "نام کاربر"
 	receiverName := "نام گیرنده"
-	
+
 	// Prepare messages with templates
 	jalaliDate := helpers.NowJalali()
 	senderMsg, receiverMsg, err := s.messageRepo.PrepareJoinRequestMessages(
@@ -118,7 +118,7 @@ func (s *JoinRequestServiceEnhanced) SendJoinRequest(
 	if err != nil {
 		return nil, "", "", fmt.Errorf("failed to prepare messages: %w", err)
 	}
-	
+
 	// Create join request with CORRECT status value (0 = pending)
 	joinRequest := &models.JoinRequest{
 		FromUser:     fromUserID,
@@ -127,11 +127,11 @@ func (s *JoinRequestServiceEnhanced) SendJoinRequest(
 		Relationship: relationship,
 		Message:      &receiverMsg,
 	}
-	
+
 	if err := s.joinRequestRepo.CreateJoinRequest(ctx, joinRequest); err != nil {
 		return nil, "", "", fmt.Errorf("failed to create join request: %w", err)
 	}
-	
+
 	// If permissions provided for offspring, store them
 	if relationship == "offspring" && permissions != nil {
 		permissions.UserID = toUserID
@@ -140,7 +140,7 @@ func (s *JoinRequestServiceEnhanced) SendJoinRequest(
 			return nil, "", "", fmt.Errorf("failed to create child permissions: %w", err)
 		}
 	}
-	
+
 	// TODO: Send notifications via gRPC to notification service
 	// s.notificationClient.SendNotification(ctx, &notification.SendRequest{
 	//     UserId: fromUserID,
@@ -151,7 +151,7 @@ func (s *JoinRequestServiceEnhanced) SendJoinRequest(
 	//     },
 	// })
 	// Similar for receiver...
-	
+
 	return joinRequest, senderMsg, receiverMsg, nil
 }
 
@@ -160,7 +160,7 @@ func (s *JoinRequestServiceEnhanced) AcceptJoinRequest(
 	ctx context.Context,
 	requestID, userID uint64,
 ) (*models.JoinRequest, error) {
-	
+
 	// Get join request
 	request, err := s.joinRequestRepo.GetJoinRequestByID(ctx, requestID)
 	if err != nil {
@@ -169,7 +169,7 @@ func (s *JoinRequestServiceEnhanced) AcceptJoinRequest(
 	if request == nil {
 		return nil, fmt.Errorf("join request not found")
 	}
-	
+
 	// Authorize: only receiver can accept, status must be pending
 	if request.ToUser != userID {
 		return nil, fmt.Errorf("unauthorized to accept this request")
@@ -177,12 +177,12 @@ func (s *JoinRequestServiceEnhanced) AcceptJoinRequest(
 	if request.Status != 0 { // Must be pending
 		return nil, fmt.Errorf("request is not pending")
 	}
-	
+
 	// Update request status to accepted (1 = accepted, NOT 2!)
 	if err := s.joinRequestRepo.UpdateJoinRequestStatus(ctx, requestID, 1); err != nil {
 		return nil, fmt.Errorf("failed to update request status: %w", err)
 	}
-	
+
 	// Get requester's dynasty
 	requestedUser := request.FromUser
 	dynasty, err := s.dynastyRepo.GetDynastyByUserID(ctx, requestedUser)
@@ -192,13 +192,13 @@ func (s *JoinRequestServiceEnhanced) AcceptJoinRequest(
 	if dynasty == nil {
 		return nil, fmt.Errorf("requester does not have a dynasty")
 	}
-	
+
 	// Get family
 	family, err := s.familyRepo.GetFamilyByDynastyID(ctx, dynasty.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get family: %w", err)
 	}
-	
+
 	// Add user to family
 	member := &models.FamilyMember{
 		FamilyID:     family.ID,
@@ -208,11 +208,11 @@ func (s *JoinRequestServiceEnhanced) AcceptJoinRequest(
 	if err := s.familyRepo.CreateFamilyMember(ctx, member); err != nil {
 		return nil, fmt.Errorf("failed to add family member: %w", err)
 	}
-	
+
 	// COMPLEX PERMISSION LOGIC
 	requestedUserUnder18, _ := s.joinRequestRepo.CheckUserAge(ctx, requestedUser)
 	receiverUserUnder18, _ := s.joinRequestRepo.CheckUserAge(ctx, userID)
-	
+
 	// If requested user is under 18 and relationship is 'father'
 	// Give the user full default dynasty permissions
 	if requestedUserUnder18 && request.Relationship == "father" {
@@ -243,7 +243,7 @@ func (s *JoinRequestServiceEnhanced) AcceptJoinRequest(
 			s.joinRequestRepo.UpdateChildPermission(ctx, userID, existingPerm)
 		}
 	}
-	
+
 	// AWARD PRIZE based on relationship
 	// Get prize for this relationship
 	prize, err := s.prizeRepo.GetPrizeByRelationship(ctx, request.Relationship)
@@ -264,10 +264,10 @@ func (s *JoinRequestServiceEnhanced) AcceptJoinRequest(
 			s.prizeRepo.AwardPrize(ctx, requestedUser, prize.ID, requesterMsg)
 		}
 	}
-	
+
 	// TODO: Send notifications via gRPC
 	// TODO: Prepare and send accept messages to both parties
-	
+
 	// Refresh and return request
 	request, _ = s.joinRequestRepo.GetJoinRequestByID(ctx, requestID)
 	return request, nil
@@ -278,7 +278,7 @@ func (s *JoinRequestServiceEnhanced) RejectJoinRequest(
 	ctx context.Context,
 	requestID, userID uint64,
 ) error {
-	
+
 	// Get join request
 	request, err := s.joinRequestRepo.GetJoinRequestByID(ctx, requestID)
 	if err != nil {
@@ -287,7 +287,7 @@ func (s *JoinRequestServiceEnhanced) RejectJoinRequest(
 	if request == nil {
 		return fmt.Errorf("join request not found")
 	}
-	
+
 	// Authorize: only receiver can reject, status must be pending
 	if request.ToUser != userID {
 		return fmt.Errorf("unauthorized to reject this request")
@@ -295,21 +295,20 @@ func (s *JoinRequestServiceEnhanced) RejectJoinRequest(
 	if request.Status != 0 { // Must be pending
 		return fmt.Errorf("request is not pending")
 	}
-	
+
 	// Update request status to rejected (-1 = rejected, NOT 2!)
 	if err := s.joinRequestRepo.UpdateJoinRequestStatus(ctx, requestID, -1); err != nil {
 		return fmt.Errorf("failed to update request status: %w", err)
 	}
-	
+
 	// Prepare reject messages
 	requesterCode := fmt.Sprintf("USER-%d", request.FromUser)
 	receiverCode := fmt.Sprintf("USER-%d", userID)
 	requesterMsg, receiverMsg, _ := s.messageRepo.PrepareRejectMessages(ctx, requesterCode, receiverCode)
-	
+
 	// TODO: Send notifications via gRPC
 	_ = requesterMsg
 	_ = receiverMsg
-	
+
 	return nil
 }
-

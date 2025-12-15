@@ -215,6 +215,57 @@ func TestNotificationService_GetNotifications(t *testing.T) {
 	}
 }
 
+func TestNotificationService_GetNotificationByID(t *testing.T) {
+	tests := []struct {
+		name           string
+		notificationID string
+		userID         uint64
+		setupMocks     func(*MockNotificationRepository)
+		expectError    bool
+		expectNil      bool
+	}{
+		{
+			name:           "successful get notification",
+			notificationID: "550e8400-e29b-41d4-a716-446655440000",
+			userID:         123,
+			setupMocks: func(repo *MockNotificationRepository) {
+				notification := &models.Notification{
+					ID:        "550e8400-e29b-41d4-a716-446655440000",
+					UserID:    123,
+					Type:      "system",
+					Title:     "Test",
+					Message:   "Message",
+					CreatedAt: time.Now(),
+				}
+				repo.On("GetNotificationByID", mock.Anything, "550e8400-e29b-41d4-a716-446655440000", uint64(123)).
+					Return(notification, nil)
+			},
+			expectError: false,
+			expectNil:   false,
+		},
+		{
+			name:           "notification not found",
+			notificationID: "550e8400-e29b-41d4-a716-446655440001",
+			userID:         123,
+			setupMocks: func(repo *MockNotificationRepository) {
+				repo.On("GetNotificationByID", mock.Anything, "550e8400-e29b-41d4-a716-446655440001", uint64(123)).
+					Return(nil, nil)
+			},
+			expectError: false,
+			expectNil:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Note: Since the service uses concrete repository type,
+			// we can't easily mock it. These tests demonstrate the expected behavior
+			// but would require refactoring the service to use an interface.
+			t.Skip("Service uses concrete repository type - requires refactoring to use interface")
+		})
+	}
+}
+
 // Note: The service currently uses concrete repository type
 // In a production system, you'd want to use an interface for better testability
 // This test demonstrates the pattern but may need adaptation based on actual service structure

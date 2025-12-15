@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package social;
+
+option go_package = "metargb/shared/pb/social";
+
+import "google/protobuf/empty.proto";
+
+// Follow Service - handles user follow relationships
+service FollowService {
+  rpc GetFollowers(GetFollowersRequest) returns (GetFollowersResponse);
+  rpc GetFollowing(GetFollowingRequest) returns (GetFollowingResponse);
+  rpc Follow(FollowRequest) returns (google.protobuf.Empty);
+  rpc Unfollow(UnfollowRequest) returns (google.protobuf.Empty);
+  rpc Remove(RemoveRequest) returns (google.protobuf.Empty);
+}
+
+// Challenge Service - handles quiz challenges
+service ChallengeService {
+  rpc GetTimings(GetTimingsRequest) returns (GetTimingsResponse);
+  rpc GetQuestion(GetQuestionRequest) returns (GetQuestionResponse);
+  rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse);
+}
+
+// ============== Follow Messages ==============
+
+message GetFollowersRequest {
+  uint64 user_id = 1;
+}
+
+message GetFollowingRequest {
+  uint64 user_id = 1;
+}
+
+message FollowRequest {
+  uint64 user_id = 1;      // Authenticated user (follower)
+  uint64 target_user_id = 2; // User to follow
+}
+
+message UnfollowRequest {
+  uint64 user_id = 1;      // Authenticated user (follower)
+  uint64 target_user_id = 2; // User to unfollow
+}
+
+message RemoveRequest {
+  uint64 user_id = 1;      // Authenticated user (being followed)
+  uint64 target_user_id = 2; // Follower to remove
+}
+
+message GetFollowersResponse {
+  repeated FollowResource data = 1;
+}
+
+message GetFollowingResponse {
+  repeated FollowResource data = 1;
+}
+
+message FollowResource {
+  uint64 id = 1;
+  string name = 2;
+  string code = 3;
+  repeated string profile_photos = 4;
+  string level = 5;
+  bool online = 6;
+}
+
+// ============== Challenge Messages ==============
+
+message GetTimingsRequest {}
+
+message GetTimingsResponse {
+  TimingsData data = 1;
+}
+
+message TimingsData {
+  int32 display_ad_interval = 1;
+  int32 display_question_interval = 2;
+  int32 display_answer_interval = 3;
+  int32 participants = 4;
+  int32 correct_answers = 5;
+  int32 wrong_answers = 6;
+}
+
+message GetQuestionRequest {
+  uint64 user_id = 1;
+}
+
+message GetQuestionResponse {
+  QuestionResource data = 1;
+}
+
+message SubmitAnswerRequest {
+  uint64 user_id = 1;
+  uint64 question_id = 2;
+  uint64 answer_id = 3;
+}
+
+message SubmitAnswerResponse {
+  QuestionResource data = 1;
+}
+
+message QuestionResource {
+  uint64 id = 1;
+  string title = 2;
+  string image = 3;
+  int32 prize = 4;
+  int32 participants = 5;
+  int32 views = 6;
+  string creator_code = 7;
+  repeated AnswerResource answers = 8;
+}
+
+message AnswerResource {
+  uint64 id = 1;
+  string title = 2;
+  string image = 3;
+  bool is_correct = 4;        // Only present in answer submission response
+  int32 vote_percentage = 5;  // Only present in answer submission response
+}

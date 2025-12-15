@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	pb "metargb/shared/pb/commercial"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	pb "metargb/shared/pb/commercial"
 )
 
 // CommercialClient wraps gRPC clients for Commercial Service
@@ -199,4 +199,3 @@ func parseWalletString(s string) float64 {
 	// In production, this should parse strings like "1.5K" -> 1500.0
 	return 0
 }
-

@@ -42,4 +42,3 @@ func (s *FamilyService) GetFamilyMembers(ctx context.Context, familyID uint64, p
 func (s *FamilyService) GetUserBasicInfo(ctx context.Context, userID uint64) (*models.UserBasic, error) {
 	return s.familyRepo.GetUserBasicInfo(ctx, userID)
 }
-

@@ -68,4 +68,3 @@ func (s *CalendarService) AddInteraction(ctx context.Context, eventID, userID ui
 func (s *CalendarService) IncrementView(ctx context.Context, eventID uint64, ipAddress string) error {
 	return s.repo.IncrementView(ctx, eventID, ipAddress)
 }
-

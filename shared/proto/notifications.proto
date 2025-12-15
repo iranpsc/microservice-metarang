@@ -10,6 +10,7 @@ option go_package = "metargb/shared/pb/notifications";
 service NotificationService {
   rpc SendNotification(SendNotificationRequest) returns (NotificationResponse);
   rpc GetNotifications(GetNotificationsRequest) returns (NotificationsResponse);
+  rpc GetNotification(GetNotificationRequest) returns (Notification);
   rpc MarkAsRead(MarkAsReadRequest) returns (common.Empty);
   rpc MarkAllAsRead(MarkAllAsReadRequest) returns (common.Empty);
 }
@@ -45,6 +46,12 @@ message NotificationResponse {
 message GetNotificationsRequest {
   uint64 user_id = 1;
   common.PaginationRequest pagination = 2;
+  bool unread_only = 3; // Filter only unread notifications
+}
+
+message GetNotificationRequest {
+  string notification_id = 1;
+  uint64 user_id = 2;
 }
 
 message NotificationsResponse {

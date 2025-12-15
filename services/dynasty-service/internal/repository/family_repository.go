@@ -20,7 +20,7 @@ func NewFamilyRepository(db *sql.DB) *FamilyRepository {
 func (r *FamilyRepository) CreateFamily(ctx context.Context, dynastyID uint64) (*models.Family, error) {
 	query := `INSERT INTO families (dynasty_id, created_at, updated_at) 
 	          VALUES (?, NOW(), NOW())`
-	
+
 	result, err := r.db.ExecContext(ctx, query, dynastyID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create family: %w", err)
@@ -41,7 +41,7 @@ func (r *FamilyRepository) CreateFamily(ctx context.Context, dynastyID uint64) (
 func (r *FamilyRepository) GetFamilyByID(ctx context.Context, id uint64) (*models.Family, error) {
 	query := `SELECT id, dynasty_id, created_at, updated_at 
 	          FROM families WHERE id = ?`
-	
+
 	var family models.Family
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&family.ID,
@@ -64,7 +64,7 @@ func (r *FamilyRepository) GetFamilyByID(ctx context.Context, id uint64) (*model
 func (r *FamilyRepository) GetFamilyByDynastyID(ctx context.Context, dynastyID uint64) (*models.Family, error) {
 	query := `SELECT id, dynasty_id, created_at, updated_at 
 	          FROM families WHERE dynasty_id = ?`
-	
+
 	var family models.Family
 	err := r.db.QueryRowContext(ctx, query, dynastyID).Scan(
 		&family.ID,
@@ -87,7 +87,7 @@ func (r *FamilyRepository) GetFamilyByDynastyID(ctx context.Context, dynastyID u
 func (r *FamilyRepository) CreateFamilyMember(ctx context.Context, member *models.FamilyMember) error {
 	query := `INSERT INTO family_members (family_id, user_id, relationship, created_at, updated_at) 
 	          VALUES (?, ?, ?, NOW(), NOW())`
-	
+
 	result, err := r.db.ExecContext(ctx, query, member.FamilyID, member.UserID, member.Relationship)
 	if err != nil {
 		return fmt.Errorf("failed to create family member: %w", err)
@@ -120,7 +120,7 @@ func (r *FamilyRepository) GetFamilyMembers(ctx context.Context, familyID uint64
 	          WHERE family_id = ? 
 	          ORDER BY created_at ASC 
 	          LIMIT ? OFFSET ?`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, familyID, perPage, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get family members: %w", err)
@@ -149,7 +149,7 @@ func (r *FamilyRepository) GetFamilyMembers(ctx context.Context, familyID uint64
 // GetFamilyMemberCount retrieves the count of family members
 func (r *FamilyRepository) GetFamilyMemberCount(ctx context.Context, familyID uint64) (int32, error) {
 	query := `SELECT COUNT(*) FROM family_members WHERE family_id = ?`
-	
+
 	var count int32
 	err := r.db.QueryRowContext(ctx, query, familyID).Scan(&count)
 	if err != nil {
@@ -162,7 +162,7 @@ func (r *FamilyRepository) GetFamilyMemberCount(ctx context.Context, familyID ui
 // GetUserBasicInfo retrieves basic user information for family members
 func (r *FamilyRepository) GetUserBasicInfo(ctx context.Context, userID uint64) (*models.UserBasic, error) {
 	query := `SELECT id, code, name FROM users WHERE id = ?`
-	
+
 	var user models.UserBasic
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&user.ID, &user.Code, &user.Name)
 	if err != nil {
@@ -184,4 +184,3 @@ func (r *FamilyRepository) GetUserBasicInfo(ctx context.Context, userID uint64) 
 
 	return &user, nil
 }
-

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -39,13 +40,10 @@ func (h *authHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 }
 
 func (h *authHandler) Redirect(ctx context.Context, req *pb.RedirectRequest) (*pb.RedirectResponse, error) {
-	url, _, err := h.authService.Redirect(ctx, req.BackUrl)
+	url, _, err := h.authService.Redirect(ctx, req.RedirectTo, req.BackUrl)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "redirect failed: %v", err)
 	}
-
-	// TODO: Store state and back_url in cache (Redis)
-	// For now, we're returning the URL and the state would be managed by Kong/gateway
 
 	return &pb.RedirectResponse{
 		Url: url,
@@ -53,12 +51,12 @@ func (h *authHandler) Redirect(ctx context.Context, req *pb.RedirectRequest) (*p
 }
 
 func (h *authHandler) Callback(ctx context.Context, req *pb.CallbackRequest) (*pb.CallbackResponse, error) {
-	// TODO: Retrieve cached state from Redis
-	// For now, we'll assume state is validated by the caller
-	cachedState := req.State // This should come from cache
-
-	result, err := h.authService.Callback(ctx, req.State, req.Code, cachedState)
+	result, err := h.authService.Callback(ctx, req.State, req.Code)
 	if err != nil {
+		// Map InvalidArgumentException to InvalidArgument status code
+		if strings.Contains(err.Error(), "invalid state value") {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid state value: %v", err)
+		}
 		return nil, status.Errorf(codes.Internal, "callback failed: %v", err)
 	}
 

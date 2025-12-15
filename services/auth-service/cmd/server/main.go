@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -76,20 +77,13 @@ func main() {
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
+		cancel()
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 	log.Println("Successfully connected to database")
 
-	// Initialize repositories
-	userRepo := repository.NewUserRepository(db)
-	tokenRepo := repository.NewTokenRepository(db)
-	accountSecurityRepo := repository.NewAccountSecurityRepository(db)
-	kycRepo := repository.NewKYCRepository(db)
-	activityRepo := repository.NewActivityRepository(db)
-
-	// Initialize Redis publisher for WebSocket broadcasting
+	// Initialize Redis connection for caching and pub/sub
 	redisURL := getEnv("REDIS_URL", "")
 	if redisURL == "" {
 		// Construct REDIS_URL from individual components if not set
@@ -103,15 +97,47 @@ func main() {
 			redisURL = fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB)
 		}
 	}
-	redisPublisher, err := pubsub.NewRedisPublisher(redisURL)
+
+	// Parse Redis URL for cache client
+	redisOpts, err := redis.ParseURL(redisURL)
 	if err != nil {
+		cancel()
+		log.Fatalf("Failed to parse Redis URL: %v", err)
+	}
+	redisClient := redis.NewClient(redisOpts)
+
+	// Test Redis connection
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		cancel()
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
+	cancel()
 	log.Println("Successfully connected to Redis")
 
+	// Initialize Redis publisher for WebSocket broadcasting
+	redisPublisher, err := pubsub.NewRedisPublisher(redisURL)
+	if err != nil {
+		log.Fatalf("Failed to create Redis publisher: %v", err)
+	}
+
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(db)
+	tokenRepo := repository.NewTokenRepository(db)
+	cacheRepo := repository.NewCacheRepository(redisClient)
+	accountSecurityRepo := repository.NewAccountSecurityRepository(db)
+	kycRepo := repository.NewKYCRepository(db)
+	activityRepo := repository.NewActivityRepository(db)
+	citizenRepo := repository.NewCitizenRepository(db)
+	personalInfoRepo := repository.NewPersonalInfoRepository(db)
+	profilePhotoRepo := repository.NewProfilePhotoRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	searchRepo := repository.NewSearchRepository(db)
+
 	// Initialize observer service for activity tracking and events
-	observerService := service.NewObserverService(
+	observerService := service.NewObserverServiceWithSettings(
 		userRepo,
+		settingsRepo,
 		activityRepo,
 		redisPublisher,
 	)
@@ -138,6 +164,7 @@ func main() {
 	authService := service.NewAuthService(
 		userRepo,
 		tokenRepo,
+		cacheRepo,
 		accountSecurityRepo,
 		activityRepo,
 		observerService,
@@ -149,16 +176,44 @@ func main() {
 		getEnv("APP_URL", "http://localhost:8000"),
 		getEnv("FRONT_END_URL", "http://localhost:3000"),
 	)
-	userService := service.NewUserService(userRepo)
-	kycService := service.NewKYCService(kycRepo)
+	// Initialize user service with all dependencies for Users API
+	userService := service.NewUserServiceWithDependencies(
+		userRepo,
+		kycRepo,
+		settingsRepo,
+		profilePhotoRepo,
+	)
+	kycService := service.NewKYCService(kycRepo, userRepo)
+	citizenService := service.NewCitizenService(citizenRepo, userRepo)
+	personalInfoService := service.NewPersonalInfoService(personalInfoRepo)
+	profileLimitationRepo := repository.NewProfileLimitationRepository(db)
+	profileLimitationService := service.NewProfileLimitationService(profileLimitationRepo, userRepo)
+	settingsService := service.NewSettingsService(settingsRepo)
+
+	// Initialize profile photo service (storage client can be added later when proto files are generated)
+	// For now, service works without storage client (files can be uploaded via HTTP endpoint)
+	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, nil)
+
+	// Initialize user events service
+	userEventsService := service.NewUserEventsService(activityRepo, userRepo)
+
+	// Initialize search service
+	searchService := service.NewSearchService(searchRepo)
 
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
 	// Register handlers
 	handler.RegisterAuthHandler(grpcServer, authService, tokenRepo)
-	handler.RegisterUserHandler(grpcServer, userService)
+	handler.RegisterUserHandler(grpcServer, userService, profileLimitationService)
 	handler.RegisterKYCHandler(grpcServer, kycService)
+	handler.RegisterCitizenHandler(grpcServer, citizenService)
+	handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
+	handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)
+	handler.RegisterProfilePhotoHandler(grpcServer, profilePhotoService)
+	handler.RegisterSettingsHandler(grpcServer, settingsService)
+	handler.RegisterUserEventsHandler(grpcServer, userEventsService, userRepo)
+	handler.RegisterSearchHandler(grpcServer, searchService)
 
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50051")

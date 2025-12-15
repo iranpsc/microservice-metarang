@@ -71,3 +71,33 @@ func formatCoordinate(x, y float64) string {
 	return fmt.Sprintf("%.6f,%.6f", x, y)
 }
 
+// GetCoordinatesWithIDs retrieves coordinates for a feature with IDs
+func (r *GeometryRepository) GetCoordinatesWithIDs(ctx context.Context, featureID uint64) ([]*models.Coordinate, error) {
+	query := `
+		SELECT c.id, c.geometry_id, c.x, c.y
+		FROM coordinates c
+		INNER JOIN features f ON f.geometry_id = c.geometry_id
+		WHERE f.id = ?
+		ORDER BY c.id
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, featureID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	coordinates := []*models.Coordinate{}
+	for rows.Next() {
+		coord := &models.Coordinate{}
+		var x, y float64
+		if err := rows.Scan(&coord.ID, &coord.GeometryID, &x, &y); err != nil {
+			continue
+		}
+		coord.X = x
+		coord.Y = y
+		coordinates = append(coordinates, coord)
+	}
+
+	return coordinates, nil
+}

@@ -112,4 +112,3 @@ func (r *FeatureLimitRepository) GetActiveLimitations(ctx context.Context) ([]*m
 
 	return limits, nil
 }
-

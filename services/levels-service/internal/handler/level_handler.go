@@ -5,6 +5,7 @@ import (
 
 	"metargb/levels-service/internal/service"
 	pb "metargb/shared/pb/levels"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -74,9 +75,11 @@ func (h *LevelHandler) GetLevelGeneralInfo(ctx context.Context, req *pb.GetLevel
 
 	generalInfo, err := h.service.GetLevelGeneralInfo(ctx, req.LevelId, req.LevelSlug)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "general info not found: %v", err)
+		// Level not found returns 404
+		return nil, status.Errorf(codes.NotFound, "level not found: %v", err)
 	}
 
+	// generalInfo can be nil if not found (per API docs, return null with 200 OK)
 	return &pb.LevelGeneralInfoResponse{
 		GeneralInfo: generalInfo,
 	}, nil
@@ -91,9 +94,11 @@ func (h *LevelHandler) GetLevelGem(ctx context.Context, req *pb.GetLevelGemReque
 
 	gem, err := h.service.GetLevelGem(ctx, req.LevelId, req.LevelSlug)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "gem not found: %v", err)
+		// Level not found returns 404
+		return nil, status.Errorf(codes.NotFound, "level not found: %v", err)
 	}
 
+	// gem can be nil if not found (per API docs, return null with 200 OK)
 	return &pb.LevelGemResponse{
 		Gem: gem,
 	}, nil
@@ -108,9 +113,11 @@ func (h *LevelHandler) GetLevelGift(ctx context.Context, req *pb.GetLevelGiftReq
 
 	gift, err := h.service.GetLevelGift(ctx, req.LevelId, req.LevelSlug)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "gift not found: %v", err)
+		// Level not found returns 404
+		return nil, status.Errorf(codes.NotFound, "level not found: %v", err)
 	}
 
+	// gift can be nil if not found (per API docs, return null with 200 OK)
 	return &pb.LevelGiftResponse{
 		Gift: gift,
 	}, nil
@@ -125,9 +132,11 @@ func (h *LevelHandler) GetLevelLicenses(ctx context.Context, req *pb.GetLevelLic
 
 	licenses, err := h.service.GetLevelLicenses(ctx, req.LevelId, req.LevelSlug)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "licenses not found: %v", err)
+		// Level not found returns 404
+		return nil, status.Errorf(codes.NotFound, "level not found: %v", err)
 	}
 
+	// licenses can be nil if not found (per API docs, return null with 200 OK)
 	return &pb.LevelLicensesResponse{
 		Licenses: licenses,
 	}, nil
@@ -136,15 +145,17 @@ func (h *LevelHandler) GetLevelLicenses(ctx context.Context, req *pb.GetLevelLic
 // GetLevelPrizes retrieves prizes for a specific level
 // Implements Laravel's LevelController@prizes (V2)
 func (h *LevelHandler) GetLevelPrizes(ctx context.Context, req *pb.GetLevelPrizesRequest) (*pb.LevelPrizesResponse, error) {
-	if req.LevelId == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "level_id is required")
+	if req.LevelId == 0 && req.LevelSlug == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "level_id or level_slug is required")
 	}
 
-	prize, err := h.service.GetLevelPrizes(ctx, req.LevelId)
+	prize, err := h.service.GetLevelPrizes(ctx, req.LevelId, req.LevelSlug)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "level prize not found: %v", err)
+		// Level not found returns 404
+		return nil, status.Errorf(codes.NotFound, "level not found: %v", err)
 	}
 
+	// prize can be nil if not found (per API docs, return null with 200 OK)
 	return &pb.LevelPrizesResponse{
 		Prize: prize,
 	}, nil

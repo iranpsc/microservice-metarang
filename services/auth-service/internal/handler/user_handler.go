@@ -2,24 +2,29 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "metargb/shared/pb/auth"
+	"metargb/auth-service/internal/models"
 	"metargb/auth-service/internal/service"
+	pb "metargb/shared/pb/auth"
 )
 
 type userHandler struct {
 	pb.UnimplementedUserServiceServer
-	userService service.UserService
+	userService              service.UserService
+	profileLimitationService service.ProfileLimitationService
 }
 
-func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService) {
+func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService, profileLimitationService service.ProfileLimitationService) {
 	pb.RegisterUserServiceServer(grpcServer, &userHandler{
-		userService: userService,
+		userService:              userService,
+		profileLimitationService: profileLimitationService,
 	})
 }
 
@@ -107,3 +112,232 @@ func (h *userHandler) GetUserLevel(ctx context.Context, req *pb.GetUserLevelRequ
 	return nil, status.Errorf(codes.Unimplemented, "levels service not yet implemented - should call Levels service")
 }
 
+func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProfileLimitationsRequest) (*pb.GetProfileLimitationsResponse, error) {
+	limitation, err := h.profileLimitationService.GetBetweenUsers(ctx, req.CallerUserId, req.TargetUserId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get profile limitations: %v", err)
+	}
+
+	// If no limitation exists, return empty response
+	if limitation == nil {
+		return &pb.GetProfileLimitationsResponse{}, nil
+	}
+
+	// Convert to proto - note visibility depends on caller being the limiter
+	return &pb.GetProfileLimitationsResponse{
+		Data: convertProfileLimitationToProtoForUser(limitation, req.CallerUserId),
+	}, nil
+}
+
+// ListUsers handles GET /api/users
+func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+
+	users, totalCount, limit, err := h.userService.ListUsers(ctx, req.Search, req.OrderBy, page)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list users: %v", err)
+	}
+
+	response := &pb.ListUsersResponse{
+		Data: make([]*pb.UserListItem, 0, len(users)),
+	}
+
+	// Convert service layer users to proto
+	for _, user := range users {
+		item := &pb.UserListItem{
+			Id:    user.ID,
+			Name:  user.Name,
+			Code:  user.Code,
+			Score: user.Score,
+		}
+
+		// Set current level
+		if user.CurrentLevel != nil {
+			item.Levels = &pb.UserLevelInfo{
+				Current: &pb.Level{
+					Id:    user.CurrentLevel.ID,
+					Title: user.CurrentLevel.Name, // Level uses Title field
+				},
+			}
+		}
+
+		// Set previous level
+		if user.PreviousLevel != nil {
+			if item.Levels == nil {
+				item.Levels = &pb.UserLevelInfo{}
+			}
+			item.Levels.Previous = &pb.Level{
+				Id:    user.PreviousLevel.ID,
+				Title: user.PreviousLevel.Name, // Level uses Title field
+			}
+		}
+
+		// Set profile photo (prepend admin panel URL if needed)
+		if user.ProfilePhoto != "" {
+			item.ProfilePhoto = user.ProfilePhoto
+		}
+
+		response.Data = append(response.Data, item)
+	}
+
+	// Build pagination links and meta
+	currentPage := int32(page)
+	totalPages := (totalCount + limit - 1) / limit // Ceiling division
+
+	response.Links = &pb.PaginationLinks{}
+	if currentPage > 1 {
+		response.Links.Prev = fmt.Sprintf("?page=%d", currentPage-1)
+	}
+	if currentPage < totalPages {
+		response.Links.Next = fmt.Sprintf("?page=%d", currentPage+1)
+	}
+	response.Links.First = "?page=1"
+	if totalPages > 0 {
+		response.Links.Last = fmt.Sprintf("?page=%d", totalPages)
+	}
+
+	response.Meta = &pb.PaginationMeta{
+		CurrentPage: currentPage,
+	}
+
+	return response, nil
+}
+
+// GetUserLevels handles GET /api/users/{user}/levels
+func (h *userHandler) GetUserLevels(ctx context.Context, req *pb.GetUserLevelsRequest) (*pb.GetUserLevelsResponse, error) {
+	levelsData, err := h.userService.GetUserLevels(ctx, req.UserId)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get user levels: %v", err)
+	}
+
+	response := &pb.GetUserLevelsResponse{
+		Data: &pb.UserLevelData{
+			PreviousLevels:             make([]*pb.Level, 0),
+			ScorePercentageToNextLevel: levelsData.ScorePercentageToNextLevel,
+		},
+	}
+
+	// Convert latest level
+	if levelsData.LatestLevel != nil {
+		response.Data.LatestLevel = &pb.Level{
+			Id:       levelsData.LatestLevel.ID,
+			Title:    levelsData.LatestLevel.Name, // Level proto uses Title, not Name
+			Score:    levelsData.LatestLevel.Score,
+			Slug:     levelsData.LatestLevel.Slug,
+			ImageUrl: levelsData.LatestLevel.Image,
+		}
+	}
+
+	// Convert previous levels
+	for _, prevLevel := range levelsData.PreviousLevels {
+		level := &pb.Level{
+			Id:       prevLevel.ID,
+			Title:    prevLevel.Name, // Level proto uses Title, not Name
+			Score:    prevLevel.Score,
+			Slug:     prevLevel.Slug,
+			ImageUrl: prevLevel.Image,
+		}
+		response.Data.PreviousLevels = append(response.Data.PreviousLevels, level)
+	}
+
+	return response, nil
+}
+
+// GetUserProfile handles GET /api/users/{user}/profile
+func (h *userHandler) GetUserProfile(ctx context.Context, req *pb.GetUserProfileRequest) (*pb.GetUserProfileResponse, error) {
+	var viewerUserID *uint64
+	if req.ViewerUserId > 0 {
+		viewerUserID = &req.ViewerUserId
+	}
+
+	profileData, err := h.userService.GetUserProfile(ctx, req.UserId, viewerUserID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get user profile: %v", err)
+	}
+
+	response := &pb.GetUserProfileResponse{
+		Data: &pb.UserProfileData{
+			Id:            profileData.ID,
+			Code:          profileData.Code,
+			ProfileImages: profileData.ProfileImages,
+		},
+	}
+
+	// Set name if privacy allows (empty string if privacy disallows)
+	if profileData.Name != nil {
+		response.Data.Name = *profileData.Name
+	}
+
+	// Set registered_at if privacy allows (empty string if privacy disallows)
+	if profileData.RegisteredAt != nil {
+		response.Data.RegisteredAt = *profileData.RegisteredAt
+	}
+
+	// Set followers_count if privacy allows (0 if privacy disallows)
+	if profileData.FollowersCount != nil {
+		response.Data.FollowersCount = *profileData.FollowersCount
+	}
+
+	// Set following_count if privacy allows (0 if privacy disallows)
+	if profileData.FollowingCount != nil {
+		response.Data.FollowingCount = *profileData.FollowingCount
+	}
+
+	return response, nil
+}
+
+// GetUserFeaturesCount handles GET /api/users/{user}/features/count
+func (h *userHandler) GetUserFeaturesCount(ctx context.Context, req *pb.GetUserFeaturesCountRequest) (*pb.GetUserFeaturesCountResponse, error) {
+	featuresData, err := h.userService.GetUserFeaturesCount(ctx, req.UserId)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get feature counts: %v", err)
+	}
+
+	response := &pb.GetUserFeaturesCountResponse{
+		Data: &pb.UserFeaturesCountData{
+			MaskoniFeaturesCount:   featuresData.MaskoniFeaturesCount,
+			TejariFeaturesCount:    featuresData.TejariFeaturesCount,
+			AmoozeshiFeaturesCount: featuresData.AmoozeshiFeaturesCount,
+		},
+	}
+
+	return response, nil
+}
+
+// convertProfileLimitationToProtoForUser converts a ProfileLimitation model to proto for user service
+func convertProfileLimitationToProtoForUser(limitation *models.ProfileLimitation, callerUserID uint64) *pb.ProfileLimitation {
+	proto := &pb.ProfileLimitation{
+		Id:            limitation.ID,
+		LimiterUserId: limitation.LimiterUserID,
+		LimitedUserId: limitation.LimitedUserID,
+		Options: &pb.ProfileLimitationOptions{
+			Follow:                limitation.Options.Follow,
+			SendMessage:           limitation.Options.SendMessage,
+			Share:                 limitation.Options.Share,
+			SendTicket:            limitation.Options.SendTicket,
+			ViewProfileImages:     limitation.Options.ViewProfileImages,
+			ViewFeaturesLocations: limitation.Options.ViewFeaturesLocations,
+		},
+		CreatedAt: timestamppb.New(limitation.CreatedAt),
+		UpdatedAt: timestamppb.New(limitation.UpdatedAt),
+	}
+
+	// Only include note if caller is the limiter
+	if limitation.Note.Valid && callerUserID == limitation.LimiterUserID {
+		proto.Note = limitation.Note.String
+	}
+
+	return proto
+}

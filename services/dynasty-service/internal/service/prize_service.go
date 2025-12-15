@@ -35,20 +35,54 @@ func (s *PrizeService) GetPrize(ctx context.Context, prizeID uint64) (*models.Dy
 
 // ClaimPrize allows a user to claim a dynasty prize
 func (s *PrizeService) ClaimPrize(ctx context.Context, prizeID, userID uint64) error {
-	// Check if already claimed
-	claimed, err := s.prizeRepo.CheckPrizeClaimed(ctx, userID, prizeID)
+	// Get received prize (this is the ID of received_prizes table)
+	receivedPrize, err := s.prizeRepo.GetReceivedPrize(ctx, prizeID)
 	if err != nil {
-		return fmt.Errorf("failed to check prize status: %w", err)
+		return fmt.Errorf("failed to get received prize: %w", err)
 	}
-	if claimed {
-		return fmt.Errorf("prize already claimed")
+	if receivedPrize == nil {
+		return fmt.Errorf("prize not found")
 	}
 
-	// Claim the prize
-	if err := s.prizeRepo.ClaimPrize(ctx, userID, prizeID); err != nil {
-		return fmt.Errorf("failed to claim prize: %w", err)
+	// Verify ownership
+	if receivedPrize.UserID != userID {
+		return fmt.Errorf("unauthorized: prize does not belong to user")
+	}
+
+	// TODO: Update wallet and variables via commercial service
+	// For now, just delete the received prize record
+	if err := s.prizeRepo.DeleteReceivedPrize(ctx, prizeID); err != nil {
+		return fmt.Errorf("failed to delete received prize: %w", err)
 	}
 
 	return nil
 }
 
+// GetUserReceivedPrizes retrieves all received prizes for a user
+func (s *PrizeService) GetUserReceivedPrizes(ctx context.Context, userID uint64, page, perPage int32) ([]*models.ReceivedPrize, int32, error) {
+	// Get all prizes for user
+	prizes, err := s.prizeRepo.GetUserReceivedPrizes(ctx, userID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get user prizes: %w", err)
+	}
+
+	total := int32(len(prizes))
+
+	// Simple pagination
+	offset := (page - 1) * perPage
+	if offset >= total {
+		return []*models.ReceivedPrize{}, total, nil
+	}
+
+	end := offset + perPage
+	if end > total {
+		end = total
+	}
+
+	return prizes[offset:end], total, nil
+}
+
+// GetReceivedPrize retrieves a received prize by ID
+func (s *PrizeService) GetReceivedPrize(ctx context.Context, receivedPrizeID uint64) (*models.ReceivedPrize, error) {
+	return s.prizeRepo.GetReceivedPrize(ctx, receivedPrizeID)
+}

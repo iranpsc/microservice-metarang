@@ -20,7 +20,7 @@ func NewDynastyRepository(db *sql.DB) *DynastyRepository {
 func (r *DynastyRepository) CreateDynasty(ctx context.Context, dynasty *models.Dynasty) error {
 	query := `INSERT INTO dynasties (user_id, feature_id, created_at, updated_at) 
 	          VALUES (?, ?, NOW(), NOW())`
-	
+
 	result, err := r.db.ExecContext(ctx, query, dynasty.UserID, dynasty.FeatureID)
 	if err != nil {
 		return fmt.Errorf("failed to create dynasty: %w", err)
@@ -39,7 +39,7 @@ func (r *DynastyRepository) CreateDynasty(ctx context.Context, dynasty *models.D
 func (r *DynastyRepository) GetDynastyByID(ctx context.Context, id uint64) (*models.Dynasty, error) {
 	query := `SELECT id, user_id, feature_id, created_at, updated_at 
 	          FROM dynasties WHERE id = ?`
-	
+
 	var dynasty models.Dynasty
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&dynasty.ID,
@@ -63,7 +63,7 @@ func (r *DynastyRepository) GetDynastyByID(ctx context.Context, id uint64) (*mod
 func (r *DynastyRepository) GetDynastyByUserID(ctx context.Context, userID uint64) (*models.Dynasty, error) {
 	query := `SELECT id, user_id, feature_id, created_at, updated_at 
 	          FROM dynasties WHERE user_id = ?`
-	
+
 	var dynasty models.Dynasty
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&dynasty.ID,
@@ -86,7 +86,7 @@ func (r *DynastyRepository) GetDynastyByUserID(ctx context.Context, userID uint6
 // UpdateDynastyFeature updates the feature associated with a dynasty
 func (r *DynastyRepository) UpdateDynastyFeature(ctx context.Context, dynastyID, featureID uint64) error {
 	query := `UPDATE dynasties SET feature_id = ?, updated_at = NOW() WHERE id = ?`
-	
+
 	_, err := r.db.ExecContext(ctx, query, featureID, dynastyID)
 	if err != nil {
 		return fmt.Errorf("failed to update dynasty feature: %w", err)
@@ -108,7 +108,7 @@ func (r *DynastyRepository) GetFeatureDetails(ctx context.Context, featureID uin
 		JOIN feature_properties fp ON f.id = fp.feature_id
 		WHERE f.id = ?
 	`
-	
+
 	var (
 		id           uint64
 		propertiesID string
@@ -147,7 +147,7 @@ func (r *DynastyRepository) GetUserFeatures(ctx context.Context, userID, exclude
 		JOIN feature_properties fp ON f.id = fp.feature_id
 		WHERE f.user_id = ? AND f.id != ? AND fp.karbari = 'm'
 	`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, userID, excludeFeatureID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user features: %w", err)
@@ -189,7 +189,7 @@ func (r *DynastyRepository) GetUserProfilePhoto(ctx context.Context, userID uint
 		AND imageable_id = ? 
 		ORDER BY id DESC LIMIT 1
 	`
-	
+
 	var url string
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&url)
 	if err == sql.ErrNoRows {
@@ -205,7 +205,7 @@ func (r *DynastyRepository) GetUserProfilePhoto(ctx context.Context, userID uint
 // GetDynastyMessage retrieves a dynasty message by type
 func (r *DynastyRepository) GetDynastyMessage(ctx context.Context, messageType string) (string, error) {
 	query := `SELECT message FROM dynasty_messages WHERE type = ? LIMIT 1`
-	
+
 	var message string
 	err := r.db.QueryRowContext(ctx, query, messageType).Scan(&message)
 	if err == sql.ErrNoRows {
@@ -217,4 +217,3 @@ func (r *DynastyRepository) GetDynastyMessage(ctx context.Context, messageType s
 
 	return message, nil
 }
-

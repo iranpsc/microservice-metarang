@@ -3,6 +3,7 @@ syntax = "proto3";
 package features;
 
 import "common.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "metargb/shared/pb/features";
 
@@ -13,6 +14,12 @@ service FeatureService {
   rpc UpdateFeature(UpdateFeatureRequest) returns (FeatureResponse);
   rpc AddFeatureImages(AddFeatureImagesRequest) returns (FeatureResponse);
   rpc GetMyFeatures(GetMyFeaturesRequest) returns (FeaturesResponse);
+  // My Features API endpoints
+  rpc ListMyFeatures(ListMyFeaturesRequest) returns (ListMyFeaturesResponse);
+  rpc GetMyFeature(GetMyFeatureRequest) returns (FeatureResponse);
+  rpc AddMyFeatureImages(AddMyFeatureImagesRequest) returns (FeatureResponse);
+  rpc RemoveMyFeatureImage(RemoveMyFeatureImageRequest) returns (google.protobuf.Empty);
+  rpc UpdateMyFeature(UpdateMyFeatureRequest) returns (google.protobuf.Empty);
 }
 
 // FeatureMarketplaceService handles buying/selling features
@@ -21,7 +28,14 @@ service FeatureMarketplaceService {
   rpc SendBuyRequest(SendBuyRequestRequest) returns (BuyRequestResponse);
   rpc AcceptBuyRequest(AcceptBuyRequestRequest) returns (BuyRequestResponse);
   rpc CreateSellRequest(CreateSellRequestRequest) returns (SellRequestResponse);
+  rpc ListSellRequests(ListSellRequestsRequest) returns (SellRequestsResponse);
+  rpc DeleteSellRequest(DeleteSellRequestRequest) returns (google.protobuf.Empty);
   rpc RequestGracePeriod(RequestGracePeriodRequest) returns (GracePeriodResponse);
+  rpc ListBuyRequests(ListBuyRequestsRequest) returns (BuyRequestsResponse);
+  rpc ListReceivedBuyRequests(ListReceivedBuyRequestsRequest) returns (BuyRequestsResponse);
+  rpc RejectBuyRequest(RejectBuyRequestRequest) returns (google.protobuf.Empty);
+  rpc DeleteBuyRequest(DeleteBuyRequestRequest) returns (google.protobuf.Empty);
+  rpc UpdateGracePeriod(UpdateGracePeriodRequest) returns (google.protobuf.Empty);
 }
 
 // Messages
@@ -58,6 +72,57 @@ message GetMyFeaturesRequest {
   uint64 user_id = 1;
 }
 
+// My Features API Messages
+message ListMyFeaturesRequest {
+  uint64 user_id = 1; // Authenticated user ID
+  int32 page = 2; // Page number (default: 1)
+}
+
+message ListMyFeaturesResponse {
+  repeated Feature data = 1;
+  PaginationLinks links = 2;
+  SimplePaginationMeta meta = 3;
+}
+
+message GetMyFeatureRequest {
+  uint64 user_id = 1; // User ID from path (for scoped binding)
+  uint64 feature_id = 2; // Feature ID (must belong to user_id)
+}
+
+message AddMyFeatureImagesRequest {
+  uint64 user_id = 1; // User ID from path (for scoped binding)
+  uint64 feature_id = 2; // Feature ID (must belong to user_id)
+  repeated bytes image_data = 3; // Image file data (PNG, JPG, BMP, ≤1024 KB each)
+  repeated string filenames = 4; // Original filenames
+  repeated string content_types = 5; // MIME types
+}
+
+message RemoveMyFeatureImageRequest {
+  uint64 user_id = 1; // User ID from path (for scoped binding)
+  uint64 feature_id = 2; // Feature ID (must belong to user_id)
+  uint64 image_id = 3; // Image ID (must belong to feature_id)
+}
+
+message UpdateMyFeatureRequest {
+  uint64 user_id = 1; // User ID from path (for scoped binding)
+  uint64 feature_id = 2; // Feature ID (must belong to user_id)
+  int32 minimum_price_percentage = 3; // Required, min:80 (min:110 if user is under 18)
+}
+
+// Pagination messages (simple pagination - no total counts)
+message PaginationLinks {
+  string first = 1;
+  string last = 2;
+  string prev = 3;
+  string next = 4;
+}
+
+message SimplePaginationMeta {
+  int32 current_page = 1;
+  string path = 2;
+  int32 per_page = 3;
+}
+
 message Feature {
   uint64 id = 1;
   uint64 map_id = 2;
@@ -67,6 +132,15 @@ message Feature {
   Geometry geometry = 6;
   repeated Image images = 7;
   bool is_owned_by_auth_user = 8;
+  Seller seller = 9; // Latest seller from trade
+  bool is_hourly_profit_active = 10;
+  repeated Building building_models = 11; // Building models with pivot metadata
+}
+
+message Seller {
+  uint64 id = 1;
+  string name = 2;
+  string code = 3;
 }
 
 message FeatureProperties {
@@ -129,15 +203,56 @@ message SendBuyRequestRequest {
 
 message BuyRequestResponse {
   uint64 id = 1;
-  uint64 buyer_id = 2;
-  uint64 seller_id = 3;
+  BuyerInfo buyer = 2;
+  SellerInfo seller = 3;
   uint64 feature_id = 4;
   int32 status = 5;
   string note = 6;
   string price_psc = 7;
   string price_irr = 8;
-  string requested_grace_period = 9;
-  string created_at = 10;
+  FeatureProperties feature_properties = 9;
+  repeated Coordinate feature_coordinates = 10;
+  string requested_grace_period = 11;
+  string created_at = 12;
+}
+
+message BuyerInfo {
+  uint64 id = 1;
+  string code = 2;
+  string profile_photo = 3; // URL to latest profile photo
+}
+
+message SellerInfo {
+  uint64 id = 1;
+  string code = 2;
+}
+
+message ListBuyRequestsRequest {
+  uint64 buyer_id = 1;
+}
+
+message ListReceivedBuyRequestsRequest {
+  uint64 seller_id = 1;
+}
+
+message BuyRequestsResponse {
+  repeated BuyRequestResponse buy_requests = 1;
+}
+
+message RejectBuyRequestRequest {
+  uint64 request_id = 1;
+  uint64 seller_id = 2;
+}
+
+message DeleteBuyRequestRequest {
+  uint64 request_id = 1;
+  uint64 buyer_id = 2;
+}
+
+message UpdateGracePeriodRequest {
+  uint64 request_id = 1;
+  uint64 seller_id = 2;
+  int32 grace_period_days = 3; // 1-30
 }
 
 message AcceptBuyRequestRequest {
@@ -148,9 +263,18 @@ message AcceptBuyRequestRequest {
 message CreateSellRequestRequest {
   uint64 feature_id = 1;
   uint64 seller_id = 2;
-  string price_psc = 3;
-  string price_irr = 4;
-  string note = 5;
+  string price_psc = 3; // Optional, mutually exclusive with minimum_price_percentage
+  string price_irr = 4; // Optional, mutually exclusive with minimum_price_percentage
+  int32 minimum_price_percentage = 5; // Optional, mutually exclusive with price_psc/price_irr, min:80 (min:110 if under 18)
+}
+
+message ListSellRequestsRequest {
+  uint64 seller_id = 1; // Required - authenticated seller
+}
+
+message DeleteSellRequestRequest {
+  uint64 sell_request_id = 1; // Required
+  uint64 seller_id = 2; // Required - for authorization
 }
 
 message SellRequestResponse {
@@ -159,14 +283,20 @@ message SellRequestResponse {
   uint64 feature_id = 3;
   string price_psc = 4;
   string price_irr = 5;
-  string note = 6;
+  int32 status = 6; // 0 = open, 1 = closed
   string created_at = 7;
+  FeatureProperties feature_properties = 8; // Eager loaded feature properties
+  repeated Coordinate feature_coordinates = 9; // Eager loaded coordinates
+}
+
+message SellRequestsResponse {
+  repeated SellRequestResponse sell_requests = 1;
 }
 
 message RequestGracePeriodRequest {
   uint64 request_id = 1;
   uint64 buyer_id = 2;
-  string grace_period = 3;
+  string grace_period = 3; // Deprecated - use UpdateGracePeriod instead
 }
 
 message GracePeriodResponse {
@@ -319,5 +449,62 @@ message BuildingResponse {
 message DestroyBuildingRequest {
   uint64 feature_id = 1;
   uint64 building_model_id = 2;
+}
+
+// MapsService handles map polygon and feature rollup operations
+service MapsService {
+  rpc ListMaps(ListMapsRequest) returns (ListMapsResponse);
+  rpc GetMap(GetMapRequest) returns (GetMapResponse);
+  rpc GetMapBorder(GetMapRequest) returns (GetMapBorderResponse);
+}
+
+// Maps Messages
+
+message ListMapsRequest {
+  // Empty request for listing all maps
+}
+
+message GetMapRequest {
+  uint64 map_id = 1;
+}
+
+message ListMapsResponse {
+  repeated Map maps = 1;
+}
+
+message GetMapResponse {
+  Map map = 1;
+}
+
+message GetMapBorderResponse {
+  MapBorderData data = 1;
+}
+
+message MapBorderData {
+  string border_coordinates = 1; // JSON string
+}
+
+message Map {
+  uint64 id = 1;
+  string name = 2;
+  string color = 3; // polygon_color
+  string central_point_coordinates = 4; // JSON string
+  string sold_features_percentage = 5; // formatted to 2 decimal places
+  // Additional fields for detail view
+  string border_coordinates = 6; // JSON string (only in detail)
+  uint64 area = 7; // polygon_area (only in detail)
+  string address = 8; // polygon_address (only in detail)
+  string published_at = 9; // publish_date (only in detail)
+  MapFeatures features = 10; // grouping by karbari (only in detail)
+}
+
+message MapFeatures {
+  MapFeatureCount maskoni = 1;
+  MapFeatureCount tejari = 2;
+  MapFeatureCount amoozeshi = 3;
+}
+
+message MapFeatureCount {
+  int32 sold = 1; // count of features with owner_id != 1 and matching karbari
 }
 

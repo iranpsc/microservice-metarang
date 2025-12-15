@@ -72,7 +72,8 @@ func main() {
 	imageRepo := repository.NewImageRepository(db)
 
 	// Initialize services
-	storageService := service.NewStorageService(ftpClient, chunkManager)
+	storageBase := getEnv("STORAGE_BASE", "storage/app")
+	storageService := service.NewStorageService(ftpClient, chunkManager, storageBase)
 	imageService := service.NewImageService(imageRepo, ftpClient)
 
 	// Create gRPC server
@@ -128,4 +129,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
-

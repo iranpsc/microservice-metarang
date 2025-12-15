@@ -30,7 +30,7 @@ func (r *firstOrderRepository) Create(ctx context.Context, firstOrder *models.Fi
 		INSERT INTO first_orders (user_id, type, amount, date, bonus, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
-	
+
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, query,
 		firstOrder.UserID,
@@ -60,7 +60,7 @@ func (r *firstOrderRepository) HasFirstOrder(ctx context.Context, userID uint64,
 		FROM first_orders
 		WHERE user_id = ? AND type = ?
 	`
-	
+
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, userID, orderType).Scan(&exists)
 	if err != nil {
@@ -77,7 +77,7 @@ func (r *firstOrderRepository) Count(ctx context.Context, userID uint64) (int, e
 		FROM first_orders
 		WHERE user_id = ?
 	`
-	
+
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
 	if err != nil {
@@ -86,4 +86,3 @@ func (r *firstOrderRepository) Count(ctx context.Context, userID uint64) (int, e
 
 	return count, nil
 }
-

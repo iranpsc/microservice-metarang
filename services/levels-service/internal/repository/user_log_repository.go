@@ -28,16 +28,16 @@ func (r *UserLogRepository) GetUserScore(ctx context.Context, userID uint64) (in
 	if err != nil {
 		return 0, err
 	}
-	
+
 	if !score.Valid || score.String == "" {
 		return 0, nil
 	}
-	
+
 	scoreInt, err := strconv.ParseFloat(score.String, 32)
 	if err != nil {
 		return 0, err
 	}
-	
+
 	return int32(scoreInt), nil
 }
 
@@ -54,9 +54,9 @@ func (r *UserLogRepository) GetUserLog(ctx context.Context, userID uint64) (*pb.
 		FROM user_logs
 		WHERE user_id = ?
 	`
-	
+
 	var log pb.UserLog
-	
+
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&log.Id,
 		&log.UserId,
@@ -66,11 +66,11 @@ func (r *UserLogRepository) GetUserLog(ctx context.Context, userID uint64) (*pb.
 		&log.ActivityHours,
 		&log.Score,
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &log, nil
 }
 
@@ -82,19 +82,19 @@ func (r *UserLogRepository) UpdateScore(ctx context.Context, userID uint64, scor
 		return err
 	}
 	defer tx.Rollback()
-	
+
 	// Update user_logs
 	_, err = tx.ExecContext(ctx, "UPDATE user_logs SET score = ?, updated_at = NOW() WHERE user_id = ?", fmt.Sprintf("%d", score), userID)
 	if err != nil {
 		return err
 	}
-	
+
 	// Update users
 	_, err = tx.ExecContext(ctx, "UPDATE users SET score = ?, updated_at = NOW() WHERE id = ?", fmt.Sprintf("%d", score), userID)
 	if err != nil {
 		return err
 	}
-	
+
 	return tx.Commit()
 }
 
@@ -114,9 +114,9 @@ func (r *UserLogRepository) IncrementDeposit(ctx context.Context, userID uint64,
 	if err != nil {
 		return err
 	}
-	
+
 	increment := amountFloat * 0.0001
-	
+
 	query := "UPDATE user_logs SET deposit_amount = deposit_amount + ?, updated_at = NOW() WHERE user_id = ?"
 	_, err = r.db.ExecContext(ctx, query, fmt.Sprintf("%.4f", increment), userID)
 	return err
@@ -137,7 +137,7 @@ func (r *UserLogRepository) UpdateActivityHours(ctx context.Context, userID uint
 	hours := float64(totalMinutes) / 60.0
 	ceiledHours := float64(int32(hours) + 1) // ceil function
 	activityScore := ceiledHours * 0.1
-	
+
 	query := "UPDATE user_logs SET activity_hours = ?, updated_at = NOW() WHERE user_id = ?"
 	_, err := r.db.ExecContext(ctx, query, fmt.Sprintf("%.1f", activityScore), userID)
 	return err
@@ -159,14 +159,13 @@ func (r *UserLogRepository) CalculateScore(ctx context.Context, userID uint64) (
 	if err != nil {
 		return 0, err
 	}
-	
+
 	transactions, _ := strconv.ParseFloat(log.TransactionsCount, 64)
 	followers, _ := strconv.ParseFloat(log.FollowersCount, 64)
 	deposit, _ := strconv.ParseFloat(log.DepositAmount, 64)
 	activity, _ := strconv.ParseFloat(log.ActivityHours, 64)
-	
+
 	total := transactions + followers + deposit + activity
-	
+
 	return int32(total), nil
 }
-

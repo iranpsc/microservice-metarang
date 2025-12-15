@@ -1,4 +1,4 @@
-.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-all help build-all build-features build-levels build-phase4 build-phase5 deploy-all test kong-validate phase6-setup phase6-istio phase6-monitoring phase6-verify phase6-cleanup
+.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all build-features build-levels build-phase4 build-phase5 deploy-all test kong-validate phase6-setup phase6-istio phase6-monitoring phase6-verify phase6-cleanup
 
 # Proto generation
 PROTO_DIR=shared/proto
@@ -52,7 +52,7 @@ help:
 
 proto: clean-proto gen-all
 
-gen-all: gen-common gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage
+gen-all: gen-common gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-social
 
 gen-auth:
 	@echo "Generating auth proto files..."
@@ -129,6 +129,20 @@ gen-storage:
 	protoc --go_out=$(PROTO_OUT_DIR)/storage --go_opt=paths=source_relative \
 		--go-grpc_out=$(PROTO_OUT_DIR)/storage --go-grpc_opt=paths=source_relative \
 		-I=$(PROTO_DIR) $(PROTO_DIR)/storage.proto
+
+gen-financial:
+	@echo "Generating financial proto files..."
+	@mkdir -p $(PROTO_OUT_DIR)/financial
+	protoc --go_out=$(PROTO_OUT_DIR)/financial --go_opt=paths=source_relative \
+		--go-grpc_out=$(PROTO_OUT_DIR)/financial --go-grpc_opt=paths=source_relative \
+		-I=$(PROTO_DIR) $(PROTO_DIR)/financial.proto
+
+gen-social:
+	@echo "Generating social proto files..."
+	@mkdir -p $(PROTO_OUT_DIR)/social
+	protoc --go_out=$(PROTO_OUT_DIR)/social --go_opt=paths=source_relative \
+		--go-grpc_out=$(PROTO_OUT_DIR)/social --go-grpc_opt=paths=source_relative \
+		-I=$(PROTO_DIR) $(PROTO_DIR)/social.proto
 
 clean-proto:
 	@echo "Cleaning generated proto files..."

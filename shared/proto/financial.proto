@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package financial;
+
+option go_package = "metargb/shared/pb/financial";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Order Service - handles order creation and Parsian payment callbacks
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc HandleCallback(HandleCallbackRequest) returns (HandleCallbackResponse);
+}
+
+// Store Service - handles store packages
+service StoreService {
+  rpc GetStorePackages(GetStorePackagesRequest) returns (GetStorePackagesResponse);
+}
+
+// ============== Messages ==============
+
+message Order {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  string asset = 3;
+  double amount = 4;
+  int32 status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message Transaction {
+  string id = 1;  // VARCHAR PK like TR-xxxxx
+  uint64 user_id = 2;
+  string asset = 3;
+  double amount = 4;
+  string action = 5;  // deposit, withdraw
+  int32 status = 6;
+  int64 token = 7;
+  int64 ref_id = 8;
+  string payable_type = 9;
+  uint64 payable_id = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message Payment {
+  uint64 id = 1;
+  uint64 user_id = 2;
+  int64 ref_id = 3;
+  string card_pan = 4;
+  string gateway = 5;
+  double amount = 6;
+  string product = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message Package {
+  uint64 id = 1;
+  string code = 2;
+  string asset = 3;
+  double amount = 4;
+  double unit_price = 5;
+  optional string image = 6;  // URL or null
+}
+
+// ============== Request/Response Messages ==============
+
+message CreateOrderRequest {
+  uint64 user_id = 1;
+  int32 amount = 2;  // integer quantity of units
+  string asset = 3;  // psc, irr, red, blue, yellow
+}
+
+message CreateOrderResponse {
+  string link = 1;  // Parsian payment URL
+}
+
+message HandleCallbackRequest {
+  uint64 order_id = 1;
+  int32 status = 2;  // Parsian status code (0 indicates success)
+  int64 token = 3;
+  int64 rrn = 4;  // Reference number
+  string card_mask_pan = 5;  // Masked card number
+  map<string, string> additional_params = 6;  // Other gateway fields
+}
+
+message HandleCallbackResponse {
+  string redirect_url = 1;  // Frontend verification URL with query params
+}
+
+message GetStorePackagesRequest {
+  repeated string codes = 1;  // At least 2 package codes required
+}
+
+message GetStorePackagesResponse {
+  repeated Package packages = 1;
+}

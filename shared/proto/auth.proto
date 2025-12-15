@@ -23,15 +23,72 @@ service AuthService {
 service UserService {
   rpc GetUser(GetUserRequest) returns (User);
   rpc UpdateProfile(UpdateProfileRequest) returns (User);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc GetUserLevels(GetUserLevelsRequest) returns (GetUserLevelsResponse);
+  rpc GetUserProfile(GetUserProfileRequest) returns (GetUserProfileResponse);
   rpc GetUserWallet(GetUserWalletRequest) returns (UserWalletResponse);
   rpc GetUserLevel(GetUserLevelRequest) returns (UserLevelResponse);
+  rpc GetProfileLimitations(GetProfileLimitationsRequest) returns (GetProfileLimitationsResponse);
+  rpc GetUserFeaturesCount(GetUserFeaturesCountRequest) returns (GetUserFeaturesCountResponse);
+}
+
+// Profile Limitation Service - handles profile limitations between users
+service ProfileLimitationService {
+  rpc CreateProfileLimitation(CreateProfileLimitationRequest) returns (ProfileLimitationResponse);
+  rpc UpdateProfileLimitation(UpdateProfileLimitationRequest) returns (ProfileLimitationResponse);
+  rpc DeleteProfileLimitation(DeleteProfileLimitationRequest) returns (google.protobuf.Empty);
+  rpc GetProfileLimitation(GetProfileLimitationRequest) returns (ProfileLimitationResponse);
 }
 
 // KYC Service - handles KYC verification
 service KYCService {
-  rpc SubmitKYC(SubmitKYCRequest) returns (KYCResponse);
-  rpc GetKYCStatus(GetKYCStatusRequest) returns (KYCResponse);
-  rpc VerifyBankAccount(VerifyBankAccountRequest) returns (BankAccountResponse);
+  rpc GetKYC(GetKYCRequest) returns (KYCResponse);
+  rpc UpdateKYC(UpdateKYCRequest) returns (KYCResponse);
+  rpc ListBankAccounts(ListBankAccountsRequest) returns (ListBankAccountsResponse);
+  rpc CreateBankAccount(CreateBankAccountRequest) returns (BankAccountResponse);
+  rpc GetBankAccount(GetBankAccountRequest) returns (BankAccountResponse);
+  rpc UpdateBankAccount(UpdateBankAccountRequest) returns (BankAccountResponse);
+  rpc DeleteBankAccount(DeleteBankAccountRequest) returns (google.protobuf.Empty);
+}
+
+// Citizen Service - handles public citizen profile endpoints (no authentication required)
+service CitizenService {
+  rpc GetCitizenProfile(GetCitizenProfileRequest) returns (CitizenProfileResponse);
+  rpc GetCitizenReferrals(GetCitizenReferralsRequest) returns (CitizenReferralsResponse);
+  rpc GetCitizenReferralChart(GetCitizenReferralChartRequest) returns (CitizenReferralChartResponse);
+}
+
+// PersonalInfo Service - handles personal information endpoints
+service PersonalInfoService {
+  rpc GetPersonalInfo(GetPersonalInfoRequest) returns (GetPersonalInfoResponse);
+  rpc UpdatePersonalInfo(UpdatePersonalInfoRequest) returns (google.protobuf.Empty);
+}
+
+// ProfilePhoto Service - handles user profile photo management
+service ProfilePhotoService {
+  rpc ListProfilePhotos(ListProfilePhotosRequest) returns (ListProfilePhotosResponse);
+  rpc UploadProfilePhoto(UploadProfilePhotoRequest) returns (ProfilePhotoResponse);
+  rpc GetProfilePhoto(GetProfilePhotoRequest) returns (ProfilePhotoResponse);
+  rpc DeleteProfilePhoto(DeleteProfilePhotoRequest) returns (google.protobuf.Empty);
+}
+
+// Settings Service - handles user settings and preferences
+service SettingsService {
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (google.protobuf.Empty);
+  rpc GetGeneralSettings(GetGeneralSettingsRequest) returns (GetGeneralSettingsResponse);
+  rpc UpdateGeneralSettings(UpdateGeneralSettingsRequest) returns (UpdateGeneralSettingsResponse);
+  rpc GetPrivacySettings(GetPrivacySettingsRequest) returns (GetPrivacySettingsResponse);
+  rpc UpdatePrivacySettings(UpdatePrivacySettingsRequest) returns (google.protobuf.Empty);
+}
+
+// UserEvents Service - handles user security events and reports
+service UserEventsService {
+  rpc ListUserEvents(ListUserEventsRequest) returns (ListUserEventsResponse);
+  rpc GetUserEvent(GetUserEventRequest) returns (GetUserEventResponse);
+  rpc ReportUserEvent(ReportUserEventRequest) returns (UserEventReportResponse);
+  rpc SendReportResponse(SendReportResponseRequest) returns (UserEventReportResponseResponse);
+  rpc CloseEventReport(CloseEventReportRequest) returns (google.protobuf.Empty);
 }
 
 // ============== Messages ==============
@@ -71,7 +128,13 @@ message KYC {
 message Settings {
   uint64 id = 1;
   uint64 user_id = 2;
-  int32 automatic_logout = 3;
+  bool status = 3;
+  bool level = 4;
+  bool details = 5;
+  uint32 checkout_days_count = 6;
+  int32 automatic_logout = 7;
+  map<string, int32> privacy = 8; // key -> 0|1 (0=private, 1=public)
+  map<string, bool> notifications = 9; // channel -> bool
 }
 
 message Image {
@@ -94,6 +157,8 @@ message Level {
   string title = 2;
   string description = 3;
   int32 score = 4;
+  string slug = 5;        // Level slug (e.g., "beginner")
+  string image_url = 6;   // Level image URL (admin panel prepended)
 }
 
 // ============== Request/Response Messages ==============
@@ -108,7 +173,8 @@ message RegisterResponse {
 }
 
 message RedirectRequest {
-  string back_url = 1;
+  string redirect_to = 1;  // Optional redirect URL (preferred over back_url)
+  string back_url = 2;      // Optional fallback redirect URL
 }
 
 message RedirectResponse {
@@ -211,32 +277,73 @@ message UserLevelResponse {
   double percentage_to_next = 3;
 }
 
-message SubmitKYCRequest {
+message GetKYCRequest {
+  uint64 user_id = 1;
+}
+
+message UpdateKYCRequest {
   uint64 user_id = 1;
   string fname = 2;
   string lname = 3;
-  string national_code = 4;
-  string birthdate = 5;
+  string melli_code = 4;
+  string birthdate = 5; // Jalali date format: Y/m/d
+  string province = 6;
+  string melli_card = 7; // Public URL to uploaded image
+  VideoInfo video = 8;
+  uint64 verify_text_id = 9;
+  string gender = 10; // male, female, other
+}
+
+message VideoInfo {
+  string path = 1;
+  string name = 2;
 }
 
 message KYCResponse {
   uint64 id = 1;
-  uint64 user_id = 2;
+  string melli_card = 2;
   string fname = 3;
   string lname = 4;
-  int32 status = 5;
-  string birthdate = 6;
+  string melli_code = 5;
+  string birthdate = 6; // Jalali date format: Y/m/d
+  string province = 7;
+  int32 status = 8;
+  string video = 9;
+  string errors = 10;
+  string gender = 11;
 }
 
-message GetKYCStatusRequest {
+message ListBankAccountsRequest {
   uint64 user_id = 1;
 }
 
-message VerifyBankAccountRequest {
+message ListBankAccountsResponse {
+  repeated BankAccountResponse data = 1;
+}
+
+message CreateBankAccountRequest {
   uint64 user_id = 1;
   string bank_name = 2;
   string shaba_num = 3;
   string card_num = 4;
+}
+
+message GetBankAccountRequest {
+  uint64 user_id = 1;
+  uint64 bank_account_id = 2;
+}
+
+message UpdateBankAccountRequest {
+  uint64 user_id = 1;
+  uint64 bank_account_id = 2;
+  string bank_name = 3;
+  string shaba_num = 4;
+  string card_num = 5;
+}
+
+message DeleteBankAccountRequest {
+  uint64 user_id = 1;
+  uint64 bank_account_id = 2;
 }
 
 message BankAccountResponse {
@@ -246,4 +353,548 @@ message BankAccountResponse {
   string card_num = 4;
   int32 status = 5;
   string errors = 6;
+}
+
+// ============== Citizen Service Messages ==============
+
+message GetCitizenProfileRequest {
+  string code = 1; // Case-insensitive citizen code
+}
+
+message CitizenProfileResponse {
+  repeated ProfilePhoto profile_photos = 1;
+  CitizenKYC kyc = 2;
+  string code = 3;
+  string name = 4;
+  string position = 5;
+  string registered_at = 6; // Jalali format
+  CitizenCustoms customs = 7;
+  int32 score = 8;
+  double score_percentage_to_next_level = 9;
+  CitizenLevel current_level = 10;
+  repeated CitizenLevel achieved_levels = 11;
+  string avatar = 12;
+}
+
+message ProfilePhoto {
+  uint64 id = 1;
+  string url = 2;
+}
+
+message CitizenKYC {
+  string nationality = 1; // URL to flag image
+  string fname = 2;
+  string lname = 3;
+  string birth_date = 4; // Jalali format
+  string phone = 5;
+  string email = 6;
+  string address = 7;
+}
+
+message CitizenCustoms {
+  string occupation = 1;
+  string education = 2;
+  string prediction = 3;
+  map<string, string> passions = 4; // passion_key -> icon_url
+}
+
+message CitizenLevel {
+  uint64 id = 1;
+  string title = 2;
+  string description = 3;
+  int32 score = 4;
+}
+
+message GetCitizenReferralsRequest {
+  string code = 1; // Case-insensitive citizen code
+  string search = 2; // Optional search query
+  int32 page = 3; // Page number (default: 1)
+}
+
+message CitizenReferralsResponse {
+  repeated CitizenReferral data = 1;
+  PaginationMeta meta = 2;
+}
+
+message CitizenReferral {
+  uint64 id = 1;
+  string code = 2;
+  string name = 3;
+  string image = 4; // Profile photo URL
+  repeated ReferrerOrder referrer_orders = 5;
+}
+
+message ReferrerOrder {
+  uint64 id = 1;
+  int64 amount = 2; // bigint in database
+  string created_at = 3; // Jalali format Y-m-d H:i:s
+}
+
+message PaginationMeta {
+  int32 current_page = 1;
+  string next_page_url = 2;
+  string prev_page_url = 3;
+}
+
+message GetCitizenReferralChartRequest {
+  string code = 1; // Case-insensitive citizen code
+  string range = 2; // daily, weekly, monthly, yearly (default: daily)
+}
+
+message CitizenReferralChartResponse {
+  ReferralChartData data = 1;
+}
+
+message ReferralChartData {
+  string total_referrals_count = 1; // Stringified count
+  string total_referral_orders_amount = 2; // Stringified sum
+  repeated ChartDataPoint chart_data = 3;
+}
+
+message ChartDataPoint {
+  string label = 1; // Jalali date/time label
+  int32 count = 2;
+  int64 total_amount = 3; // bigint in database
+}
+
+// ============== PersonalInfo Service Messages ==============
+
+message GetPersonalInfoRequest {
+  uint64 user_id = 1;
+}
+
+message GetPersonalInfoResponse {
+  PersonalInfoData data = 1;
+}
+
+message PersonalInfoData {
+  string occupation = 1;
+  string education = 2;
+  string memory = 3;
+  string loved_city = 4;
+  string loved_country = 5;
+  string loved_language = 6;
+  string problem_solving = 7;
+  string prediction = 8;
+  string about = 9;
+  map<string, bool> passions = 10; // passion_key -> boolean value
+}
+
+message UpdatePersonalInfoRequest {
+  uint64 user_id = 1;
+  string occupation = 2; // nullable, max 255
+  string education = 3; // nullable, max 255
+  string memory = 4; // nullable, max 2000
+  string loved_city = 5; // nullable, max 255
+  string loved_country = 6; // nullable, max 255
+  string loved_language = 7; // nullable, max 255
+  string problem_solving = 8; // nullable, max 2000
+  string prediction = 9; // nullable, max 10000
+  string about = 10; // nullable, max 10000
+  map<string, bool> passions = 11; // nullable, passion_key -> boolean
+}
+
+// ============== Profile Limitation Service Messages ==============
+
+message ProfileLimitationOptions {
+  bool follow = 1;
+  bool send_message = 2;
+  bool share = 3;
+  bool send_ticket = 4;
+  bool view_profile_images = 5;
+  bool view_features_locations = 6;
+}
+
+message ProfileLimitation {
+  uint64 id = 1;
+  uint64 limiter_user_id = 2;
+  uint64 limited_user_id = 3;
+  ProfileLimitationOptions options = 4;
+  string note = 5; // Only visible to limiter
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message CreateProfileLimitationRequest {
+  uint64 limiter_user_id = 1;
+  uint64 limited_user_id = 2;
+  ProfileLimitationOptions options = 3;
+  string note = 4; // Optional, max 500 characters
+}
+
+message UpdateProfileLimitationRequest {
+  uint64 limitation_id = 1;
+  uint64 limiter_user_id = 2;
+  ProfileLimitationOptions options = 3;
+  string note = 4; // Optional, max 500 characters
+}
+
+message DeleteProfileLimitationRequest {
+  uint64 limitation_id = 1;
+  uint64 limiter_user_id = 2;
+}
+
+message GetProfileLimitationRequest {
+  uint64 limitation_id = 1;
+}
+
+message GetProfileLimitationsRequest {
+  uint64 caller_user_id = 1;
+  uint64 target_user_id = 2;
+}
+
+message ProfileLimitationResponse {
+  ProfileLimitation data = 1;
+}
+
+message GetProfileLimitationsResponse {
+  ProfileLimitation data = 1; // Empty if no limitation exists
+}
+
+// ============== ProfilePhoto Service Messages ==============
+
+message ListProfilePhotosRequest {
+  uint64 user_id = 1; // Authenticated user ID
+}
+
+message ListProfilePhotosResponse {
+  repeated ProfilePhoto data = 1;
+}
+
+message UploadProfilePhotoRequest {
+  uint64 user_id = 1; // Authenticated user ID
+  bytes image_data = 2; // Image file data (PNG or JPEG, ≤1 MB)
+  string filename = 3; // Original filename
+  string content_type = 4; // MIME type (image/png, image/jpeg, etc.)
+}
+
+message GetProfilePhotoRequest {
+  uint64 profile_photo_id = 1; // Profile photo ID
+}
+
+message DeleteProfilePhotoRequest {
+  uint64 user_id = 1; // Authenticated user ID (for ownership check)
+  uint64 profile_photo_id = 2; // Profile photo ID to delete
+}
+
+message ProfilePhotoResponse {
+  uint64 id = 1;
+  string url = 2;
+}
+
+// ============== Settings Service Messages ==============
+
+message GetSettingsRequest {
+  uint64 user_id = 1;
+}
+
+message GetSettingsResponse {
+  SettingsData data = 1;
+}
+
+message SettingsData {
+  uint32 checkout_days_count = 1;
+  int32 automatic_logout = 2;
+}
+
+message UpdateSettingsRequest {
+  uint64 user_id = 1;
+  // Checkout cadence update (both must be present if updating checkout)
+  uint32 checkout_days_count = 2; // 3-1000 (optional, but required if updating checkout)
+  int32 automatic_logout = 3; // 1-55 minutes (optional, but required if updating checkout)
+  // Profile exposure toggle (both must be present if updating profile exposure)
+  string setting = 4; // "status", "level", or "details" (optional)
+  bool status = 5; // boolean (optional, but required if setting is present)
+}
+
+message GetGeneralSettingsRequest {
+  uint64 user_id = 1;
+}
+
+message GetGeneralSettingsResponse {
+  NotificationSettingsData data = 1;
+}
+
+message NotificationSettingsData {
+  bool announcements_sms = 1;
+  bool announcements_email = 2;
+  bool reports_sms = 3;
+  bool reports_email = 4;
+  bool login_verification_sms = 5;
+  bool login_verification_email = 6;
+  bool transactions_sms = 7;
+  bool transactions_email = 8;
+  bool trades_sms = 9;
+  bool trades_email = 10;
+}
+
+message UpdateGeneralSettingsRequest {
+  uint64 user_id = 1;
+  uint64 setting_id = 2; // Settings ID for ownership check
+  NotificationSettingsData notifications = 3;
+}
+
+message UpdateGeneralSettingsResponse {
+  NotificationSettingsData data = 1;
+}
+
+message GetPrivacySettingsRequest {
+  uint64 user_id = 1;
+}
+
+message GetPrivacySettingsResponse {
+  map<string, int32> data = 1; // key -> 0|1 (0=private, 1=public)
+}
+
+message UpdatePrivacySettingsRequest {
+  uint64 user_id = 1;
+  string key = 2; // Privacy field key
+  int32 value = 3; // 0 or 1 (boolean or numeric representation)
+}
+
+// ============== UserEvents Service Messages ==============
+
+message ListUserEventsRequest {
+  uint64 user_id = 1;
+  int32 page = 2; // Page number (default: 1)
+}
+
+message ListUserEventsResponse {
+  repeated UserEventResource data = 1;
+  PaginationMeta pagination = 2;
+}
+
+message GetUserEventRequest {
+  uint64 user_id = 1;
+  uint64 event_id = 2;
+}
+
+message GetUserEventResponse {
+  UserEventResource data = 1;
+}
+
+message ReportUserEventRequest {
+  uint64 user_id = 1;
+  uint64 event_id = 2;
+  string suspecious_citizen = 3; // Optional: citizen code
+  string event_description = 4; // Required: max 500 characters
+}
+
+message SendReportResponseRequest {
+  uint64 user_id = 1;
+  uint64 event_id = 2;
+  string response = 3; // Required: max 300 characters
+}
+
+message CloseEventReportRequest {
+  uint64 user_id = 1;
+  uint64 event_id = 2;
+}
+
+message UserEventResource {
+  uint64 id = 1;
+  string event = 2;
+  string ip = 3;
+  string device = 4;
+  string status = 5; // "موفق" or "ناموفق" (Persian: successful or unsuccessful)
+  string date = 6; // Jalali format: Y/m/d
+  string time = 7; // H:m:s format
+  UserEventReportResource report = 8; // Only present in GetUserEvent response
+}
+
+message UserEventReportResource {
+  uint64 id = 1;
+  string suspecious_citizen = 2; // Optional
+  string event_description = 3;
+  int32 status = 4;
+  bool closed = 5;
+  string date = 6; // Jalali format: Y/m/d
+  string time = 7; // H:m:s format
+  repeated UserEventReportResponseResource responses = 8;
+}
+
+message UserEventReportResponseResource {
+  uint64 id = 1;
+  string responser_name = 2;
+  string response = 3;
+  string date = 4; // Jalali format: Y/m/d
+  string time = 5; // H:m:s format
+}
+
+message UserEventReportResponse {
+  UserEventReportResource data = 1;
+}
+
+message UserEventReportResponseResponse {
+  UserEventReportResponseResource data = 1;
+}
+
+// ============== Users API Messages ==============
+
+// ListUsersRequest - GET /api/users
+message ListUsersRequest {
+  string search = 1;      // Optional: partial match on name column
+  string order_by = 2;    // Optional: one of "score", "registered_at_asc", "registered_at_desc"
+  int32 page = 3;         // Optional: pagination cursor (default: 1)
+}
+
+// ListUsersResponse - paginated list of users
+message ListUsersResponse {
+  repeated UserListItem data = 1;
+  PaginationLinks links = 2;
+  PaginationMeta meta = 3;
+}
+
+// UserListItem - user summary for list endpoint
+message UserListItem {
+  uint64 id = 1;
+  string name = 2;              // Prefers KYC full name when available
+  string code = 3;
+  int32 score = 4;
+  UserLevelInfo levels = 5;     // Current and previous level info
+  string profile_photo = 6;     // Latest profile photo URL
+}
+
+// UserLevelInfo - level information for user list
+message UserLevelInfo {
+  Level current = 1;            // Current level
+  Level previous = 2;           // Previous level
+}
+
+// PaginationLinks - pagination links for simple pagination
+message PaginationLinks {
+  string first = 1;
+  string last = 2;
+  string prev = 3;
+  string next = 4;
+}
+
+// GetUserLevelsRequest - GET /api/users/{user}/levels
+message GetUserLevelsRequest {
+  uint64 user_id = 1;
+}
+
+// GetUserLevelsResponse - user level ladder data
+message GetUserLevelsResponse {
+  UserLevelData data = 1;
+}
+
+// UserLevelData - detailed level information
+message UserLevelData {
+  Level latest_level = 1;                        // Latest level, null if absent
+  repeated Level previous_levels = 2;            // Ordered ascending by score
+  double score_percentage_to_next_level = 3;     // Progress toward next level
+}
+
+// GetUserProfileRequest - GET /api/users/{user}/profile
+message GetUserProfileRequest {
+  uint64 user_id = 1;
+  uint64 viewer_user_id = 2;     // Optional: authenticated user viewing the profile
+}
+
+// GetUserProfileResponse - user profile with privacy filtering
+message GetUserProfileResponse {
+  UserProfileData data = 1;
+}
+
+// UserProfileData - user profile information (privacy-filtered)
+message UserProfileData {
+  uint64 id = 1;
+  string name = 2;                    // May be null if privacy disallows
+  string code = 3;
+  string registered_at = 4;           // Jalali format Y/m/d, may be null
+  repeated string profile_images = 5;  // Array of URLs, may be empty
+  int32 followers_count = 6;          // May be null if privacy disallows
+  int32 following_count = 7;          // May be null if privacy disallows
+}
+
+// GetUserFeaturesCountRequest - GET /api/users/{user}/features/count
+message GetUserFeaturesCountRequest {
+  uint64 user_id = 1;
+}
+
+// GetUserFeaturesCountResponse - feature counts by category
+message GetUserFeaturesCountResponse {
+  UserFeaturesCountData data = 1;
+}
+
+// UserFeaturesCountData - categorized feature counts
+message UserFeaturesCountData {
+  int32 maskoni_features_count = 1;      // karbari = 'm'
+  int32 tejari_features_count = 2;       // karbari = 't'
+  int32 amoozeshi_features_count = 3;    // karbari = 'a'
+}
+
+// ============== Search Service ==============
+// Search Service - handles search endpoints (no authentication required)
+service SearchService {
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+  rpc SearchFeatures(SearchFeaturesRequest) returns (SearchFeaturesResponse);
+  rpc SearchIsicCodes(SearchIsicCodesRequest) returns (SearchIsicCodesResponse);
+}
+
+// SearchUsersRequest - POST /api/search/users
+message SearchUsersRequest {
+  string search_term = 1;
+}
+
+// SearchUsersResponse - user search results
+message SearchUsersResponse {
+  repeated SearchUserResult data = 1;
+}
+
+// SearchUserResult - individual user search result
+message SearchUserResult {
+  uint64 id = 1;
+  string code = 2;              // Uppercased
+  string name = 3;              // Uses KYC data when verified, otherwise user.name
+  int32 followers = 4;          // Count of followers
+  string level = 5;             // Latest level name (nullable)
+  string photo = 6;             // Latest profile photo URL (nullable)
+}
+
+// SearchFeaturesRequest - POST /api/search/features
+message SearchFeaturesRequest {
+  string search_term = 1;
+}
+
+// SearchFeaturesResponse - feature search results
+message SearchFeaturesResponse {
+  repeated SearchFeatureResult data = 1;
+}
+
+// SearchFeatureResult - individual feature search result
+message SearchFeatureResult {
+  uint64 id = 1;                        // Feature ID
+  string feature_properties_id = 2;     // Uppercased FeatureProperties.id
+  string address = 3;
+  string karbari = 4;                   // Application title from feature
+  string price_psc = 5;
+  string price_irr = 6;
+  string owner_code = 7;                // Uppercased owner code
+  repeated Coordinate coordinates = 8;   // Geometry coordinates
+}
+
+// Coordinate - coordinate with id, x, y for search results
+message Coordinate {
+  uint64 id = 1;
+  double x = 2;                         // Parsed from varchar as float64
+  double y = 3;                         // Parsed from varchar as float64
+}
+
+// SearchIsicCodesRequest - POST /api/search/isic-codes
+message SearchIsicCodesRequest {
+  string search_term = 1;
+}
+
+// SearchIsicCodesResponse - ISIC code search results
+message SearchIsicCodesResponse {
+  repeated IsicCodeResult data = 1;
+}
+
+// IsicCodeResult - individual ISIC code result
+message IsicCodeResult {
+  uint64 id = 1;
+  string name = 2;
+  uint64 code = 3;                      // bigint in database
 }

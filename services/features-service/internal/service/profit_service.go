@@ -4,21 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 
 	"metargb/features-service/internal/client"
 	"metargb/features-service/internal/constants"
+	"metargb/features-service/internal/models"
 	"metargb/features-service/internal/repository"
 	"metargb/shared/pkg/logger"
 )
 
 // ProfitService implements profit service with gRPC cross-service calls
 type ProfitService struct {
-	profitRepo       *repository.HourlyProfitRepository
-	featureRepo      *repository.FeatureRepository
-	propertiesRepo   *repository.PropertiesRepository
-	commercialClient *client.CommercialClient
-	db               *sql.DB
-	log              *logger.Logger
+	profitRepo         *repository.HourlyProfitRepository
+	featureRepo        *repository.FeatureRepository
+	propertiesRepo     *repository.PropertiesRepository
+	commercialClient   *client.CommercialClient
+	notificationClient *client.NotificationClient
+	db                 *sql.DB
+	log                *logger.Logger
 }
 
 func NewProfitService(
@@ -26,36 +29,39 @@ func NewProfitService(
 	featureRepo *repository.FeatureRepository,
 	propertiesRepo *repository.PropertiesRepository,
 	commercialClient *client.CommercialClient,
+	notificationClient *client.NotificationClient,
 	db *sql.DB,
 	log *logger.Logger,
 ) *ProfitService {
 	return &ProfitService{
-		profitRepo:       profitRepo,
-		featureRepo:      featureRepo,
-		propertiesRepo:   propertiesRepo,
-		commercialClient: commercialClient,
-		db:               db,
-		log:              log,
+		profitRepo:         profitRepo,
+		featureRepo:        featureRepo,
+		propertiesRepo:     propertiesRepo,
+		commercialClient:   commercialClient,
+		notificationClient: notificationClient,
+		db:                 db,
+		log:                log,
 	}
 }
 
 // GetSingleProfit withdraws a single profit using gRPC
-func (s *ProfitService) GetSingleProfit(ctx context.Context, profitID, userID uint64) (float64, error) {
-	// Get profit record
+// Returns the updated profit record with feature information
+func (s *ProfitService) GetSingleProfit(ctx context.Context, profitID, userID uint64) (*models.FeatureHourlyProfit, error) {
+	// Get profit record with feature properties
 	profit, err := s.profitRepo.FindByID(ctx, profitID)
 	if err != nil {
-		return 0, fmt.Errorf("profit not found: %w", err)
+		return nil, fmt.Errorf("profit not found: %w", err)
 	}
 
 	// Verify ownership
 	if profit.UserID != userID {
-		return 0, fmt.Errorf("unauthorized")
+		return nil, fmt.Errorf("unauthorized")
 	}
 
 	// Add amount to user wallet via gRPC
-	if profit.Amount > 0 {
+	if profit.Amount > 0 && s.commercialClient != nil {
 		if err := s.commercialClient.AddBalance(ctx, userID, profit.Asset, profit.Amount); err != nil {
-			return 0, fmt.Errorf("failed to update wallet: %w", err)
+			return nil, fmt.Errorf("failed to update wallet: %w", err)
 		}
 
 		s.log.Info("Profit withdrawn",
@@ -64,6 +70,26 @@ func (s *ProfitService) GetSingleProfit(ctx context.Context, profitID, userID ui
 			"asset", profit.Asset,
 			"amount", profit.Amount,
 		)
+
+		// Send notification if notification client is available
+		if s.notificationClient != nil {
+			data := map[string]string{
+				"asset":  profit.Asset,
+				"amount": fmt.Sprintf("%.6f", profit.Amount),
+			}
+			if profit.PropertiesID != "" {
+				data["id"] = profit.PropertiesID
+			}
+
+			// Get color name for notification
+			colorName := constants.GetColorPersian(profit.Karbari)
+			title := fmt.Sprintf("سود ساعتی %s", colorName)
+			message := fmt.Sprintf("مبلغ %.6f %s به کیف پول شما اضافه شد", profit.Amount, colorName)
+
+			if err := s.notificationClient.SendNotification(ctx, userID, "FeatureHourlyProfitDeposit", title, message, data); err != nil {
+				s.log.Warn("Failed to send notification", "error", err)
+			}
+		}
 	}
 
 	// Get user's withdraw_profit days
@@ -74,24 +100,20 @@ func (s *ProfitService) GetSingleProfit(ctx context.Context, profitID, userID ui
 
 	// Reset profit and update deadline
 	if err := s.profitRepo.ResetProfitAndUpdateDeadline(ctx, profitID, withdrawProfitDays); err != nil {
-		return 0, fmt.Errorf("failed to reset profit: %w", err)
+		return nil, fmt.Errorf("failed to reset profit: %w", err)
 	}
 
-	// TODO: Send notification via Notifications Service
-	// notificationsClient.SendNotification(ctx, &pb.SendRequest{
-	//     UserId: userID,
-	//     Type:   "FeatureHourlyProfitDeposit",
-	//     Data:   map[string]interface{}{
-	//         "asset":  profit.Asset,
-	//         "amount": profit.Amount,
-	//         "id":     profit.FeatureID,
-	//     },
-	// })
+	// Re-fetch the updated profit record
+	updatedProfit, err := s.profitRepo.FindByID(ctx, profitID)
+	if err != nil {
+		return profit, nil // Return original if re-fetch fails
+	}
 
-	return profit.Amount, nil
+	return updatedProfit, nil
 }
 
 // GetProfitsByApplication withdraws all profits by karbari using gRPC
+// Processes profits in chunks to avoid memory spikes
 func (s *ProfitService) GetProfitsByApplication(ctx context.Context, userID uint64, karbari string) (float64, error) {
 	// Validate karbari
 	if karbari != constants.Maskoni && karbari != constants.Tejari && karbari != constants.Amozeshi {
@@ -113,22 +135,32 @@ func (s *ProfitService) GetProfitsByApplication(ctx context.Context, userID uint
 		return 0, fmt.Errorf("failed to get profits: %w", err)
 	}
 
-	// Sum amounts and add to wallet via gRPC
+	// Process profits in chunks of 100 (as per Laravel's chunkById(100))
+	chunkSize := 100
 	totalAmount := 0.0
-	for _, profit := range profits {
-		totalAmount += profit.Amount
 
-		// Add to wallet via gRPC
-		if profit.Amount > 0 {
-			if err := s.commercialClient.AddBalance(ctx, userID, profit.Asset, profit.Amount); err != nil {
-				s.log.Error("Failed to add profit to wallet", "profit_id", profit.ID, "error", err)
-				continue
-			}
+	for i := 0; i < len(profits); i += chunkSize {
+		end := i + chunkSize
+		if end > len(profits) {
+			end = len(profits)
 		}
 
-		// Reset profit
-		if err := s.profitRepo.ResetProfitAndUpdateDeadline(ctx, profit.ID, withdrawProfitDays); err != nil {
-			s.log.Error("Failed to reset profit", "profit_id", profit.ID, "error", err)
+		chunk := profits[i:end]
+		for _, profit := range chunk {
+			totalAmount += profit.Amount
+
+			// Add to wallet via gRPC
+			if profit.Amount > 0 && s.commercialClient != nil {
+				if err := s.commercialClient.AddBalance(ctx, userID, profit.Asset, profit.Amount); err != nil {
+					s.log.Error("Failed to add profit to wallet", "profit_id", profit.ID, "error", err)
+					continue
+				}
+			}
+
+			// Reset profit
+			if err := s.profitRepo.ResetProfitAndUpdateDeadline(ctx, profit.ID, withdrawProfitDays); err != nil {
+				s.log.Error("Failed to reset profit", "profit_id", profit.ID, "error", err)
+			}
 		}
 	}
 
@@ -142,18 +174,23 @@ func (s *ProfitService) GetProfitsByApplication(ctx context.Context, userID uint
 			"count", len(profits),
 		)
 
-		// TODO: Send notification via Notifications Service
-		// karbariTitle := constants.GetKarbariTitle(karbari)
-		// notificationsClient.SendNotification(ctx, &pb.SendRequest{
-		//     UserId: userID,
-		//     Type:   "FeatureHourlyProfitDeposit",
-		//     Data:   map[string]interface{}{
-		//         "asset":   asset,
-		//         "amount":  totalAmount,
-		//         "karbari": karbariTitle,
-		//         "id":      nil,
-		//     },
-		// })
+		// Send notification if notification client is available
+		if s.notificationClient != nil {
+			karbariTitle := constants.GetKarbariTitle(karbari)
+			data := map[string]string{
+				"asset":   asset,
+				"amount":  fmt.Sprintf("%.6f", totalAmount),
+				"karbari": karbariTitle,
+			}
+
+			colorName := constants.GetColorPersian(karbari)
+			title := fmt.Sprintf("سود ساعتی %s", karbariTitle)
+			message := fmt.Sprintf("مبلغ %.6f %s به کیف پول شما اضافه شد", totalAmount, colorName)
+
+			if err := s.notificationClient.SendNotification(ctx, userID, "FeatureHourlyProfitDeposit", title, message, data); err != nil {
+				s.log.Warn("Failed to send notification", "error", err)
+			}
+		}
 	}
 
 	return totalAmount, nil
@@ -188,20 +225,43 @@ func (s *ProfitService) TransferProfitOnSale(ctx context.Context, featureID, sel
 }
 
 // GetHourlyProfits retrieves paginated hourly profits for a user
-func (s *ProfitService) GetHourlyProfits(ctx context.Context, userID uint64, page, pageSize int32) (interface{}, string, string, string, error) {
+// Returns profits with feature information and formatted totals
+func (s *ProfitService) GetHourlyProfits(ctx context.Context, userID uint64, page, pageSize int32) ([]*models.FeatureHourlyProfit, string, string, string, error) {
+	// Default page size to 10 if not specified
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	if page <= 0 {
+		page = 1
+	}
+
 	// Get profits with pagination
 	profits, err := s.profitRepo.FindByUserID(ctx, userID, page, pageSize)
 	if err != nil {
-		return nil, "0", "0", "0", fmt.Errorf("failed to get profits: %w", err)
+		return nil, "0.00", "0.00", "0.00", fmt.Errorf("failed to get profits: %w", err)
 	}
 
-	// Get totals by karbari
+	// Get totals by karbari and format to 2 decimal places
 	totalMaskoni, totalTejari, totalAmozeshi, err := s.profitRepo.GetTotalsByKarbari(ctx, userID)
 	if err != nil {
-		return profits, "0", "0", "0", nil
+		return profits, "0.00", "0.00", "0.00", nil
 	}
 
-	return profits, totalMaskoni, totalTejari, totalAmozeshi, nil
+	// Format totals to 2 decimal places (matching Laravel's number_format(..., 2))
+	totalMaskoniFormatted := formatTotal(totalMaskoni)
+	totalTejariFormatted := formatTotal(totalTejari)
+	totalAmozeshiFormatted := formatTotal(totalAmozeshi)
+
+	return profits, totalMaskoniFormatted, totalTejariFormatted, totalAmozeshiFormatted, nil
+}
+
+// formatTotal formats a total amount string to 2 decimal places
+func formatTotal(totalStr string) string {
+	total, err := strconv.ParseFloat(totalStr, 64)
+	if err != nil {
+		return "0.00"
+	}
+	return fmt.Sprintf("%.2f", total)
 }
 
 // StartHourlyProfitCalculator runs the background job to calculate hourly profits
@@ -220,4 +280,3 @@ func (s *ProfitService) getUserVariableWithdrawProfit(ctx context.Context, userI
 	}
 	return days, nil
 }
-

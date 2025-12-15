@@ -9,13 +9,13 @@ import (
 type HelperService interface {
 	// GetUnansweredQuestionsCount calls Levels service to get unanswered questions count
 	GetUnansweredQuestionsCount(ctx context.Context, userID uint64) (int32, error)
-	
+
 	// GetHourlyProfitTimePercentage calls Features service to get hourly profit percentage
 	GetHourlyProfitTimePercentage(ctx context.Context, userID uint64) (float64, error)
-	
+
 	// GetScorePercentageToNextLevel calls Levels service to calculate score percentage
 	GetScorePercentageToNextLevel(ctx context.Context, userID uint64, currentScore int32) (float64, error)
-	
+
 	// GetUserLevel calls Levels service to get user's current level
 	GetUserLevel(ctx context.Context, userID uint64) (*LevelInfo, error)
 }

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"metargb/features-service/internal/client"
 	"metargb/features-service/internal/handler"
 	"metargb/features-service/internal/repository"
 	"metargb/features-service/internal/service"
@@ -80,29 +81,70 @@ func main() {
 	sellRequestRepo := repository.NewSellRequestRepository(database)
 	hourlyProfitRepo := repository.NewHourlyProfitRepository(database)
 	buildingRepo := repository.NewBuildingRepository(database)
+	imageRepo := repository.NewImageRepository(database)
+	lockedAssetRepo := repository.NewLockedAssetRepository(database)
+	featureLimitRepo := repository.NewFeatureLimitRepository(database)
+	mapRepo := repository.NewMapRepository(database)
 
 	// Initialize 3D client
 	threeDClient := threed_client.New(threeDMetaURL)
+
+	// Initialize commercial client for wallet operations
+	commercialServiceAddr := getEnv("COMMERCIAL_SERVICE_ADDR", "commercial-service:50052")
+	commercialClient, err := client.NewCommercialClient(commercialServiceAddr)
+	if err != nil {
+		log.Warn("Failed to connect to commercial service - marketplace features disabled", "error", err)
+		commercialClient = nil
+	} else {
+		log.Info("Connected to commercial service", "addr", commercialServiceAddr)
+		defer commercialClient.Close()
+	}
+
+	// Initialize notification client for profit notifications
+	notificationServiceAddr := getEnv("NOTIFICATIONS_SERVICE_ADDR", "notifications-service:50054")
+	notificationClient, err := client.NewNotificationClient(notificationServiceAddr)
+	if err != nil {
+		log.Warn("Failed to connect to notification service - notifications disabled", "error", err)
+		notificationClient = nil
+	} else {
+		log.Info("Connected to notification service", "addr", notificationServiceAddr)
+		defer notificationClient.Close()
+	}
+
+	// Initialize pricing service
+	pricingService := service.NewFeaturePricingService(
+		featureRepo,
+		propertiesRepo,
+		database,
+		log,
+	)
 
 	// Initialize services
 	featureService := service.NewFeatureService(
 		featureRepo,
 		propertiesRepo,
 		geometryRepo,
+		imageRepo,
+		buildingRepo,
+		tradeRepo,
+		hourlyProfitRepo,
+		pricingService,
+		database,
 	)
 
-	// Note: These services need additional dependencies that aren't fully implemented yet
-	// For now, pass nil for missing dependencies
+	// Initialize marketplace service with all dependencies
 	marketplaceService := service.NewMarketplaceService(
 		featureRepo,
 		propertiesRepo,
+		geometryRepo,
 		tradeRepo,
 		buyRequestRepo,
 		sellRequestRepo,
-		nil, // lockedAssetRepo - TODO: implement
+		lockedAssetRepo,
 		hourlyProfitRepo,
-		nil, // featureLimitRepo - TODO: implement
-		nil, // commercialClient - TODO: implement
+		featureLimitRepo,
+		commercialClient,
+		notificationClient,
 		database,
 		log,
 	)
@@ -111,7 +153,8 @@ func main() {
 		hourlyProfitRepo,
 		featureRepo,
 		propertiesRepo,
-		nil, // commercialClient - TODO: implement
+		commercialClient,
+		notificationClient,
 		database,
 		log,
 	)
@@ -124,11 +167,22 @@ func main() {
 		threeDClient,
 	)
 
+	// Set commercial client for building service (for wallet operations)
+	if commercialClient != nil {
+		buildingService.SetCommercialClient(commercialClient)
+	}
+
+	mapService := service.NewMapService(
+		mapRepo,
+		featureRepo,
+	)
+
 	// Initialize gRPC handlers
 	featureHandler := handler.NewFeatureHandler(featureService)
-	marketplaceHandler := handler.NewMarketplaceHandler(marketplaceService)
+	marketplaceHandler := handler.NewMarketplaceHandler(marketplaceService, geometryRepo, propertiesRepo, featureRepo)
 	profitHandler := handler.NewProfitHandler(profitService)
 	buildingHandler := handler.NewBuildingHandler(buildingService)
+	mapHandler := handler.NewMapHandler(mapService)
 
 	// Initialize token validator for authentication
 	// Connect to auth service for token validation
@@ -170,6 +224,7 @@ func main() {
 	pb.RegisterFeatureMarketplaceServiceServer(grpcServer, marketplaceHandler)
 	pb.RegisterFeatureProfitServiceServer(grpcServer, profitHandler)
 	pb.RegisterBuildingServiceServer(grpcServer, buildingHandler)
+	pb.RegisterMapsServiceServer(grpcServer, mapHandler)
 
 	// Enable reflection for debugging
 	reflection.Register(grpcServer)

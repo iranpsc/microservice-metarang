@@ -3,49 +3,130 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"time"
+	"path/filepath"
+	"strings"
 
 	"metargb/auth-service/internal/models"
 	"metargb/auth-service/internal/repository"
+	"metargb/shared/pkg/helpers"
+	"metargb/shared/pkg/jalali"
+)
+
+var (
+	ErrKYCNotFound            = errors.New("kyc not found")
+	ErrKYCNotOwned            = errors.New("kyc does not belong to user")
+	ErrKYCNotRejected         = errors.New("kyc must be rejected to update")
+	ErrInvalidFname           = errors.New("fname must be between 2 and 255 characters")
+	ErrInvalidLname           = errors.New("lname must be between 2 and 255 characters")
+	ErrInvalidMelliCode       = errors.New("invalid Iranian national code")
+	ErrMelliCodeNotUnique     = errors.New("melli code already exists")
+	ErrInvalidBirthdate       = errors.New("invalid birthdate format")
+	ErrInvalidProvince        = errors.New("province must be at most 255 characters")
+	ErrInvalidGender          = errors.New("gender must be one of: male, female, other")
+	ErrBankAccountNotFound    = errors.New("bank account not found")
+	ErrBankAccountNotOwned    = errors.New("bank account does not belong to user")
+	ErrBankAccountNotRejected = errors.New("bank account must be rejected to update")
+	ErrUserNotVerified        = errors.New("user must be verified to create bank account")
+	ErrInvalidBankName        = errors.New("bank name must be at least 2 characters")
+	ErrInvalidShabaNum        = errors.New("invalid Iranian sheba number")
+	ErrInvalidCardNum         = errors.New("invalid Iranian bank card number")
+	ErrShabaNumNotUnique      = errors.New("sheba number already exists")
+	ErrCardNumNotUnique       = errors.New("card number already exists")
 )
 
 type KYCService interface {
-	SubmitKYC(ctx context.Context, userID uint64, fname, lname, nationalCode, birthdate string) (*models.KYC, error)
-	GetKYCStatus(ctx context.Context, userID uint64) (*models.KYC, error)
-	VerifyBankAccount(ctx context.Context, userID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error)
+	GetKYC(ctx context.Context, userID uint64) (*models.KYC, error)
+	UpdateKYC(ctx context.Context, userID uint64, fname, lname, melliCode, birthdate, province, melliCard, videoPath, videoName string, verifyTextID uint64, gender string) (*models.KYC, error)
+	ListBankAccounts(ctx context.Context, userID uint64) ([]*models.BankAccount, error)
+	CreateBankAccount(ctx context.Context, userID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error)
+	GetBankAccount(ctx context.Context, userID uint64, bankAccountID uint64) (*models.BankAccount, error)
+	UpdateBankAccount(ctx context.Context, userID uint64, bankAccountID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error)
+	DeleteBankAccount(ctx context.Context, userID uint64, bankAccountID uint64) error
 }
 
 type kycService struct {
-	kycRepo repository.KYCRepository
+	kycRepo  repository.KYCRepository
+	userRepo repository.UserRepository
 }
 
-func NewKYCService(kycRepo repository.KYCRepository) KYCService {
+func NewKYCService(kycRepo repository.KYCRepository, userRepo repository.UserRepository) KYCService {
 	return &kycService{
-		kycRepo: kycRepo,
+		kycRepo:  kycRepo,
+		userRepo: userRepo,
 	}
 }
 
-func (s *kycService) SubmitKYC(ctx context.Context, userID uint64, fname, lname, nationalCode, birthdate string) (*models.KYC, error) {
+func (s *kycService) GetKYC(ctx context.Context, userID uint64) (*models.KYC, error) {
+	kyc, err := s.kycRepo.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kyc: %w", err)
+	}
+	// Return nil if not found (handler will return empty object)
+	return kyc, nil
+}
+
+func (s *kycService) UpdateKYC(ctx context.Context, userID uint64, fname, lname, melliCode, birthdate, province, melliCard, videoPath, videoName string, verifyTextID uint64, gender string) (*models.KYC, error) {
+	// Validate input
+	if err := s.validateKYCInput(fname, lname, melliCode, birthdate, province, gender); err != nil {
+		return nil, err
+	}
+
 	// Check if KYC already exists
 	existing, err := s.kycRepo.FindByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing kyc: %w", err)
 	}
 
-	// Parse birthdate
-	parsedDate, err := time.Parse("2006-01-02", birthdate)
+	// Policy check: if KYC exists and is not rejected, cannot update
+	if existing != nil && !existing.Rejected() {
+		return nil, ErrKYCNotRejected
+	}
+
+	// Parse Jalali birthdate to Gregorian
+	parsedDate, err := jalali.JalaliToCarbon(birthdate)
 	if err != nil {
-		return nil, fmt.Errorf("invalid birthdate format: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidBirthdate, err)
+	}
+
+	// Check melli_code uniqueness (exclude current user)
+	unique, err := s.kycRepo.CheckUniqueMelliCode(ctx, melliCode, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check melli code uniqueness: %w", err)
+	}
+	if !unique {
+		return nil, ErrMelliCodeNotUnique
+	}
+
+	// Process video path - move from temp to public storage
+	videoURL := ""
+	if videoPath != "" && videoName != "" {
+		// In a real implementation, this would move the file from storage/app/<path>/<name>
+		// to storage/app/public/kyc/<name> and return /uploads/kyc/<name>
+		// For now, we'll construct the public URL
+		videoURL = fmt.Sprintf("/uploads/kyc/%s", filepath.Base(videoName))
 	}
 
 	if existing != nil {
-		// Update existing KYC
-		existing.Fname = fname
-		existing.Lname = lname
-		existing.NationalCode = nationalCode
+		// Update existing KYC - reset status to pending and clear errors
+		existing.Fname = strings.TrimSpace(fname)
+		existing.Lname = strings.TrimSpace(lname)
+		existing.MelliCode = strings.TrimSpace(melliCode)
 		existing.Birthdate = sql.NullTime{Time: parsedDate, Valid: true}
-		existing.Status = 0 // Pending verification
+		existing.Province = strings.TrimSpace(province)
+		existing.MelliCard = melliCard
+		existing.Status = 0                // Reset to pending
+		existing.Errors = sql.NullString{} // Clear errors
+		if videoURL != "" {
+			existing.Video = sql.NullString{String: videoURL, Valid: true}
+		}
+		if verifyTextID > 0 {
+			existing.VerifyTextID = sql.NullInt64{Int64: int64(verifyTextID), Valid: true}
+		}
+		if gender != "" {
+			existing.Gender = sql.NullString{String: gender, Valid: true}
+		}
 
 		if err := s.kycRepo.Update(ctx, existing); err != nil {
 			return nil, fmt.Errorf("failed to update kyc: %w", err)
@@ -55,12 +136,24 @@ func (s *kycService) SubmitKYC(ctx context.Context, userID uint64, fname, lname,
 
 	// Create new KYC
 	kyc := &models.KYC{
-		UserID:       userID,
-		Fname:        fname,
-		Lname:        lname,
-		NationalCode: nationalCode,
-		Status:       0, // Pending
-		Birthdate:    sql.NullTime{Time: parsedDate, Valid: true},
+		UserID:    userID,
+		Fname:     strings.TrimSpace(fname),
+		Lname:     strings.TrimSpace(lname),
+		MelliCode: strings.TrimSpace(melliCode),
+		Province:  strings.TrimSpace(province),
+		MelliCard: melliCard,
+		Status:    0, // Pending
+		Birthdate: sql.NullTime{Time: parsedDate, Valid: true},
+		Errors:    sql.NullString{},
+	}
+	if videoURL != "" {
+		kyc.Video = sql.NullString{String: videoURL, Valid: true}
+	}
+	if verifyTextID > 0 {
+		kyc.VerifyTextID = sql.NullInt64{Int64: int64(verifyTextID), Valid: true}
+	}
+	if gender != "" {
+		kyc.Gender = sql.NullString{String: gender, Valid: true}
 	}
 
 	if err := s.kycRepo.Create(ctx, kyc); err != nil {
@@ -70,20 +163,133 @@ func (s *kycService) SubmitKYC(ctx context.Context, userID uint64, fname, lname,
 	return kyc, nil
 }
 
-func (s *kycService) GetKYCStatus(ctx context.Context, userID uint64) (*models.KYC, error) {
-	kyc, err := s.kycRepo.FindByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get kyc status: %w", err)
+// validateKYCInput validates all KYC input fields
+func (s *kycService) validateKYCInput(fname, lname, melliCode, birthdate, province, gender string) error {
+	fname = strings.TrimSpace(fname)
+	if len(fname) < 2 || len(fname) > 255 {
+		return ErrInvalidFname
 	}
-	if kyc == nil {
-		return nil, fmt.Errorf("kyc not found")
+
+	lname = strings.TrimSpace(lname)
+	if len(lname) < 2 || len(lname) > 255 {
+		return ErrInvalidLname
 	}
-	return kyc, nil
+
+	melliCode = strings.TrimSpace(melliCode)
+	cv := helpers.NewCustomValidator()
+	if err := cv.Validate(struct {
+		Code string `validate:"required,iranian_national_code"`
+	}{Code: melliCode}); err != nil {
+		return ErrInvalidMelliCode
+	}
+
+	// Validate birthdate format (Jalali: Y/m/d)
+	if birthdate == "" {
+		return ErrInvalidBirthdate
+	}
+
+	province = strings.TrimSpace(province)
+	if len(province) > 255 {
+		return ErrInvalidProvince
+	}
+
+	gender = strings.TrimSpace(gender)
+	if gender != "" && gender != "male" && gender != "female" && gender != "other" {
+		return ErrInvalidGender
+	}
+
+	return nil
 }
 
-func (s *kycService) VerifyBankAccount(ctx context.Context, userID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error) {
-	// TODO: Implement actual bank verification logic (e.g., call to bank API)
-	
+// validateIranianNationalCode validates Iranian national code using the helpers package
+func (s *kycService) validateIranianNationalCode(code string) bool {
+	cv := helpers.NewCustomValidator()
+	return cv.Validate(struct {
+		Code string `validate:"required,iranian_national_code"`
+	}{Code: code}) == nil
+}
+
+// isUserVerified checks if user has verified email or phone
+func (s *kycService) isUserVerified(ctx context.Context, userID uint64) (bool, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return false, fmt.Errorf("user not found")
+	}
+	return user.EmailVerifiedAt.Valid || user.PhoneVerifiedAt.Valid, nil
+}
+
+// validateBankAccountInput validates bank account input fields
+func (s *kycService) validateBankAccountInput(bankName, shabaNum, cardNum string) error {
+	bankName = strings.TrimSpace(bankName)
+	if len(bankName) < 2 {
+		return ErrInvalidBankName
+	}
+	if len(bankName) > 255 {
+		return ErrInvalidBankName
+	}
+
+	shabaNum = strings.TrimSpace(strings.ToUpper(shabaNum))
+	if !helpers.ValidateIranianSheba(shabaNum) {
+		return ErrInvalidShabaNum
+	}
+
+	cardNum = strings.TrimSpace(cardNum)
+	if !helpers.ValidateIranianBankCardNumber(cardNum) {
+		return ErrInvalidCardNum
+	}
+
+	return nil
+}
+
+func (s *kycService) ListBankAccounts(ctx context.Context, userID uint64) ([]*models.BankAccount, error) {
+	accounts, err := s.kycRepo.FindBankAccountsByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list bank accounts: %w", err)
+	}
+	return accounts, nil
+}
+
+func (s *kycService) CreateBankAccount(ctx context.Context, userID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error) {
+	// Check if user is verified
+	verified, err := s.isUserVerified(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !verified {
+		return nil, ErrUserNotVerified
+	}
+
+	// Validate input
+	if err := s.validateBankAccountInput(bankName, shabaNum, cardNum); err != nil {
+		return nil, err
+	}
+
+	// Normalize inputs
+	bankName = strings.TrimSpace(bankName)
+	shabaNum = strings.TrimSpace(strings.ToUpper(shabaNum))
+	cardNum = strings.TrimSpace(cardNum)
+
+	// Check uniqueness (for create, excludeID is 0)
+	uniqueShaba, err := s.kycRepo.CheckUniqueShaba(ctx, shabaNum, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check shaba uniqueness: %w", err)
+	}
+	if !uniqueShaba {
+		return nil, ErrShabaNumNotUnique
+	}
+
+	uniqueCard, err := s.kycRepo.CheckUniqueCard(ctx, cardNum, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check card uniqueness: %w", err)
+	}
+	if !uniqueCard {
+		return nil, ErrCardNumNotUnique
+	}
+
+	// Create bank account with status 0 (pending)
 	bankAccount := &models.BankAccount{
 		BankableType: "App\\Models\\User",
 		BankableID:   userID,
@@ -101,3 +307,103 @@ func (s *kycService) VerifyBankAccount(ctx context.Context, userID uint64, bankN
 	return bankAccount, nil
 }
 
+func (s *kycService) GetBankAccount(ctx context.Context, userID uint64, bankAccountID uint64) (*models.BankAccount, error) {
+	bankAccount, err := s.kycRepo.FindBankAccountByID(ctx, bankAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find bank account: %w", err)
+	}
+	if bankAccount == nil {
+		return nil, ErrBankAccountNotFound
+	}
+
+	// Check ownership
+	if bankAccount.BankableType != "App\\Models\\User" || bankAccount.BankableID != userID {
+		return nil, ErrBankAccountNotOwned
+	}
+
+	return bankAccount, nil
+}
+
+func (s *kycService) UpdateBankAccount(ctx context.Context, userID uint64, bankAccountID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error) {
+	// Get existing bank account
+	bankAccount, err := s.kycRepo.FindBankAccountByID(ctx, bankAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find bank account: %w", err)
+	}
+	if bankAccount == nil {
+		return nil, ErrBankAccountNotFound
+	}
+
+	// Check ownership
+	if bankAccount.BankableType != "App\\Models\\User" || bankAccount.BankableID != userID {
+		return nil, ErrBankAccountNotOwned
+	}
+
+	// Check if status is rejected (-1) - only rejected accounts can be updated
+	if bankAccount.Status != -1 {
+		return nil, ErrBankAccountNotRejected
+	}
+
+	// Validate input
+	if err := s.validateBankAccountInput(bankName, shabaNum, cardNum); err != nil {
+		return nil, err
+	}
+
+	// Normalize inputs
+	bankName = strings.TrimSpace(bankName)
+	shabaNum = strings.TrimSpace(strings.ToUpper(shabaNum))
+	cardNum = strings.TrimSpace(cardNum)
+
+	// Check uniqueness (exclude current record)
+	uniqueShaba, err := s.kycRepo.CheckUniqueShaba(ctx, shabaNum, bankAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check shaba uniqueness: %w", err)
+	}
+	if !uniqueShaba {
+		return nil, ErrShabaNumNotUnique
+	}
+
+	uniqueCard, err := s.kycRepo.CheckUniqueCard(ctx, cardNum, bankAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check card uniqueness: %w", err)
+	}
+	if !uniqueCard {
+		return nil, ErrCardNumNotUnique
+	}
+
+	// Update bank account - reset to pending and clear errors
+	bankAccount.BankName = bankName
+	bankAccount.ShabaNum = shabaNum
+	bankAccount.CardNum = cardNum
+	bankAccount.Status = 0                // Reset to pending
+	bankAccount.Errors = sql.NullString{} // Clear errors
+
+	if err := s.kycRepo.UpdateBankAccount(ctx, bankAccount); err != nil {
+		return nil, fmt.Errorf("failed to update bank account: %w", err)
+	}
+
+	return bankAccount, nil
+}
+
+func (s *kycService) DeleteBankAccount(ctx context.Context, userID uint64, bankAccountID uint64) error {
+	// Get existing bank account
+	bankAccount, err := s.kycRepo.FindBankAccountByID(ctx, bankAccountID)
+	if err != nil {
+		return fmt.Errorf("failed to find bank account: %w", err)
+	}
+	if bankAccount == nil {
+		return ErrBankAccountNotFound
+	}
+
+	// Check ownership
+	if bankAccount.BankableType != "App\\Models\\User" || bankAccount.BankableID != userID {
+		return ErrBankAccountNotOwned
+	}
+
+	// Delete bank account
+	if err := s.kycRepo.DeleteBankAccount(ctx, bankAccountID); err != nil {
+		return fmt.Errorf("failed to delete bank account: %w", err)
+	}
+
+	return nil
+}

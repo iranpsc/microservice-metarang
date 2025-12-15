@@ -51,4 +51,3 @@ func FeaturesToPB(features []*Feature) []*pb.Feature {
 	}
 	return result
 }
-

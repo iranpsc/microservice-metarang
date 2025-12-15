@@ -34,7 +34,7 @@ type JoinRequest struct {
 	ID           uint64    `db:"id"`
 	FromUser     uint64    `db:"from_user"`
 	ToUser       uint64    `db:"to_user"`
-	Status       int16     `db:"status"` // 0=pending, 1=accepted, 2=rejected, 4=default
+	Status       int16     `db:"status"` // 0=pending, 1=accepted, -1=rejected
 	Relationship string    `db:"relationship"`
 	Message      *string   `db:"message"`
 	CreatedAt    time.Time `db:"created_at"`
@@ -79,15 +79,15 @@ type DynastyPermission struct {
 
 // DynastyPrize represents dynasty rewards
 type DynastyPrize struct {
-	ID                           uint64  `db:"id"`
-	Member                       string  `db:"member"`
-	Satisfaction                 float64 `db:"satisfaction"`
-	IntroductionProfitIncrease   float64 `db:"introduction_profit_increase"`
-	AccumulatedCapitalReserve    float64 `db:"accumulated_capital_reserve"`
-	DataStorage                  float64 `db:"data_storage"`
-	PSC                          int     `db:"psc"`
-	CreatedAt                    time.Time `db:"created_at"`
-	UpdatedAt                    time.Time `db:"updated_at"`
+	ID                         uint64    `db:"id"`
+	Member                     string    `db:"member"`
+	Satisfaction               float64   `db:"satisfaction"`
+	IntroductionProfitIncrease float64   `db:"introduction_profit_increase"`
+	AccumulatedCapitalReserve  float64   `db:"accumulated_capital_reserve"`
+	DataStorage                float64   `db:"data_storage"`
+	PSC                        int       `db:"psc"`
+	CreatedAt                  time.Time `db:"created_at"`
+	UpdatedAt                  time.Time `db:"updated_at"`
 }
 
 // DynastyMessage represents predefined dynasty messages
@@ -106,4 +106,3 @@ type UserBasic struct {
 	Name         string
 	ProfilePhoto *string
 }
-

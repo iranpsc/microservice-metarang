@@ -20,8 +20,8 @@ func NewJoinRequestRepository(db *sql.DB) *JoinRequestRepository {
 func (r *JoinRequestRepository) CreateJoinRequest(ctx context.Context, req *models.JoinRequest) error {
 	query := `INSERT INTO join_requests (from_user, to_user, status, relationship, message, created_at, updated_at) 
 	          VALUES (?, ?, ?, ?, ?, NOW(), NOW())`
-	
-	result, err := r.db.ExecContext(ctx, query, 
+
+	result, err := r.db.ExecContext(ctx, query,
 		req.FromUser, req.ToUser, req.Status, req.Relationship, req.Message)
 	if err != nil {
 		return fmt.Errorf("failed to create join request: %w", err)
@@ -40,7 +40,7 @@ func (r *JoinRequestRepository) CreateJoinRequest(ctx context.Context, req *mode
 func (r *JoinRequestRepository) GetJoinRequestByID(ctx context.Context, id uint64) (*models.JoinRequest, error) {
 	query := `SELECT id, from_user, to_user, status, relationship, message, created_at, updated_at 
 	          FROM join_requests WHERE id = ?`
-	
+
 	var req models.JoinRequest
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&req.ID,
@@ -81,7 +81,7 @@ func (r *JoinRequestRepository) GetSentRequests(ctx context.Context, userID uint
 	          WHERE from_user = ? 
 	          ORDER BY created_at DESC 
 	          LIMIT ? OFFSET ?`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, userID, perPage, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get sent requests: %w", err)
@@ -127,7 +127,7 @@ func (r *JoinRequestRepository) GetReceivedRequests(ctx context.Context, userID 
 	          WHERE to_user = ? 
 	          ORDER BY created_at DESC 
 	          LIMIT ? OFFSET ?`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, userID, perPage, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get received requests: %w", err)
@@ -158,7 +158,7 @@ func (r *JoinRequestRepository) GetReceivedRequests(ctx context.Context, userID 
 // UpdateJoinRequestStatus updates the status of a join request
 func (r *JoinRequestRepository) UpdateJoinRequestStatus(ctx context.Context, id uint64, status int16) error {
 	query := `UPDATE join_requests SET status = ?, updated_at = NOW() WHERE id = ?`
-	
+
 	_, err := r.db.ExecContext(ctx, query, status, id)
 	if err != nil {
 		return fmt.Errorf("failed to update join request status: %w", err)
@@ -170,7 +170,7 @@ func (r *JoinRequestRepository) UpdateJoinRequestStatus(ctx context.Context, id 
 // DeleteJoinRequest deletes a join request
 func (r *JoinRequestRepository) DeleteJoinRequest(ctx context.Context, id uint64) error {
 	query := `DELETE FROM join_requests WHERE id = ?`
-	
+
 	_, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete join request: %w", err)
@@ -186,7 +186,7 @@ func (r *JoinRequestRepository) GetUserBasicInfo(ctx context.Context, userID uin
 		FROM users u 
 		WHERE u.id = ?
 	`
-	
+
 	var user models.UserBasic
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&user.ID, &user.Code, &user.Name)
 	if err != nil {
@@ -216,7 +216,7 @@ func (r *JoinRequestRepository) CreateChildPermission(ctx context.Context, perm 
 		(user_id, verified, BFR, SF, W, JU, DM, PIUP, PITC, PIC, ESOO, COTB, created_at, updated_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
 	`
-	
+
 	_, err := r.db.ExecContext(ctx, query,
 		perm.UserID, perm.Verified, perm.BFR, perm.SF, perm.W, perm.JU,
 		perm.DM, perm.PIUP, perm.PITC, perm.PIC, perm.ESOO, perm.COTB,
@@ -236,7 +236,7 @@ func (r *JoinRequestRepository) UpdateChildPermission(ctx context.Context, userI
 		    PIUP = ?, PITC = ?, PIC = ?, ESOO = ?, COTB = ?, updated_at = NOW()
 		WHERE user_id = ?
 	`
-	
+
 	_, err := r.db.ExecContext(ctx, query,
 		perm.Verified, perm.BFR, perm.SF, perm.W, perm.JU, perm.DM,
 		perm.PIUP, perm.PITC, perm.PIC, perm.ESOO, perm.COTB, userID,
@@ -255,7 +255,7 @@ func (r *JoinRequestRepository) GetChildPermission(ctx context.Context, userID u
 		FROM children_permissions 
 		WHERE user_id = ?
 	`
-	
+
 	var perm models.ChildPermission
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&perm.ID, &perm.UserID, &perm.Verified, &perm.BFR, &perm.SF, &perm.W, &perm.JU,
@@ -279,7 +279,7 @@ func (r *JoinRequestRepository) GetDynastyPermission(ctx context.Context) (*mode
 		FROM dynasty_permissions 
 		LIMIT 1
 	`
-	
+
 	var perm models.DynastyPermission
 	err := r.db.QueryRowContext(ctx, query).Scan(
 		&perm.ID, &perm.BFR, &perm.SF, &perm.W, &perm.JU, &perm.DM,
@@ -301,7 +301,7 @@ func (r *JoinRequestRepository) CheckUserAge(ctx context.Context, userID uint64)
 		WHERE user_id = ?
 		LIMIT 1
 	`
-	
+
 	var isUnder18 bool
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&isUnder18)
 	if err == sql.ErrNoRows {
@@ -313,4 +313,3 @@ func (r *JoinRequestRepository) CheckUserAge(ctx context.Context, userID uint64)
 
 	return isUnder18, nil
 }
-

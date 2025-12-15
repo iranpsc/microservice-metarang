@@ -84,4 +84,3 @@ func stringOrEmpty(s *string) string {
 	}
 	return *s
 }
-

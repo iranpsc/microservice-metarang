@@ -50,7 +50,48 @@ func (r *TradeRepository) GetLatestForFeature(ctx context.Context, featureID uin
 		&trade.CreatedAt, &trade.UpdatedAt,
 	)
 
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
 	return trade, err
+}
+
+// GetLatestForFeatureWithSeller gets the most recent trade for a feature with seller information
+func (r *TradeRepository) GetLatestForFeatureWithSeller(ctx context.Context, featureID uint64) (*models.Trade, *SellerInfo, error) {
+	trade := &models.Trade{}
+	seller := &SellerInfo{}
+
+	query := `
+		SELECT 
+			t.id, t.feature_id, t.buyer_id, t.seller_id, t.irr_amount, t.psc_amount, t.date, t.created_at, t.updated_at,
+			u.id as seller_user_id, u.name as seller_name, u.code as seller_code
+		FROM trades t
+		LEFT JOIN users u ON t.seller_id = u.id
+		WHERE t.feature_id = ?
+		ORDER BY t.created_at DESC
+		LIMIT 1
+	`
+
+	err := r.db.QueryRowContext(ctx, query, featureID).Scan(
+		&trade.ID, &trade.FeatureID, &trade.BuyerID, &trade.SellerID,
+		&trade.IRRAmount, &trade.PSCAmount, &trade.Date,
+		&trade.CreatedAt, &trade.UpdatedAt,
+		&seller.ID, &seller.Name, &seller.Code,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil, nil
+	}
+
+	return trade, seller, err
+}
+
+// SellerInfo represents seller information from a trade
+type SellerInfo struct {
+	ID   uint64
+	Name string
+	Code string
 }
 
 // GetLatestForSeller gets the most recent underpriced trade for a seller
@@ -105,4 +146,3 @@ func (r *TradeRepository) GetTimeRemaining(trade *models.Trade) (hours int, minu
 	minutes = int(remaining.Minutes()) % 60
 	return hours, minutes
 }
-

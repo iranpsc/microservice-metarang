@@ -18,9 +18,9 @@ func NewCalendarRepository(db *sql.DB) *CalendarRepository {
 }
 
 // GetEvents retrieves events with optional filtering
+// NOTE: When date is provided, returns all entries (no pagination) in descending order
+// When date is not provided, uses pagination
 func (r *CalendarRepository) GetEvents(ctx context.Context, eventType, search, date string, userID uint64, page, perPage int32) ([]*models.Calendar, int32, error) {
-	offset := (page - 1) * perPage
-
 	// Build query
 	query := "SELECT id, slug, title, content, color, writer, is_version, version_title, btn_name, btn_link, image, starts_at, ends_at, created_at, updated_at FROM calendars WHERE 1=1"
 	countQuery := "SELECT COUNT(*) FROM calendars WHERE 1=1"
@@ -44,7 +44,9 @@ func (r *CalendarRepository) GetEvents(ctx context.Context, eventType, search, d
 	}
 
 	// Filter by date (events active on that date)
-	if date != "" {
+	// When date is provided, no pagination - return all entries
+	hasDateFilter := date != ""
+	if hasDateFilter {
 		carbonDate, err := jalali.JalaliToCarbon(date)
 		if err != nil {
 			return nil, 0, fmt.Errorf("invalid jalali date: %w", err)
@@ -54,18 +56,26 @@ func (r *CalendarRepository) GetEvents(ctx context.Context, eventType, search, d
 		args = append(args, carbonDate.Format("2006-01-02"), carbonDate.Format("2006-01-02"))
 	}
 
-	// Get total count
+	// Get total count (only needed for pagination)
 	var total int32
-	countArgs := make([]interface{}, len(args))
-	copy(countArgs, args)
-	err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count events: %w", err)
+	if !hasDateFilter {
+		countArgs := make([]interface{}, len(args))
+		copy(countArgs, args)
+		err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count events: %w", err)
+		}
 	}
 
-	// Add ordering and pagination
-	query += " ORDER BY starts_at DESC LIMIT ? OFFSET ?"
-	args = append(args, perPage, offset)
+	// Add ordering
+	query += " ORDER BY starts_at DESC"
+
+	// Add pagination only if date filter is not provided
+	if !hasDateFilter {
+		offset := (page - 1) * perPage
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, perPage, offset)
+	}
 
 	// Execute query
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -97,6 +107,11 @@ func (r *CalendarRepository) GetEvents(ctx context.Context, eventType, search, d
 			return nil, 0, fmt.Errorf("failed to scan event: %w", err)
 		}
 		events = append(events, &event)
+	}
+
+	// If date filter is provided, total is the count of returned events
+	if hasDateFilter {
+		total = int32(len(events))
 	}
 
 	return events, total, nil
@@ -136,12 +151,15 @@ func (r *CalendarRepository) GetEventByID(ctx context.Context, id uint64) (*mode
 }
 
 // FilterByDateRange retrieves events within a date range
+// NOTE: Returns only non-version events that overlap the requested range
+// Overlap logic: events that start, end, or span entirely within the provided range
+// Ordered by created_at DESC (latest first) per API documentation
 func (r *CalendarRepository) FilterByDateRange(ctx context.Context, startDate, endDate string) ([]*models.Calendar, error) {
 	start, err := jalali.JalaliToCarbon(startDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid start date: %w", err)
 	}
-	
+
 	end, err := jalali.JalaliToCarbon(endDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid end date: %w", err)
@@ -150,16 +168,20 @@ func (r *CalendarRepository) FilterByDateRange(ctx context.Context, startDate, e
 	startStr := start.Format("2006-01-02")
 	endStr := end.Format("2006-01-02")
 
+	// Overlap logic: event overlaps if:
+	// 1. Event starts within range: starts_at BETWEEN start AND end
+	// 2. Event ends within range: ends_at BETWEEN start AND end
+	// 3. Event spans entire range: starts_at <= start AND (ends_at IS NULL OR ends_at >= end)
 	query := `
 		SELECT id, slug, title, content, color, writer, is_version, version_title, btn_name, btn_link, image, starts_at, ends_at, created_at, updated_at 
 		FROM calendars 
 		WHERE is_version = 0 
 		AND (
-			(starts_at BETWEEN ? AND ?) OR
-			(ends_at BETWEEN ? AND ?) OR
-			(starts_at <= ? AND (ends_at IS NULL OR ends_at >= ?))
+			(DATE(starts_at) BETWEEN ? AND ?) OR
+			(DATE(ends_at) BETWEEN ? AND ?) OR
+			(DATE(starts_at) <= ? AND (ends_at IS NULL OR DATE(ends_at) >= ?))
 		)
-		ORDER BY starts_at DESC
+		ORDER BY created_at DESC
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, startStr, endStr, startStr, endStr, startStr, endStr)
@@ -295,4 +317,3 @@ func (r *CalendarRepository) IncrementView(ctx context.Context, eventID uint64, 
 	}
 	return nil
 }
-

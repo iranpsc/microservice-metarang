@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"metargb/storage-service/internal/ftp"
@@ -13,12 +15,17 @@ import (
 type StorageService struct {
 	ftpClient    ftp.FTPClientInterface
 	chunkManager *ChunkManager
+	storageBase  string // Base directory for local storage (e.g., "storage/app")
 }
 
-func NewStorageService(ftpClient ftp.FTPClientInterface, chunkManager *ChunkManager) *StorageService {
+func NewStorageService(ftpClient ftp.FTPClientInterface, chunkManager *ChunkManager, storageBase string) *StorageService {
+	if storageBase == "" {
+		storageBase = "storage/app"
+	}
 	return &StorageService{
 		ftpClient:    ftpClient,
 		chunkManager: chunkManager,
+		storageBase:  storageBase,
 	}
 }
 
@@ -84,6 +91,7 @@ func (s *StorageService) DeleteFile(filePath string) error {
 }
 
 // HandleChunkUpload processes a chunk upload
+// Returns: isFinished, progress, filePath (relative path like "upload/mime/date/"), finalFilename, mimeType, error
 func (s *StorageService) HandleChunkUpload(uploadID, filename, contentType string, chunkData []byte, chunkIndex, totalChunks int32, totalSize int64, uploadPath string) (bool, float64, string, string, string, error) {
 	// Get or create session
 	session, err := s.chunkManager.GetOrCreateSession(uploadID, filename, contentType, totalChunks, totalSize, uploadPath)
@@ -105,28 +113,44 @@ func (s *StorageService) HandleChunkUpload(uploadID, filename, contentType strin
 	}
 
 	// Assemble file
-	assembledData, finalPath, err := s.chunkManager.AssembleFile(session)
+	assembledData, relativePath, finalFilename, err := s.chunkManager.AssembleFile(session)
 	if err != nil {
 		s.chunkManager.CleanupSession(uploadID)
 		return false, 0, "", "", "", fmt.Errorf("failed to assemble file: %w", err)
 	}
 
-	// Generate unique filename from the final path
-	finalFilename := filepath.Base(finalPath)
+	// Save file locally to storage/app/upload/{mime}/{date}/
+	// The relativePath is already in format "upload/{mime}/{date}/{filename}"
+	localPath := filepath.Join(s.storageBase, relativePath)
+	localDir := filepath.Dir(localPath)
 
-	// Upload to FTP
-	reader := bytes.NewReader(assembledData)
-	if err := s.ftpClient.UploadFile(finalPath, reader); err != nil {
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(localDir, 0755); err != nil {
 		s.chunkManager.CleanupSession(uploadID)
-		return false, 0, "", "", "", fmt.Errorf("failed to upload file: %w", err)
+		return false, 0, "", "", "", fmt.Errorf("failed to create storage directory: %w", err)
 	}
 
-	// Generate URL
-	url := s.ftpClient.GenerateURL(finalPath)
+	// Write file to local storage
+	if err := os.WriteFile(localPath, assembledData, 0644); err != nil {
+		s.chunkManager.CleanupSession(uploadID)
+		return false, 0, "", "", "", fmt.Errorf("failed to save file: %w", err)
+	}
+
+	// Extract mime type (clean it up - remove charset if present)
+	mimeType := strings.Split(contentType, ";")[0]
+	mimeType = strings.TrimSpace(mimeType)
+
+	// Return relative path in format "upload/{mime}/{date}/" (directory path, not file path)
+	// This matches Laravel's response format
+	pathDir := filepath.Dir(relativePath)
+	// Normalize path separators to forward slashes for consistency
+	pathDir = strings.ReplaceAll(pathDir, "\\", "/")
+	if !strings.HasSuffix(pathDir, "/") {
+		pathDir += "/"
+	}
 
 	// Cleanup session
 	s.chunkManager.CleanupSession(uploadID)
 
-	return true, 100.0, url, finalPath, finalFilename, nil
+	return true, 100.0, pathDir, finalFilename, mimeType, nil
 }
-

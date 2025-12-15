@@ -33,7 +33,7 @@ func NewRedisPublisher(redisURL string) (RedisPublisher, error) {
 	}
 
 	client := redis.NewClient(opts)
-	
+
 	// Test connection
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -78,4 +78,3 @@ func (p *redisPublisher) PublishUserStatusChanged(ctx context.Context, userID ui
 func (p *redisPublisher) Close() error {
 	return p.client.Close()
 }
-

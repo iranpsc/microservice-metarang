@@ -23,11 +23,11 @@ type DatabaseConfig struct {
 // ParsianConfig holds Parsian payment gateway configuration
 // Matches Laravel's config/parsian.php
 type ParsianConfig struct {
-	MerchantID              string // Regular merchant ID
-	PIN                     string // PIN for regular merchant
-	CallbackURL             string // Callback URL for payment gateway
-	LoanAccountMerchantID   string // Loan account merchant ID (for IRR)
-	LoanAccountPIN          string // PIN for loan account
+	MerchantID            string // Regular merchant ID
+	PIN                   string // PIN for regular merchant
+	CallbackURL           string // Callback URL for payment gateway
+	LoanAccountMerchantID string // Loan account merchant ID (for IRR)
+	LoanAccountPIN        string // PIN for loan account
 }
 
 // ServerConfig holds server configuration
@@ -43,7 +43,7 @@ func LoadConfig() *Config {
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "3306"),
 			User:     getEnv("DB_USER", "root"),
-			Password:getEnv("DB_PASSWORD", ""),
+			Password: getEnv("DB_PASSWORD", ""),
 			Database: getEnv("DB_DATABASE", "metargb"),
 		},
 		Parsian: ParsianConfig{
@@ -67,4 +67,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
-

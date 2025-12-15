@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"google.golang.org/grpc"
@@ -15,6 +16,7 @@ import (
 	"metargb/notifications-service/internal/errs"
 	"metargb/notifications-service/internal/models"
 	"metargb/notifications-service/internal/service"
+	"metargb/shared/pkg/helpers"
 )
 
 // NotificationHandler implements the gRPC NotificationService.
@@ -70,8 +72,9 @@ func (h *NotificationHandler) GetNotifications(ctx context.Context, req *pb.GetN
 	}
 
 	filter := models.NotificationFilter{
-		Page:    1,
-		PerPage: 10,
+		Page:       1,
+		PerPage:    10,
+		UnreadOnly: req.UnreadOnly, // Default to false if not specified, but API docs say GET /api/notifications returns unread only
 	}
 
 	if req.Pagination != nil {
@@ -102,6 +105,25 @@ func (h *NotificationHandler) GetNotifications(ctx context.Context, req *pb.GetN
 	}
 
 	return response, nil
+}
+
+func (h *NotificationHandler) GetNotification(ctx context.Context, req *pb.GetNotificationRequest) (*pb.Notification, error) {
+	if req.NotificationId == "" {
+		return nil, status.Error(codes.InvalidArgument, "notification_id is required")
+	}
+	if req.UserId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	notification, err := h.service.GetNotificationByID(ctx, req.NotificationId, req.UserId)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+	if notification == nil {
+		return nil, status.Error(codes.NotFound, "notification not found")
+	}
+
+	return convertNotification(*notification), nil
 }
 
 func (h *NotificationHandler) MarkAsRead(ctx context.Context, req *pb.MarkAsReadRequest) (*pbCommon.Empty, error) {
@@ -140,12 +162,22 @@ func convertNotification(notification models.Notification) *pb.Notification {
 		Data:    notification.Data,
 	}
 
+	// Format created_at as Jalali date and time (Y/m/d H:m:s format)
+	// This will be parsed by grpc-gateway to extract separate date and time fields
 	if !notification.CreatedAt.IsZero() {
-		protoNotification.CreatedAt = notification.CreatedAt.Format(time.RFC3339)
+		// Format as "Y/m/d H:m:s" for parsing in grpc-gateway
+		dateStr := helpers.FormatJalaliDate(notification.CreatedAt)
+		timeStr := helpers.FormatJalaliTime(notification.CreatedAt)
+		protoNotification.CreatedAt = fmt.Sprintf("%s %s", dateStr, timeStr)
 	}
 
+	// Format read_at - use null string if unread, otherwise RFC3339 timestamp
 	if notification.ReadAt != nil {
+		// For API compatibility, return RFC3339 format for read_at
 		protoNotification.ReadAt = notification.ReadAt.Format(time.RFC3339)
+	} else {
+		// Unread notifications have empty read_at (proto will serialize as empty string)
+		protoNotification.ReadAt = ""
 	}
 
 	return protoNotification
@@ -154,6 +186,9 @@ func convertNotification(notification models.Notification) *pb.Notification {
 func handleServiceError(err error) error {
 	if errors.Is(err, errs.ErrNotImplemented) {
 		return status.Error(codes.Unimplemented, err.Error())
+	}
+	if errors.Is(err, errs.ErrNotificationNotFound) {
+		return status.Error(codes.NotFound, err.Error())
 	}
 	return status.Errorf(codes.Internal, "service error: %v", err)
 }

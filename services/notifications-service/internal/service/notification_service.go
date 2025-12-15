@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"metargb/notifications-service/internal/errs"
 	"metargb/notifications-service/internal/models"
 	"metargb/notifications-service/internal/repository"
 )
@@ -26,6 +28,7 @@ type SendNotificationInput struct {
 type NotificationService interface {
 	SendNotification(ctx context.Context, input SendNotificationInput) (*models.NotificationResult, error)
 	GetNotifications(ctx context.Context, userID uint64, filter models.NotificationFilter) ([]models.Notification, int64, error)
+	GetNotificationByID(ctx context.Context, notificationID string, userID uint64) (*models.Notification, error)
 	MarkAsRead(ctx context.Context, notificationID string, userID uint64) error
 	MarkAllAsRead(ctx context.Context, userID uint64) error
 }
@@ -95,4 +98,15 @@ func (s *notificationService) MarkAsRead(ctx context.Context, notificationID str
 
 func (s *notificationService) MarkAllAsRead(ctx context.Context, userID uint64) error {
 	return s.repo.MarkAllAsRead(ctx, userID)
+}
+
+func (s *notificationService) GetNotificationByID(ctx context.Context, notificationID string, userID uint64) (*models.Notification, error) {
+	notification, err := s.repo.GetNotificationByID(ctx, notificationID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get notification: %w", err)
+	}
+	if notification == nil {
+		return nil, errs.ErrNotificationNotFound
+	}
+	return notification, nil
 }

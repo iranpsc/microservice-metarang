@@ -53,18 +53,21 @@ func main() {
 	ticketRepo := repository.NewTicketRepository(db)
 	reportRepo := repository.NewReportRepository(db)
 	userEventRepo := repository.NewUserEventRepository(db)
+	noteRepo := repository.NewNoteRepository(db)
 
 	notificationServiceAddr := getEnv("NOTIFICATION_SERVICE_ADDR", "notifications-service:50058")
 
 	ticketService := service.NewTicketService(ticketRepo, notificationServiceAddr)
 	reportService := service.NewReportService(reportRepo)
 	userEventService := service.NewUserEventService(userEventRepo)
+	noteService := service.NewNoteService(noteRepo)
 
 	grpcServer := grpc.NewServer()
 
 	handler.RegisterTicketHandler(grpcServer, ticketService)
 	handler.RegisterReportHandler(grpcServer, reportService)
 	handler.RegisterUserEventHandler(grpcServer, userEventService)
+	handler.RegisterNoteHandler(grpcServer, noteService)
 
 	port := getEnv("GRPC_PORT", "50056")
 	listener, err := net.Listen("tcp", ":"+port)

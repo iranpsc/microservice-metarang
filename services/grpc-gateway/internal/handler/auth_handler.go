@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -13,16 +14,30 @@ import (
 )
 
 type AuthHandler struct {
-	authClient pb.AuthServiceClient
-	userClient pb.UserServiceClient
-	kycClient  pb.KYCServiceClient
+	authClient              pb.AuthServiceClient
+	userClient              pb.UserServiceClient
+	kycClient               pb.KYCServiceClient
+	citizenClient           pb.CitizenServiceClient
+	personalInfoClient      pb.PersonalInfoServiceClient
+	profileLimitationClient pb.ProfileLimitationServiceClient
+	profilePhotoClient      pb.ProfilePhotoServiceClient
+	settingsClient          pb.SettingsServiceClient
+	userEventsClient        pb.UserEventsServiceClient
+	searchClient            pb.SearchServiceClient
 }
 
 func NewAuthHandler(conn *grpc.ClientConn) *AuthHandler {
 	return &AuthHandler{
-		authClient: pb.NewAuthServiceClient(conn),
-		userClient: pb.NewUserServiceClient(conn),
-		kycClient:  pb.NewKYCServiceClient(conn),
+		authClient:              pb.NewAuthServiceClient(conn),
+		userClient:              pb.NewUserServiceClient(conn),
+		kycClient:               pb.NewKYCServiceClient(conn),
+		citizenClient:           pb.NewCitizenServiceClient(conn),
+		personalInfoClient:      pb.NewPersonalInfoServiceClient(conn),
+		profileLimitationClient: pb.NewProfileLimitationServiceClient(conn),
+		profilePhotoClient:      pb.NewProfilePhotoServiceClient(conn),
+		settingsClient:          pb.NewSettingsServiceClient(conn),
+		userEventsClient:        pb.NewUserEventsServiceClient(conn),
+		searchClient:            pb.NewSearchServiceClient(conn),
 	}
 }
 
@@ -54,10 +69,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 // Redirect handles GET /api/auth/redirect
 func (h *AuthHandler) Redirect(w http.ResponseWriter, r *http.Request) {
+	redirectTo := r.URL.Query().Get("redirect_to")
 	backURL := r.URL.Query().Get("back_url")
 
 	grpcReq := &pb.RedirectRequest{
-		BackUrl: backURL,
+		RedirectTo: redirectTo,
+		BackUrl:    backURL,
 	}
 
 	resp, err := h.authClient.Redirect(r.Context(), grpcReq)
@@ -198,12 +215,31 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// RequestAccountSecurity handles POST /api/auth/account-security/request
+// RequestAccountSecurity handles POST /api/account/security
 func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Request) {
+	// Extract token from Authorization header
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+	if !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Parse request body
 	var req struct {
-		UserID      uint64 `json:"user_id"`
-		TimeMinutes int32  `json:"time_minutes"`
-		Phone       string `json:"phone"`
+		Time  int32  `json:"time"` // Minutes (5-60)
+		Phone string `json:"phone,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -212,27 +248,45 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 	}
 
 	grpcReq := &pb.RequestAccountSecurityRequest{
-		UserId:      req.UserID,
-		TimeMinutes: req.TimeMinutes,
+		UserId:      validateResp.UserId,
+		TimeMinutes: req.Time,
 		Phone:       req.Phone,
 	}
 
-	_, err := h.authClient.RequestAccountSecurity(r.Context(), grpcReq)
+	_, err = h.authClient.RequestAccountSecurity(r.Context(), grpcReq)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "OTP sent successfully"})
+	// Return 204 No Content per API specification
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// VerifyAccountSecurity handles POST /api/auth/account-security/verify
+// VerifyAccountSecurity handles POST /api/account/security/verify
 func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Request) {
+	// Extract token from Authorization header
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+	if !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Parse request body
 	var req struct {
-		UserID    uint64 `json:"user_id"`
-		Code      string `json:"code"`
-		IP        string `json:"ip"`
-		UserAgent string `json:"user_agent"`
+		Code string `json:"code"` // 6-digit OTP code
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -240,28 +294,25 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Extract IP and UserAgent from request if not provided
-	if req.IP == "" {
-		req.IP = getClientIP(r)
-	}
-	if req.UserAgent == "" {
-		req.UserAgent = r.UserAgent()
-	}
+	// Extract IP and UserAgent from request
+	ip := getClientIP(r)
+	userAgent := r.UserAgent()
 
 	grpcReq := &pb.VerifyAccountSecurityRequest{
-		UserId:    req.UserID,
+		UserId:    validateResp.UserId,
 		Code:      req.Code,
-		Ip:        req.IP,
-		UserAgent: req.UserAgent,
+		Ip:        ip,
+		UserAgent: userAgent,
 	}
 
-	_, err := h.authClient.VerifyAccountSecurity(r.Context(), grpcReq)
+	_, err = h.authClient.VerifyAccountSecurity(r.Context(), grpcReq)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "account security verified successfully"})
+	// Return 204 No Content per API specification
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // GetUser handles GET /api/user
@@ -321,40 +372,340 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// SubmitKYC handles POST /api/kyc/submit
-func (h *AuthHandler) SubmitKYC(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UserID       uint64 `json:"user_id"`
-		Fname        string `json:"fname"`
-		Lname        string `json:"lname"`
-		NationalCode string `json:"national_code"`
-		Birthdate    string `json:"birthdate"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+// GetProfileLimitations handles GET /api/user/profile-limitations or GET /api/users/{user}/profile-limitations
+func (h *AuthHandler) GetProfileLimitations(w http.ResponseWriter, r *http.Request) {
+	// Extract token to get caller user ID
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	grpcReq := &pb.SubmitKYCRequest{
-		UserId:       req.UserID,
-		Fname:        req.Fname,
-		Lname:        req.Lname,
-		NationalCode: req.NationalCode,
-		Birthdate:    req.Birthdate,
+	// Validate token to get caller user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
 	}
 
-	resp, err := h.kycClient.SubmitKYC(r.Context(), grpcReq)
+	callerUserID := validateResp.UserId
+
+	// Try to extract target user ID from path first (/api/users/{user}/profile-limitations)
+	targetUserIDStr := ""
+	if strings.HasPrefix(r.URL.Path, "/api/users/") {
+		// Extract user ID from path: /api/users/{user}/profile-limitations
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/users/"), "/")
+		if len(pathParts) > 0 && pathParts[0] != "" {
+			targetUserIDStr = pathParts[0]
+		}
+	}
+
+	// Fallback to query parameter if not in path
+	if targetUserIDStr == "" {
+		targetUserIDStr = r.URL.Query().Get("target_user_id")
+		// Also support "user_id" as query param
+		if targetUserIDStr == "" {
+			targetUserIDStr = r.URL.Query().Get("user_id")
+		}
+	}
+
+	if targetUserIDStr == "" {
+		writeError(w, http.StatusBadRequest, "target user_id is required (either in path /api/users/{user}/profile-limitations or as query parameter)")
+		return
+	}
+
+	targetUserID, err := strconv.ParseUint(targetUserIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid target user_id")
+		return
+	}
+
+	grpcReq := &pb.GetProfileLimitationsRequest{
+		CallerUserId: callerUserID,
+		TargetUserId: targetUserID,
+	}
+
+	resp, err := h.userClient.GetProfileLimitations(r.Context(), grpcReq)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	// Format response according to API spec: { "data": {...} } or { "data": [] } if not found
+	if resp.Data == nil || resp.Data.Id == 0 {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"data": []interface{}{}})
+		return
+	}
+
+	// Convert proto to JSON format matching Laravel API
+	data := map[string]interface{}{
+		"id":              resp.Data.Id,
+		"limiter_user_id": resp.Data.LimiterUserId,
+		"limited_user_id": resp.Data.LimitedUserId,
+		"options": map[string]bool{
+			"follow":                  resp.Data.Options.Follow,
+			"send_message":            resp.Data.Options.SendMessage,
+			"share":                   resp.Data.Options.Share,
+			"send_ticket":             resp.Data.Options.SendTicket,
+			"view_profile_images":     resp.Data.Options.ViewProfileImages,
+			"view_features_locations": resp.Data.Options.ViewFeaturesLocations,
+		},
+		"created_at": resp.Data.CreatedAt,
+		"updated_at": resp.Data.UpdatedAt,
+	}
+
+	// Only include note if caller is the limiter
+	if resp.Data.Note != "" && callerUserID == resp.Data.LimiterUserId {
+		data["note"] = resp.Data.Note
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
 }
 
-// GetKYCStatus handles GET /api/kyc/status
-func (h *AuthHandler) GetKYCStatus(w http.ResponseWriter, r *http.Request) {
+// ListUsers handles GET /api/users
+func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	search := r.URL.Query().Get("search")
+	orderBy := r.URL.Query().Get("order-by")
+	pageStr := r.URL.Query().Get("page")
+	page := int32(1)
+	if pageStr != "" {
+		if p, err := strconv.ParseInt(pageStr, 10, 32); err == nil && p > 0 {
+			page = int32(p)
+		}
+	}
+
+	grpcReq := &pb.ListUsersRequest{
+		Search:  search,
+		OrderBy: orderBy,
+		Page:    page,
+	}
+
+	resp, err := h.userClient.ListUsers(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response according to Laravel API spec
+	responseData := make([]map[string]interface{}, 0, len(resp.Data))
+	for _, item := range resp.Data {
+		userData := map[string]interface{}{
+			"id":    item.Id,
+			"name":  item.Name,
+			"code":  item.Code,
+			"score": item.Score,
+		}
+
+		// Add levels if available
+		if item.Levels != nil {
+			levelsData := map[string]interface{}{}
+			if item.Levels.Current != nil {
+				levelsData["current"] = map[string]interface{}{
+					"id":   item.Levels.Current.Id,
+					"name": item.Levels.Current.Title,
+				}
+			}
+			if item.Levels.Previous != nil {
+				levelsData["previous"] = map[string]interface{}{
+					"id":   item.Levels.Previous.Id,
+					"name": item.Levels.Previous.Title,
+				}
+			}
+			if len(levelsData) > 0 {
+				userData["levels"] = levelsData
+			}
+		}
+
+		// Add profile photo
+		if item.ProfilePhoto != "" {
+			userData["profile_photo"] = item.ProfilePhoto
+		}
+
+		responseData = append(responseData, userData)
+	}
+
+	// Build pagination response
+	response := map[string]interface{}{
+		"data": responseData,
+	}
+
+	if resp.Links != nil {
+		response["links"] = map[string]interface{}{
+			"first": resp.Links.First,
+			"last":  resp.Links.Last,
+			"prev":  resp.Links.Prev,
+			"next":  resp.Links.Next,
+		}
+	}
+
+	if resp.Meta != nil {
+		response["meta"] = map[string]interface{}{
+			"current_page": resp.Meta.CurrentPage,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// GetUserLevels handles GET /api/users/{user}/levels
+func (h *AuthHandler) GetUserLevels(w http.ResponseWriter, r *http.Request) {
+	userIDStr := extractIDFromPath(r.URL.Path, "/api/users/")
+	if userIDStr == "" {
+		writeError(w, http.StatusBadRequest, "user_id is required")
+		return
+	}
+
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user_id")
+		return
+	}
+
+	grpcReq := &pb.GetUserLevelsRequest{
+		UserId: userID,
+	}
+
+	resp, err := h.userClient.GetUserLevels(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response according to Laravel API spec
+	data := map[string]interface{}{}
+
+	if resp.Data.LatestLevel != nil {
+		latestLevel := map[string]interface{}{
+			"id":    resp.Data.LatestLevel.Id,
+			"name":  resp.Data.LatestLevel.Title,
+			"score": resp.Data.LatestLevel.Score,
+			"slug":  resp.Data.LatestLevel.Slug,
+		}
+		if resp.Data.LatestLevel.ImageUrl != "" {
+			latestLevel["image"] = resp.Data.LatestLevel.ImageUrl
+		}
+		data["latest_level"] = latestLevel
+	} else {
+		data["latest_level"] = nil
+	}
+
+	previousLevels := make([]map[string]interface{}, 0, len(resp.Data.PreviousLevels))
+	for _, level := range resp.Data.PreviousLevels {
+		levelData := map[string]interface{}{
+			"id":    level.Id,
+			"name":  level.Title,
+			"score": level.Score,
+			"slug":  level.Slug,
+		}
+		if level.ImageUrl != "" {
+			levelData["image"] = level.ImageUrl
+		}
+		previousLevels = append(previousLevels, levelData)
+	}
+	data["previous_levels"] = previousLevels
+	data["score_percentage_to_next_level"] = resp.Data.ScorePercentageToNextLevel
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
+}
+
+// GetUserProfile handles GET /api/users/{user}/profile
+func (h *AuthHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
+	userIDStr := extractIDFromPath(r.URL.Path, "/api/users/")
+	if userIDStr == "" {
+		writeError(w, http.StatusBadRequest, "user_id is required")
+		return
+	}
+
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user_id")
+		return
+	}
+
+	// Get viewer user ID from token if authenticated
+	var viewerUserID uint64
+	token := extractTokenFromHeader(r)
+	if token != "" {
+		validateReq := &pb.ValidateTokenRequest{Token: token}
+		if validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq); err == nil && validateResp.Valid {
+			viewerUserID = validateResp.UserId
+		}
+	}
+
+	grpcReq := &pb.GetUserProfileRequest{
+		UserId:       userID,
+		ViewerUserId: viewerUserID,
+	}
+
+	resp, err := h.userClient.GetUserProfile(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response according to Laravel ProfileResource spec
+	data := map[string]interface{}{
+		"id":             resp.Data.Id,
+		"code":           resp.Data.Code,
+		"profile_images": resp.Data.ProfileImages,
+	}
+
+	// Add optional fields (may be empty/null if privacy disallows)
+	if resp.Data.Name != "" {
+		data["name"] = resp.Data.Name
+	}
+	if resp.Data.RegisteredAt != "" {
+		data["registered_at"] = resp.Data.RegisteredAt
+	}
+	if resp.Data.FollowersCount != 0 {
+		data["followers_count"] = resp.Data.FollowersCount
+	}
+	if resp.Data.FollowingCount != 0 {
+		data["following_count"] = resp.Data.FollowingCount
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
+}
+
+// GetUserFeaturesCount handles GET /api/users/{user}/features/count
+func (h *AuthHandler) GetUserFeaturesCount(w http.ResponseWriter, r *http.Request) {
+	// Extract user ID from path: /api/users/{user}/features/count
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/users/"), "/")
+	if len(pathParts) < 3 || pathParts[0] == "" || pathParts[1] != "features" || pathParts[2] != "count" {
+		writeError(w, http.StatusBadRequest, "invalid path format: expected /api/users/{user}/features/count")
+		return
+	}
+
+	userIDStr := pathParts[0]
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user_id")
+		return
+	}
+
+	grpcReq := &pb.GetUserFeaturesCountRequest{
+		UserId: userID,
+	}
+
+	resp, err := h.userClient.GetUserFeaturesCount(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response according to Laravel API spec
+	data := map[string]interface{}{
+		"maskoni_features_count":   resp.Data.MaskoniFeaturesCount,
+		"tejari_features_count":    resp.Data.TejariFeaturesCount,
+		"amoozeshi_features_count": resp.Data.AmoozeshiFeaturesCount,
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
+}
+
+// ListBankAccounts handles GET /api/kyc/bank-accounts
+func (h *AuthHandler) ListBankAccounts(w http.ResponseWriter, r *http.Request) {
 	userIDStr := r.URL.Query().Get("user_id")
 	if userIDStr == "" {
 		writeError(w, http.StatusBadRequest, "user_id is required")
@@ -367,21 +718,24 @@ func (h *AuthHandler) GetKYCStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grpcReq := &pb.GetKYCStatusRequest{
+	grpcReq := &pb.ListBankAccountsRequest{
 		UserId: userID,
 	}
 
-	resp, err := h.kycClient.GetKYCStatus(r.Context(), grpcReq)
+	resp, err := h.kycClient.ListBankAccounts(r.Context(), grpcReq)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	// Format response to match Laravel API: { "data": [...] }
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": resp.Data,
+	})
 }
 
-// VerifyBankAccount handles POST /api/kyc/bank-account
-func (h *AuthHandler) VerifyBankAccount(w http.ResponseWriter, r *http.Request) {
+// CreateBankAccount handles POST /api/kyc/bank-accounts
+func (h *AuthHandler) CreateBankAccount(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserID   uint64 `json:"user_id"`
 		BankName string `json:"bank_name"`
@@ -394,20 +748,180 @@ func (h *AuthHandler) VerifyBankAccount(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	grpcReq := &pb.VerifyBankAccountRequest{
+	grpcReq := &pb.CreateBankAccountRequest{
 		UserId:   req.UserID,
 		BankName: req.BankName,
 		ShabaNum: req.ShabaNum,
 		CardNum:  req.CardNum,
 	}
 
-	resp, err := h.kycClient.VerifyBankAccount(r.Context(), grpcReq)
+	resp, err := h.kycClient.CreateBankAccount(r.Context(), grpcReq)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	// Format response to match Laravel BankAccountResource
+	response := map[string]interface{}{
+		"id":        resp.Id,
+		"bank_name": resp.BankName,
+		"shaba_num": resp.ShabaNum,
+		"card_num":  resp.CardNum,
+		"status":    resp.Status,
+	}
+	if resp.Errors != "" {
+		response["errors"] = resp.Errors
+	}
+
+	writeJSON(w, http.StatusCreated, response)
+}
+
+// GetBankAccount handles GET /api/kyc/bank-accounts/{bank_account_id}
+func (h *AuthHandler) GetBankAccount(w http.ResponseWriter, r *http.Request) {
+	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/kyc/bank-accounts/")
+	if bankAccountIDStr == "" {
+		writeError(w, http.StatusBadRequest, "bank_account_id is required")
+		return
+	}
+
+	bankAccountID, err := strconv.ParseUint(bankAccountIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid bank_account_id")
+		return
+	}
+
+	userIDStr := r.URL.Query().Get("user_id")
+	if userIDStr == "" {
+		writeError(w, http.StatusBadRequest, "user_id is required")
+		return
+	}
+
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user_id")
+		return
+	}
+
+	grpcReq := &pb.GetBankAccountRequest{
+		UserId:        userID,
+		BankAccountId: bankAccountID,
+	}
+
+	resp, err := h.kycClient.GetBankAccount(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel BankAccountResource
+	response := map[string]interface{}{
+		"id":        resp.Id,
+		"bank_name": resp.BankName,
+		"shaba_num": resp.ShabaNum,
+		"card_num":  resp.CardNum,
+		"status":    resp.Status,
+	}
+	if resp.Errors != "" {
+		response["errors"] = resp.Errors
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// UpdateBankAccount handles PUT/PATCH /api/kyc/bank-accounts/{bank_account_id}
+func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) {
+	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/kyc/bank-accounts/")
+	if bankAccountIDStr == "" {
+		writeError(w, http.StatusBadRequest, "bank_account_id is required")
+		return
+	}
+
+	bankAccountID, err := strconv.ParseUint(bankAccountIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid bank_account_id")
+		return
+	}
+
+	var req struct {
+		UserID   uint64 `json:"user_id"`
+		BankName string `json:"bank_name"`
+		ShabaNum string `json:"shaba_num"`
+		CardNum  string `json:"card_num"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.UpdateBankAccountRequest{
+		UserId:        req.UserID,
+		BankAccountId: bankAccountID,
+		BankName:      req.BankName,
+		ShabaNum:      req.ShabaNum,
+		CardNum:       req.CardNum,
+	}
+
+	resp, err := h.kycClient.UpdateBankAccount(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel BankAccountResource
+	response := map[string]interface{}{
+		"id":        resp.Id,
+		"bank_name": resp.BankName,
+		"shaba_num": resp.ShabaNum,
+		"card_num":  resp.CardNum,
+		"status":    resp.Status,
+	}
+	if resp.Errors != "" {
+		response["errors"] = resp.Errors
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// DeleteBankAccount handles DELETE /api/kyc/bank-accounts/{bank_account_id}
+func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) {
+	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/kyc/bank-accounts/")
+	if bankAccountIDStr == "" {
+		writeError(w, http.StatusBadRequest, "bank_account_id is required")
+		return
+	}
+
+	bankAccountID, err := strconv.ParseUint(bankAccountIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid bank_account_id")
+		return
+	}
+
+	userIDStr := r.URL.Query().Get("user_id")
+	if userIDStr == "" {
+		writeError(w, http.StatusBadRequest, "user_id is required")
+		return
+	}
+
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user_id")
+		return
+	}
+
+	grpcReq := &pb.DeleteBankAccountRequest{
+		UserId:        userID,
+		BankAccountId: bankAccountID,
+	}
+
+	_, err = h.kycClient.DeleteBankAccount(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Return 204 No Content on success
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Helper functions
@@ -420,6 +934,17 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// writeValidationError writes a 422 Unprocessable Entity response with Laravel-compatible format
+func writeValidationError(w http.ResponseWriter, message string) {
+	// Try to parse the error message as JSON (if it contains structured validation errors)
+	// Otherwise, return a simple validation error format
+	response := map[string]interface{}{
+		"message": message,
+		"errors":  map[string][]string{},
+	}
+	writeJSON(w, http.StatusUnprocessableEntity, response)
 }
 
 func writeGRPCError(w http.ResponseWriter, err error) {
@@ -435,7 +960,8 @@ func writeGRPCError(w http.ResponseWriter, err error) {
 	case codes.NotFound:
 		writeError(w, http.StatusNotFound, st.Message())
 	case codes.InvalidArgument:
-		writeError(w, http.StatusBadRequest, st.Message())
+		// Validation errors should return 422 Unprocessable Entity per Laravel API spec
+		writeValidationError(w, st.Message())
 	case codes.PermissionDenied:
 		writeError(w, http.StatusForbidden, st.Message())
 	case codes.AlreadyExists:
@@ -449,9 +975,14 @@ func writeGRPCError(w http.ResponseWriter, err error) {
 
 func getClientIP(r *http.Request) string {
 	// Check X-Forwarded-For header (for proxies)
+	// Note: X-Forwarded-For can contain multiple IPs, take the first one
 	xff := r.Header.Get("X-Forwarded-For")
 	if xff != "" {
-		return xff
+		// X-Forwarded-For format: "client, proxy1, proxy2"
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
 	}
 
 	// Check X-Real-IP header
@@ -460,6 +991,1446 @@ func getClientIP(r *http.Request) string {
 		return xri
 	}
 
-	// Fall back to RemoteAddr
-	return r.RemoteAddr
+	// Fall back to RemoteAddr (format: "IP:port")
+	remoteAddr := r.RemoteAddr
+	if idx := strings.LastIndex(remoteAddr, ":"); idx != -1 {
+		return remoteAddr[:idx]
+	}
+
+	return remoteAddr
+}
+
+// extractTokenFromHeader extracts Bearer token from Authorization header
+func extractTokenFromHeader(r *http.Request) string {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		// Try cookie as fallback
+		cookie, err := r.Cookie("token")
+		if err == nil && cookie != nil {
+			return cookie.Value
+		}
+		return ""
+	}
+
+	// Check for Bearer token format
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authHeader, bearerPrefix) {
+		// If no Bearer prefix, assume the whole header is the token
+		return authHeader
+	}
+
+	return strings.TrimPrefix(authHeader, bearerPrefix)
+}
+
+func extractIDFromPath(path, prefix string) string {
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+	id := strings.TrimPrefix(path, prefix)
+	// Remove any trailing slashes or query params
+	id = strings.TrimSuffix(id, "/")
+	if idx := strings.Index(id, "?"); idx != -1 {
+		id = id[:idx]
+	}
+	return id
+}
+
+// ============================================================================
+// Citizen Service Handlers (Public endpoints - no auth required)
+// ============================================================================
+
+// HandleCitizenRoutes handles all citizen-related routes
+func (h *AuthHandler) HandleCitizenRoutes(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	// Path format: /api/citizen/{code} or /api/citizen/{code}/referrals or /api/citizen/{code}/referrals/chart
+
+	// Extract code from path
+	parts := strings.Split(strings.TrimPrefix(path, "/api/citizen/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		writeError(w, http.StatusBadRequest, "citizen code is required")
+		return
+	}
+
+	code := parts[0]
+
+	if len(parts) > 1 {
+		switch parts[1] {
+		case "referrals":
+			if len(parts) > 2 && parts[2] == "chart" {
+				// /api/citizen/{code}/referrals/chart
+				h.GetCitizenReferralChart(w, r, code)
+			} else {
+				// /api/citizen/{code}/referrals
+				h.GetCitizenReferrals(w, r, code)
+			}
+		default:
+			writeError(w, http.StatusNotFound, "invalid citizen endpoint")
+		}
+	} else {
+		// /api/citizen/{code}
+		h.GetCitizenProfile(w, r, code)
+	}
+}
+
+// GetCitizenProfile handles GET /api/citizen/{code}
+func (h *AuthHandler) GetCitizenProfile(w http.ResponseWriter, r *http.Request, code string) {
+	grpcReq := &pb.GetCitizenProfileRequest{
+		Code: code,
+	}
+
+	resp, err := h.citizenClient.GetCitizenProfile(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetCitizenReferrals handles GET /api/citizen/{code}/referrals
+func (h *AuthHandler) GetCitizenReferrals(w http.ResponseWriter, r *http.Request, code string) {
+	search := r.URL.Query().Get("search")
+	pageStr := r.URL.Query().Get("page")
+	page := int32(1)
+	if pageStr != "" {
+		if p, err := strconv.ParseInt(pageStr, 10, 32); err == nil {
+			page = int32(p)
+		}
+	}
+
+	grpcReq := &pb.GetCitizenReferralsRequest{
+		Code:   code,
+		Search: search,
+		Page:   page,
+	}
+
+	resp, err := h.citizenClient.GetCitizenReferrals(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetCitizenReferralChart handles GET /api/citizen/{code}/referral-chart
+func (h *AuthHandler) GetCitizenReferralChart(w http.ResponseWriter, r *http.Request, code string) {
+	rangeType := r.URL.Query().Get("range")
+	if rangeType == "" {
+		rangeType = "daily"
+	}
+
+	grpcReq := &pb.GetCitizenReferralChartRequest{
+		Code:  code,
+		Range: rangeType,
+	}
+
+	resp, err := h.citizenClient.GetCitizenReferralChart(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ============================================================================
+// Personal Info Service Handlers
+// ============================================================================
+
+// GetPersonalInfo handles GET /api/personal-info
+func (h *AuthHandler) GetPersonalInfo(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	grpcReq := &pb.GetPersonalInfoRequest{
+		UserId: validateResp.UserId,
+	}
+
+	resp, err := h.personalInfoClient.GetPersonalInfo(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Check if personal info exists (has any data)
+	// If all fields are empty/null, return empty array per Laravel API spec
+	if resp.Data == nil || !hasPersonalInfoData(resp.Data) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"data": []interface{}{},
+		})
+		return
+	}
+
+	// Convert PersonalInfoData to Laravel-compatible format
+	data := map[string]interface{}{}
+	if resp.Data.Occupation != "" {
+		data["occupation"] = resp.Data.Occupation
+	}
+	if resp.Data.Education != "" {
+		data["education"] = resp.Data.Education
+	}
+	if resp.Data.Memory != "" {
+		data["memory"] = resp.Data.Memory
+	}
+	if resp.Data.LovedCity != "" {
+		data["loved_city"] = resp.Data.LovedCity
+	}
+	if resp.Data.LovedCountry != "" {
+		data["loved_country"] = resp.Data.LovedCountry
+	}
+	if resp.Data.LovedLanguage != "" {
+		data["loved_language"] = resp.Data.LovedLanguage
+	}
+	if resp.Data.ProblemSolving != "" {
+		data["problem_solving"] = resp.Data.ProblemSolving
+	}
+	if resp.Data.Prediction != "" {
+		data["prediction"] = resp.Data.Prediction
+	}
+	if resp.Data.About != "" {
+		data["about"] = resp.Data.About
+	}
+	if resp.Data.Passions != nil && len(resp.Data.Passions) > 0 {
+		data["passions"] = resp.Data.Passions
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": data,
+	})
+}
+
+// hasPersonalInfoData checks if PersonalInfoData has any non-empty values
+func hasPersonalInfoData(data *pb.PersonalInfoData) bool {
+	if data == nil {
+		return false
+	}
+	if data.Occupation != "" || data.Education != "" || data.Memory != "" ||
+		data.LovedCity != "" || data.LovedCountry != "" || data.LovedLanguage != "" ||
+		data.ProblemSolving != "" || data.Prediction != "" || data.About != "" {
+		return true
+	}
+	// Check if any passion is true
+	if data.Passions != nil {
+		for _, value := range data.Passions {
+			if value {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// UpdatePersonalInfo handles PUT/PATCH /api/personal-info
+func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	var req struct {
+		Occupation     string          `json:"occupation"`
+		Education      string          `json:"education"`
+		Memory         string          `json:"memory"`
+		LovedCity      string          `json:"loved_city"`
+		LovedCountry   string          `json:"loved_country"`
+		LovedLanguage  string          `json:"loved_language"`
+		ProblemSolving string          `json:"problem_solving"`
+		Prediction     string          `json:"prediction"`
+		About          string          `json:"about"`
+		Passions       map[string]bool `json:"passions"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.UpdatePersonalInfoRequest{
+		UserId:         validateResp.UserId,
+		Occupation:     req.Occupation,
+		Education:      req.Education,
+		Memory:         req.Memory,
+		LovedCity:      req.LovedCity,
+		LovedCountry:   req.LovedCountry,
+		LovedLanguage:  req.LovedLanguage,
+		ProblemSolving: req.ProblemSolving,
+		Prediction:     req.Prediction,
+		About:          req.About,
+		Passions:       req.Passions,
+	}
+
+	_, err = h.personalInfoClient.UpdatePersonalInfo(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ============================================================================
+// Profile Limitation Service Handlers
+// ============================================================================
+
+// CreateProfileLimitation handles POST /api/profile-limitations
+func (h *AuthHandler) CreateProfileLimitation(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	var req struct {
+		LimitedUserID uint64 `json:"limited_user_id"`
+		Options       struct {
+			Follow                bool `json:"follow"`
+			SendMessage           bool `json:"send_message"`
+			Share                 bool `json:"share"`
+			SendTicket            bool `json:"send_ticket"`
+			ViewProfileImages     bool `json:"view_profile_images"`
+			ViewFeaturesLocations bool `json:"view_features_locations"`
+		} `json:"options"`
+		Note string `json:"note,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Validate that all six options are provided
+	grpcReq := &pb.CreateProfileLimitationRequest{
+		LimiterUserId: validateResp.UserId,
+		LimitedUserId: req.LimitedUserID,
+		Options: &pb.ProfileLimitationOptions{
+			Follow:                req.Options.Follow,
+			SendMessage:           req.Options.SendMessage,
+			Share:                 req.Options.Share,
+			SendTicket:            req.Options.SendTicket,
+			ViewProfileImages:     req.Options.ViewProfileImages,
+			ViewFeaturesLocations: req.Options.ViewFeaturesLocations,
+		},
+		Note: req.Note,
+	}
+
+	resp, err := h.profileLimitationClient.CreateProfileLimitation(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response according to Laravel API spec: { "data": {...} }
+	data := map[string]interface{}{
+		"id":              resp.Data.Id,
+		"limiter_user_id": resp.Data.LimiterUserId,
+		"limited_user_id": resp.Data.LimitedUserId,
+		"options": map[string]bool{
+			"follow":                  resp.Data.Options.Follow,
+			"send_message":            resp.Data.Options.SendMessage,
+			"share":                   resp.Data.Options.Share,
+			"send_ticket":             resp.Data.Options.SendTicket,
+			"view_profile_images":     resp.Data.Options.ViewProfileImages,
+			"view_features_locations": resp.Data.Options.ViewFeaturesLocations,
+		},
+		"created_at": resp.Data.CreatedAt,
+		"updated_at": resp.Data.UpdatedAt,
+	}
+
+	if resp.Data.Note != "" {
+		data["note"] = resp.Data.Note
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]interface{}{"data": data})
+}
+
+// UpdateProfileLimitation handles PUT/PATCH /api/profile-limitations/{limitation_id}
+func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	limitationIDStr := extractIDFromPath(r.URL.Path, "/api/profile-limitations/")
+	if limitationIDStr == "" {
+		writeError(w, http.StatusBadRequest, "limitation_id is required")
+		return
+	}
+
+	limitationID, err := strconv.ParseUint(limitationIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid limitation_id")
+		return
+	}
+
+	var req struct {
+		Options struct {
+			Follow                bool `json:"follow"`
+			SendMessage           bool `json:"send_message"`
+			Share                 bool `json:"share"`
+			SendTicket            bool `json:"send_ticket"`
+			ViewProfileImages     bool `json:"view_profile_images"`
+			ViewFeaturesLocations bool `json:"view_features_locations"`
+		} `json:"options"`
+		Note string `json:"note,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.UpdateProfileLimitationRequest{
+		LimitationId:  limitationID,
+		LimiterUserId: validateResp.UserId,
+		Options: &pb.ProfileLimitationOptions{
+			Follow:                req.Options.Follow,
+			SendMessage:           req.Options.SendMessage,
+			Share:                 req.Options.Share,
+			SendTicket:            req.Options.SendTicket,
+			ViewProfileImages:     req.Options.ViewProfileImages,
+			ViewFeaturesLocations: req.Options.ViewFeaturesLocations,
+		},
+		Note: req.Note,
+	}
+
+	resp, err := h.profileLimitationClient.UpdateProfileLimitation(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response according to Laravel API spec: { "data": {...} }
+	data := map[string]interface{}{
+		"id":              resp.Data.Id,
+		"limiter_user_id": resp.Data.LimiterUserId,
+		"limited_user_id": resp.Data.LimitedUserId,
+		"options": map[string]bool{
+			"follow":                  resp.Data.Options.Follow,
+			"send_message":            resp.Data.Options.SendMessage,
+			"share":                   resp.Data.Options.Share,
+			"send_ticket":             resp.Data.Options.SendTicket,
+			"view_profile_images":     resp.Data.Options.ViewProfileImages,
+			"view_features_locations": resp.Data.Options.ViewFeaturesLocations,
+		},
+		"created_at": resp.Data.CreatedAt,
+		"updated_at": resp.Data.UpdatedAt,
+	}
+
+	// Only include note if caller is the limiter
+	if resp.Data.Note != "" && validateResp.UserId == resp.Data.LimiterUserId {
+		data["note"] = resp.Data.Note
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
+}
+
+// DeleteProfileLimitation handles DELETE /api/profile-limitations/{limitation_id}
+func (h *AuthHandler) DeleteProfileLimitation(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	limitationIDStr := extractIDFromPath(r.URL.Path, "/api/profile-limitations/")
+	if limitationIDStr == "" {
+		writeError(w, http.StatusBadRequest, "limitation_id is required")
+		return
+	}
+
+	limitationID, err := strconv.ParseUint(limitationIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid limitation_id")
+		return
+	}
+
+	grpcReq := &pb.DeleteProfileLimitationRequest{
+		LimitationId:  limitationID,
+		LimiterUserId: validateResp.UserId,
+	}
+
+	_, err = h.profileLimitationClient.DeleteProfileLimitation(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetProfileLimitation handles GET /api/profile-limitations/{limitation_id}
+func (h *AuthHandler) GetProfileLimitation(w http.ResponseWriter, r *http.Request) {
+	limitationIDStr := extractIDFromPath(r.URL.Path, "/api/profile-limitations/")
+	if limitationIDStr == "" {
+		writeError(w, http.StatusBadRequest, "limitation_id is required")
+		return
+	}
+
+	limitationID, err := strconv.ParseUint(limitationIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid limitation_id")
+		return
+	}
+
+	grpcReq := &pb.GetProfileLimitationRequest{
+		LimitationId: limitationID,
+	}
+
+	resp, err := h.profileLimitationClient.GetProfileLimitation(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response according to Laravel API spec: { "data": {...} }
+	data := map[string]interface{}{
+		"id":              resp.Data.Id,
+		"limiter_user_id": resp.Data.LimiterUserId,
+		"limited_user_id": resp.Data.LimitedUserId,
+		"options": map[string]bool{
+			"follow":                  resp.Data.Options.Follow,
+			"send_message":            resp.Data.Options.SendMessage,
+			"share":                   resp.Data.Options.Share,
+			"send_ticket":             resp.Data.Options.SendTicket,
+			"view_profile_images":     resp.Data.Options.ViewProfileImages,
+			"view_features_locations": resp.Data.Options.ViewFeaturesLocations,
+		},
+		"created_at": resp.Data.CreatedAt,
+		"updated_at": resp.Data.UpdatedAt,
+	}
+
+	if resp.Data.Note != "" {
+		data["note"] = resp.Data.Note
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
+}
+
+// ============================================================================
+// Profile Photo Service Handlers
+// ============================================================================
+
+// ListProfilePhotos handles GET /api/profilePhotos
+func (h *AuthHandler) ListProfilePhotos(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	grpcReq := &pb.ListProfilePhotosRequest{
+		UserId: validateResp.UserId,
+	}
+
+	resp, err := h.profilePhotoClient.ListProfilePhotos(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel ProfilePhotoResource: { "data": [...] }
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": resp.Data,
+	})
+}
+
+// UploadProfilePhoto handles POST /api/profilePhotos
+func (h *AuthHandler) UploadProfilePhoto(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Parse multipart form (max 10MB)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		writeError(w, http.StatusBadRequest, "failed to parse multipart form")
+		return
+	}
+
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "image file is required")
+		return
+	}
+	defer file.Close()
+
+	// Read file data
+	imageData := make([]byte, header.Size)
+	if _, err := file.Read(imageData); err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read image data")
+		return
+	}
+
+	grpcReq := &pb.UploadProfilePhotoRequest{
+		UserId:      validateResp.UserId,
+		ImageData:   imageData,
+		Filename:    header.Filename,
+		ContentType: header.Header.Get("Content-Type"),
+	}
+
+	resp, err := h.profilePhotoClient.UploadProfilePhoto(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel ProfilePhotoResource: { "id": ..., "url": ... }
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+// GetProfilePhoto handles GET /api/profilePhotos/{profilePhoto}
+func (h *AuthHandler) GetProfilePhoto(w http.ResponseWriter, r *http.Request) {
+	profilePhotoIDStr := extractIDFromPath(r.URL.Path, "/api/profilePhotos/")
+	if profilePhotoIDStr == "" {
+		writeError(w, http.StatusBadRequest, "profile_photo_id is required")
+		return
+	}
+
+	profilePhotoID, err := strconv.ParseUint(profilePhotoIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid profile_photo_id")
+		return
+	}
+
+	grpcReq := &pb.GetProfilePhotoRequest{
+		ProfilePhotoId: profilePhotoID,
+	}
+
+	resp, err := h.profilePhotoClient.GetProfilePhoto(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel ProfilePhotoResource: { "id": ..., "url": ... }
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// DeleteProfilePhoto handles DELETE /api/profilePhotos/{profilePhoto}
+func (h *AuthHandler) DeleteProfilePhoto(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	profilePhotoIDStr := extractIDFromPath(r.URL.Path, "/api/profilePhotos/")
+	if profilePhotoIDStr == "" {
+		writeError(w, http.StatusBadRequest, "profile_photo_id is required")
+		return
+	}
+
+	profilePhotoID, err := strconv.ParseUint(profilePhotoIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid profile_photo_id")
+		return
+	}
+
+	grpcReq := &pb.DeleteProfilePhotoRequest{
+		UserId:         validateResp.UserId,
+		ProfilePhotoId: profilePhotoID,
+	}
+
+	_, err = h.profilePhotoClient.DeleteProfilePhoto(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ============================================================================
+// Settings Service Handlers
+// ============================================================================
+
+// GetSettings handles GET /api/settings
+func (h *AuthHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	grpcReq := &pb.GetSettingsRequest{
+		UserId: validateResp.UserId,
+	}
+
+	resp, err := h.settingsClient.GetSettings(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Response format: { "checkout_days_count": ..., "automatic_logout": ... }
+	response := map[string]interface{}{
+		"checkout_days_count": resp.Data.CheckoutDaysCount,
+		"automatic_logout":    resp.Data.AutomaticLogout,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// UpdateSettings handles POST /api/settings
+func (h *AuthHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	var req struct {
+		CheckoutDaysCount uint32 `json:"checkout_days_count"`
+		AutomaticLogout   int32  `json:"automatic_logout"`
+		Setting           string `json:"setting"` // "status", "level", or "details"
+		Status            bool   `json:"status"`  // boolean value
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var checkoutDaysCount *uint32
+	var automaticLogout *int32
+	var setting *string
+	var status *bool
+
+	// Only set pointers if values are provided (non-zero for numeric types)
+	if req.CheckoutDaysCount > 0 {
+		checkoutDaysCount = &req.CheckoutDaysCount
+	}
+	if req.AutomaticLogout > 0 {
+		automaticLogout = &req.AutomaticLogout
+	}
+	if req.Setting != "" {
+		setting = &req.Setting
+		status = &req.Status
+	}
+
+	grpcReq := &pb.UpdateSettingsRequest{
+		UserId:            validateResp.UserId,
+		CheckoutDaysCount: 0, // Will be set properly by handler logic
+		AutomaticLogout:   0, // Will be set properly by handler logic
+		Setting:           "",
+		Status:            false,
+	}
+
+	// Set values if provided
+	if checkoutDaysCount != nil {
+		grpcReq.CheckoutDaysCount = *checkoutDaysCount
+	}
+	if automaticLogout != nil {
+		grpcReq.AutomaticLogout = *automaticLogout
+	}
+	if setting != nil {
+		grpcReq.Setting = *setting
+		grpcReq.Status = *status
+	}
+
+	_, err = h.settingsClient.UpdateSettings(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Response: 204 No Content on success
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetGeneralSettings handles GET /api/general-settings
+func (h *AuthHandler) GetGeneralSettings(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	grpcReq := &pb.GetGeneralSettingsRequest{
+		UserId: validateResp.UserId,
+	}
+
+	resp, err := h.settingsClient.GetGeneralSettings(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Response format: NotificationSettingsResource with all channels as booleans
+	response := map[string]interface{}{
+		"announcements_sms":        resp.Data.AnnouncementsSms,
+		"announcements_email":      resp.Data.AnnouncementsEmail,
+		"reports_sms":              resp.Data.ReportsSms,
+		"reports_email":            resp.Data.ReportsEmail,
+		"login_verification_sms":   resp.Data.LoginVerificationSms,
+		"login_verification_email": resp.Data.LoginVerificationEmail,
+		"transactions_sms":         resp.Data.TransactionsSms,
+		"transactions_email":       resp.Data.TransactionsEmail,
+		"trades_sms":               resp.Data.TradesSms,
+		"trades_email":             resp.Data.TradesEmail,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// UpdateGeneralSettings handles PUT /api/general-settings/{setting}
+func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Extract setting ID from path: /api/general-settings/{setting}
+	settingIDStr := extractIDFromPath(r.URL.Path, "/api/general-settings/")
+	if settingIDStr == "" {
+		writeError(w, http.StatusBadRequest, "setting ID is required in path")
+		return
+	}
+
+	settingID, err := strconv.ParseUint(settingIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid setting ID")
+		return
+	}
+
+	var req struct {
+		AnnouncementsSMS       bool `json:"announcements_sms"`
+		AnnouncementsEmail     bool `json:"announcements_email"`
+		ReportsSMS             bool `json:"reports_sms"`
+		ReportsEmail           bool `json:"reports_email"`
+		LoginVerificationSMS   bool `json:"login_verification_sms"`
+		LoginVerificationEmail bool `json:"login_verification_email"`
+		TransactionsSMS        bool `json:"transactions_sms"`
+		TransactionsEmail      bool `json:"transactions_email"`
+		TradesSMS              bool `json:"trades_sms"`
+		TradesEmail            bool `json:"trades_email"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.UpdateGeneralSettingsRequest{
+		UserId:    validateResp.UserId,
+		SettingId: settingID,
+		Notifications: &pb.NotificationSettingsData{
+			AnnouncementsSms:       req.AnnouncementsSMS,
+			AnnouncementsEmail:     req.AnnouncementsEmail,
+			ReportsSms:             req.ReportsSMS,
+			ReportsEmail:           req.ReportsEmail,
+			LoginVerificationSms:   req.LoginVerificationSMS,
+			LoginVerificationEmail: req.LoginVerificationEmail,
+			TransactionsSms:        req.TransactionsSMS,
+			TransactionsEmail:      req.TransactionsEmail,
+			TradesSms:              req.TradesSMS,
+			TradesEmail:            req.TradesEmail,
+		},
+	}
+
+	resp, err := h.settingsClient.UpdateGeneralSettings(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Response format: NotificationSettingsResource with all channels as booleans
+	response := map[string]interface{}{
+		"announcements_sms":        resp.Data.AnnouncementsSms,
+		"announcements_email":      resp.Data.AnnouncementsEmail,
+		"reports_sms":              resp.Data.ReportsSms,
+		"reports_email":            resp.Data.ReportsEmail,
+		"login_verification_sms":   resp.Data.LoginVerificationSms,
+		"login_verification_email": resp.Data.LoginVerificationEmail,
+		"transactions_sms":         resp.Data.TransactionsSms,
+		"transactions_email":       resp.Data.TransactionsEmail,
+		"trades_sms":               resp.Data.TradesSms,
+		"trades_email":             resp.Data.TradesEmail,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// GetPrivacySettings handles GET /api/privacy
+func (h *AuthHandler) GetPrivacySettings(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	grpcReq := &pb.GetPrivacySettingsRequest{
+		UserId: validateResp.UserId,
+	}
+
+	resp, err := h.settingsClient.GetPrivacySettings(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Response format: { "data": { <key>: <0|1>, ... } }
+	response := map[string]interface{}{
+		"data": resp.Data,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// UpdatePrivacySettings handles POST /api/privacy
+func (h *AuthHandler) UpdatePrivacySettings(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	var req struct {
+		Key   string      `json:"key"`
+		Value interface{} `json:"value"` // Accepts boolean or numeric (0/1)
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Convert value to int32 (handles both bool and numeric)
+	var value int32
+	switch v := req.Value.(type) {
+	case bool:
+		if v {
+			value = 1
+		} else {
+			value = 0
+		}
+	case float64:
+		value = int32(v)
+	case int:
+		value = int32(v)
+	case int32:
+		value = v
+	default:
+		writeError(w, http.StatusBadRequest, "value must be boolean or numeric (0 or 1)")
+		return
+	}
+
+	grpcReq := &pb.UpdatePrivacySettingsRequest{
+		UserId: validateResp.UserId,
+		Key:    req.Key,
+		Value:  value,
+	}
+
+	_, err = h.settingsClient.UpdatePrivacySettings(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Response: 204 No Content on success
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ============================================================================
+// User Events Service Handlers
+// ============================================================================
+
+// ListUserEvents handles GET /api/events
+func (h *AuthHandler) ListUserEvents(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Get page from query parameter
+	pageStr := r.URL.Query().Get("page")
+	page := int32(1)
+	if pageStr != "" {
+		if p, err := strconv.ParseInt(pageStr, 10, 32); err == nil && p > 0 {
+			page = int32(p)
+		}
+	}
+
+	grpcReq := &pb.ListUserEventsRequest{
+		UserId: validateResp.UserId,
+		Page:   page,
+	}
+
+	resp, err := h.userEventsClient.ListUserEvents(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel UserEventResourceCollection
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": resp.Data,
+		"links": map[string]interface{}{
+			"next": resp.Pagination.NextPageUrl,
+			"prev": resp.Pagination.PrevPageUrl,
+		},
+		"meta": map[string]interface{}{
+			"current_page": resp.Pagination.CurrentPage,
+		},
+	})
+}
+
+// GetUserEvent handles GET /api/events/{userEvent}
+func (h *AuthHandler) GetUserEvent(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Extract event ID from path: /api/events/{userEvent}
+	eventIDStr := extractIDFromPath(r.URL.Path, "/api/events/")
+	if eventIDStr == "" {
+		writeError(w, http.StatusBadRequest, "event_id is required")
+		return
+	}
+
+	eventID, err := strconv.ParseUint(eventIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid event_id")
+		return
+	}
+
+	grpcReq := &pb.GetUserEventRequest{
+		UserId:  validateResp.UserId,
+		EventId: eventID,
+	}
+
+	resp, err := h.userEventsClient.GetUserEvent(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel UserEventResource
+	writeJSON(w, http.StatusOK, resp.Data)
+}
+
+// ReportUserEvent handles POST /api/events/report/{userEvent}
+func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Extract event ID from path: /api/events/report/{userEvent}
+	eventIDStr := extractIDFromPath(r.URL.Path, "/api/events/report/")
+	if eventIDStr == "" {
+		writeError(w, http.StatusBadRequest, "event_id is required")
+		return
+	}
+
+	eventID, err := strconv.ParseUint(eventIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid event_id")
+		return
+	}
+
+	var req struct {
+		SuspeciousCitizen string `json:"suspecious_citizen,omitempty"`
+		EventDescription  string `json:"event_description"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.ReportUserEventRequest{
+		UserId:            validateResp.UserId,
+		EventId:           eventID,
+		SuspeciousCitizen: req.SuspeciousCitizen,
+		EventDescription:  req.EventDescription,
+	}
+
+	resp, err := h.userEventsClient.ReportUserEvent(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel UserEventReportResource
+	writeJSON(w, http.StatusCreated, resp.Data)
+}
+
+// SendReportResponse handles POST /api/events/report/response/{userEvent}
+func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Extract event ID from path: /api/events/report/response/{userEvent}
+	eventIDStr := extractIDFromPath(r.URL.Path, "/api/events/report/response/")
+	if eventIDStr == "" {
+		writeError(w, http.StatusBadRequest, "event_id is required")
+		return
+	}
+
+	eventID, err := strconv.ParseUint(eventIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid event_id")
+		return
+	}
+
+	var req struct {
+		Response string `json:"response"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.SendReportResponseRequest{
+		UserId:   validateResp.UserId,
+		EventId:  eventID,
+		Response: req.Response,
+	}
+
+	resp, err := h.userEventsClient.SendReportResponse(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Format response to match Laravel UserEventReportResponseResource
+	writeJSON(w, http.StatusCreated, resp.Data)
+}
+
+// CloseEventReport handles POST /api/events/report/close/{userEvent}
+func (h *AuthHandler) CloseEventReport(w http.ResponseWriter, r *http.Request) {
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	// Validate token to get user_id
+	validateReq := &pb.ValidateTokenRequest{Token: token}
+	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	if err != nil || !validateResp.Valid {
+		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		return
+	}
+
+	// Extract event ID from path: /api/events/report/close/{userEvent}
+	eventIDStr := extractIDFromPath(r.URL.Path, "/api/events/report/close/")
+	if eventIDStr == "" {
+		writeError(w, http.StatusBadRequest, "event_id is required")
+		return
+	}
+
+	eventID, err := strconv.ParseUint(eventIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid event_id")
+		return
+	}
+
+	grpcReq := &pb.CloseEventReportRequest{
+		UserId:  validateResp.UserId,
+		EventId: eventID,
+	}
+
+	_, err = h.userEventsClient.CloseEventReport(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Return 204 No Content per API specification
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// SearchUsers handles POST /api/search/users
+func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SearchTerm string `json:"searchTerm"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.SearchUsersRequest{
+		SearchTerm: req.SearchTerm,
+	}
+
+	resp, err := h.searchClient.SearchUsers(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Convert protobuf response to JSON
+	responseData := make([]map[string]interface{}, len(resp.Data))
+	for i, result := range resp.Data {
+		item := map[string]interface{}{
+			"id":        result.Id,
+			"code":      result.Code,
+			"name":      result.Name,
+			"followers": result.Followers,
+		}
+		if result.Level != "" {
+			item["level"] = result.Level
+		}
+		if result.Photo != "" {
+			item["photo"] = result.Photo
+		}
+		responseData[i] = item
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": responseData,
+	})
+}
+
+// SearchFeatures handles POST /api/search/features
+func (h *AuthHandler) SearchFeatures(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SearchTerm string `json:"searchTerm"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.SearchFeaturesRequest{
+		SearchTerm: req.SearchTerm,
+	}
+
+	resp, err := h.searchClient.SearchFeatures(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Convert protobuf response to JSON
+	responseData := make([]map[string]interface{}, len(resp.Data))
+	for i, result := range resp.Data {
+		item := map[string]interface{}{
+			"id":                    result.Id,
+			"feature_properties_id": result.FeaturePropertiesId,
+			"address":               result.Address,
+			"karbari":               result.Karbari,
+			"price_psc":             result.PricePsc,
+			"price_irr":             result.PriceIrr,
+			"owner_code":            result.OwnerCode,
+		}
+
+		// Convert coordinates
+		coordinates := make([]map[string]interface{}, len(result.Coordinates))
+		for j, coord := range result.Coordinates {
+			coordinates[j] = map[string]interface{}{
+				"id": coord.Id,
+				"x":  coord.X,
+				"y":  coord.Y,
+			}
+		}
+		item["coordinates"] = coordinates
+
+		responseData[i] = item
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": responseData,
+	})
+}
+
+// SearchIsicCodes handles POST /api/search/isic-codes
+func (h *AuthHandler) SearchIsicCodes(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SearchTerm string `json:"searchTerm"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	grpcReq := &pb.SearchIsicCodesRequest{
+		SearchTerm: req.SearchTerm,
+	}
+
+	resp, err := h.searchClient.SearchIsicCodes(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	// Convert protobuf response to JSON
+	responseData := make([]map[string]interface{}, len(resp.Data))
+	for i, result := range resp.Data {
+		responseData[i] = map[string]interface{}{
+			"id":   result.Id,
+			"name": result.Name,
+			"code": result.Code,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": responseData,
+	})
 }

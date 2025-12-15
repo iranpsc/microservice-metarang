@@ -35,11 +35,11 @@ func (r *walletRepository) FindByUserID(ctx context.Context, userID uint64) (*mo
 		WHERE user_id = ?
 	`
 	wallet := &models.Wallet{}
-	
+
 	var psc, irr, red, blue, yellow, satisfaction, effect string
-	
+
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&wallet.ID, &wallet.UserID, &psc, &irr, &red, &blue, &yellow, 
+		&wallet.ID, &wallet.UserID, &psc, &irr, &red, &blue, &yellow,
 		&satisfaction, &effect, &wallet.CreatedAt, &wallet.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -83,7 +83,7 @@ func (r *walletRepository) DeductBalance(ctx context.Context, userID uint64, ass
 		SET %s = %s - ?, updated_at = ?
 		WHERE user_id = ? AND %s >= ?
 	`, asset, asset, asset)
-	
+
 	result, err := r.db.ExecContext(ctx, query, amount.String(), time.Now(), userID, amount.String())
 	if err != nil {
 		return fmt.Errorf("failed to deduct balance: %w", err)
@@ -107,7 +107,7 @@ func (r *walletRepository) AddBalance(ctx context.Context, userID uint64, asset 
 		SET %s = %s + ?, updated_at = ?
 		WHERE user_id = ?
 	`, asset, asset)
-	
+
 	_, err := r.db.ExecContext(ctx, query, amount.String(), time.Now(), userID)
 	if err != nil {
 		return fmt.Errorf("failed to add balance: %w", err)
@@ -130,7 +130,7 @@ func (r *walletRepository) LockBalance(ctx context.Context, userID uint64, asset
 		SET %s = %s - ?, updated_at = ?
 		WHERE user_id = ? AND %s >= ?
 	`, asset, asset, asset)
-	
+
 	result, err := tx.ExecContext(ctx, query, amount.String(), time.Now(), userID, amount.String())
 	if err != nil {
 		return fmt.Errorf("failed to deduct for lock: %w", err)
@@ -172,7 +172,7 @@ func (r *walletRepository) UnlockBalance(ctx context.Context, userID uint64, ass
 		SET %s = %s + ?, updated_at = ?
 		WHERE user_id = ?
 	`, asset, asset)
-	
+
 	_, err = tx.ExecContext(ctx, query, amount.String(), time.Now(), userID)
 	if err != nil {
 		return fmt.Errorf("failed to add unlocked balance: %w", err)
@@ -191,4 +191,3 @@ func (r *walletRepository) UnlockBalance(ctx context.Context, userID uint64, ass
 
 	return tx.Commit()
 }
-

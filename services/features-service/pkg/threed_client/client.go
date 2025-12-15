@@ -75,4 +75,3 @@ func (c *Client) GetBuildPackage(req BuildPackageRequest) (*BuildPackageResponse
 
 	return &result, nil
 }
-

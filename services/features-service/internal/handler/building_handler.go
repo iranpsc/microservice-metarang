@@ -2,9 +2,11 @@ package handler
 
 import (
 	"context"
+	"strings"
 
 	"metargb/features-service/internal/service"
 	pb "metargb/shared/pb/features"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,6 +31,9 @@ func (h *BuildingHandler) GetBuildPackage(ctx context.Context, req *pb.GetBuildP
 
 	models, coordinates, err := h.service.GetBuildPackage(ctx, req.FeatureId, req.Page)
 	if err != nil {
+		if strings.Contains(err.Error(), "unauthorized") || strings.Contains(err.Error(), "does not own") {
+			return nil, status.Errorf(codes.PermissionDenied, "%s", err.Error())
+		}
 		return nil, status.Errorf(codes.Internal, "failed to get build package: %v", err)
 	}
 
@@ -50,6 +55,15 @@ func (h *BuildingHandler) BuildFeature(ctx context.Context, req *pb.BuildFeature
 
 	err := h.service.BuildFeature(ctx, req)
 	if err != nil {
+		if strings.Contains(err.Error(), "unauthorized") || strings.Contains(err.Error(), "does not own") {
+			return nil, status.Errorf(codes.PermissionDenied, "%s", err.Error())
+		}
+		if strings.Contains(err.Error(), "already has") || strings.Contains(err.Error(), "insufficient") {
+			return nil, status.Errorf(codes.FailedPrecondition, "%s", err.Error())
+		}
+		if strings.Contains(err.Error(), "invalid") {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err.Error())
+		}
 		return nil, status.Errorf(codes.Internal, "failed to build feature: %v", err)
 	}
 
@@ -88,6 +102,15 @@ func (h *BuildingHandler) UpdateBuilding(ctx context.Context, req *pb.UpdateBuil
 
 	building, err := h.service.UpdateBuilding(ctx, req)
 	if err != nil {
+		if strings.Contains(err.Error(), "unauthorized") || strings.Contains(err.Error(), "does not own") {
+			return nil, status.Errorf(codes.PermissionDenied, "%s", err.Error())
+		}
+		if strings.Contains(err.Error(), "insufficient") {
+			return nil, status.Errorf(codes.FailedPrecondition, "%s", err.Error())
+		}
+		if strings.Contains(err.Error(), "invalid") {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err.Error())
+		}
 		return nil, status.Errorf(codes.Internal, "failed to update building: %v", err)
 	}
 
@@ -108,8 +131,12 @@ func (h *BuildingHandler) DestroyBuilding(ctx context.Context, req *pb.DestroyBu
 		return nil, status.Errorf(codes.InvalidArgument, "building_model_id is required")
 	}
 
+	// Get authenticated user (ownership check should be done in service)
 	err := h.service.DestroyBuilding(ctx, req.FeatureId, req.BuildingModelId)
 	if err != nil {
+		if strings.Contains(err.Error(), "unauthorized") || strings.Contains(err.Error(), "does not own") {
+			return nil, status.Errorf(codes.PermissionDenied, "%s", err.Error())
+		}
 		return nil, status.Errorf(codes.Internal, "failed to destroy building: %v", err)
 	}
 
@@ -118,4 +145,3 @@ func (h *BuildingHandler) DestroyBuilding(ctx context.Context, req *pb.DestroyBu
 		Message: "Building destroyed successfully",
 	}, nil
 }
-

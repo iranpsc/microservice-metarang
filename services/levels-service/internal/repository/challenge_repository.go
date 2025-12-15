@@ -31,9 +31,9 @@ func (r *ChallengeRepository) GetRandomUnansweredQuestion(ctx context.Context, u
 		ORDER BY RAND()
 		LIMIT 1
 	`
-	
+
 	var question pb.Question
-	
+
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&question.Id,
 		&question.Text,
@@ -41,22 +41,22 @@ func (r *ChallengeRepository) GetRandomUnansweredQuestion(ctx context.Context, u
 		&question.Views,
 		&question.Participants,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // No unanswered questions
 		}
 		return nil, err
 	}
-	
+
 	// Load answers for the question
 	answers, err := r.GetAnswersForQuestion(ctx, question.Id)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	question.Answers = answers
-	
+
 	return &question, nil
 }
 
@@ -68,13 +68,13 @@ func (r *ChallengeRepository) GetAnswersForQuestion(ctx context.Context, questio
 		FROM answers
 		WHERE question_id = ?
 	`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, questionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var answers []*pb.Answer
 	for rows.Next() {
 		var answer pb.Answer
@@ -83,7 +83,7 @@ func (r *ChallengeRepository) GetAnswersForQuestion(ctx context.Context, questio
 		}
 		answers = append(answers, &answer)
 	}
-	
+
 	return answers, nil
 }
 
@@ -135,15 +135,15 @@ func (r *ChallengeRepository) CheckAnswer(ctx context.Context, answerID, questio
 		JOIN questions q ON a.question_id = q.id
 		WHERE a.id = ? AND a.question_id = ?
 	`
-	
+
 	var isCorrect bool
 	var prize string
-	
+
 	err := r.db.QueryRowContext(ctx, query, answerID, questionID).Scan(&isCorrect, &prize)
 	if err != nil {
 		return false, "0", err
 	}
-	
+
 	return isCorrect, prize, nil
 }
 
@@ -155,9 +155,9 @@ func (r *ChallengeRepository) GetQuestionByID(ctx context.Context, questionID ui
 		FROM questions
 		WHERE id = ?
 	`
-	
+
 	var question pb.Question
-	
+
 	err := r.db.QueryRowContext(ctx, query, questionID).Scan(
 		&question.Id,
 		&question.Text,
@@ -165,19 +165,19 @@ func (r *ChallengeRepository) GetQuestionByID(ctx context.Context, questionID ui
 		&question.Views,
 		&question.Participants,
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Load answers
 	answers, err := r.GetAnswersForQuestion(ctx, question.Id)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	question.Answers = answers
-	
+
 	return &question, nil
 }
 
@@ -192,19 +192,19 @@ func (r *ChallengeRepository) GetChallengeIntervals(ctx context.Context) (int32,
 		FROM system_variables
 		WHERE key_name IN ('challenge_display_ad_interval', 'challenge_display_question_interval', 'challenge_display_answer_interval')
 	`
-	
+
 	var adInterval, questionInterval, answerInterval string
-	
+
 	err := r.db.QueryRowContext(ctx, query).Scan(&adInterval, &questionInterval, &answerInterval)
 	if err != nil {
 		return 15, 15, 15, nil // Return defaults on error
 	}
-	
+
 	var ad, question, answer int32
 	_, _ = fmt.Sscanf(adInterval, "%d", &ad)
 	_, _ = fmt.Sscanf(questionInterval, "%d", &question)
 	_, _ = fmt.Sscanf(answerInterval, "%d", &answer)
-	
+
 	if ad == 0 {
 		ad = 15
 	}
@@ -214,7 +214,7 @@ func (r *ChallengeRepository) GetChallengeIntervals(ctx context.Context) (int32,
 	if answer == 0 {
 		answer = 15
 	}
-	
+
 	return ad, question, answer, nil
 }
 
@@ -229,24 +229,24 @@ func (r *ChallengeRepository) GetUserAnswerCounts(ctx context.Context, userID ui
 		JOIN answers a ON uqa.answer_id = a.id
 		WHERE uqa.user_id = ?
 	`
-	
+
 	var correct, wrong sql.NullInt32
-	
+
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&correct, &wrong)
 	if err != nil {
 		return 0, 0, err
 	}
-	
+
 	correctCount := int32(0)
 	wrongCount := int32(0)
-	
+
 	if correct.Valid {
 		correctCount = correct.Int32
 	}
 	if wrong.Valid {
 		wrongCount = wrong.Int32
 	}
-	
+
 	return correctCount, wrongCount, nil
 }
 
@@ -270,4 +270,3 @@ func (r *ChallengeRepository) HasUserAnsweredQuestion(ctx context.Context, userI
 	}
 	return count > 0, nil
 }
-

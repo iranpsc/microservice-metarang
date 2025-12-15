@@ -32,6 +32,15 @@ service UserEventReportService {
   rpc SendEventReportResponse(SendEventReportResponseRequest) returns (common.Empty);
 }
 
+// NoteService handles personal notes
+service NoteService {
+  rpc CreateNote(CreateNoteRequest) returns (NoteResponse);
+  rpc GetNotes(GetNotesRequest) returns (NotesResponse);
+  rpc GetNote(GetNoteRequest) returns (NoteResponse);
+  rpc UpdateNote(UpdateNoteRequest) returns (NoteResponse);
+  rpc DeleteNote(DeleteNoteRequest) returns (common.Empty);
+}
+
 // Messages
 
 // Ticket Messages
@@ -189,5 +198,48 @@ message SendEventReportResponseRequest {
   uint64 report_id = 1;
   uint64 responder_id = 2;
   string response = 3;
+}
+
+// Note Messages
+message CreateNoteRequest {
+  uint64 user_id = 1;
+  string title = 2;
+  string content = 3;
+  string attachment = 4; // URL or empty
+}
+
+message UpdateNoteRequest {
+  uint64 note_id = 1;
+  uint64 user_id = 2;
+  string title = 3;
+  string content = 4;
+  string attachment = 5; // URL or empty
+}
+
+message GetNotesRequest {
+  uint64 user_id = 1;
+}
+
+message GetNoteRequest {
+  uint64 note_id = 1;
+  uint64 user_id = 2; // for authorization
+}
+
+message DeleteNoteRequest {
+  uint64 note_id = 1;
+  uint64 user_id = 2; // for authorization
+}
+
+message NoteResponse {
+  uint64 id = 1;
+  string title = 2;
+  string content = 3;
+  string attachment = 4;
+  string date = 5; // Jalali formatted date (Y/m/d)
+  string time = 6; // Jalali formatted time (H:m:s)
+}
+
+message NotesResponse {
+  repeated NoteResponse notes = 1;
 }
 

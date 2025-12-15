@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"metargb/features-service/internal/client"
 	"metargb/features-service/internal/constants"
@@ -339,3 +340,258 @@ func (s *BuyRequestService) createCommission(ctx context.Context, tradeID uint64
 	s.db.ExecContext(ctx, query, tradeID, psc, irr)
 }
 
+// ListBuyRequests lists all buy requests for a buyer
+func (s *BuyRequestService) ListBuyRequests(ctx context.Context, buyerID uint64) ([]*BuyRequestDetail, error) {
+	requests, err := s.buyRequestRepo.ListByBuyerID(ctx, buyerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list buy requests: %w", err)
+	}
+
+	details := make([]*BuyRequestDetail, 0, len(requests))
+	for _, req := range requests {
+		detail, err := s.buildBuyRequestDetail(ctx, req)
+		if err != nil {
+			s.log.Error("Failed to build buy request detail", "error", err, "request_id", req.ID)
+			continue
+		}
+		details = append(details, detail)
+	}
+
+	return details, nil
+}
+
+// ListReceivedBuyRequests lists all buy requests received by a seller
+func (s *BuyRequestService) ListReceivedBuyRequests(ctx context.Context, sellerID uint64) ([]*BuyRequestDetail, error) {
+	requests, err := s.buyRequestRepo.ListBySellerID(ctx, sellerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list received buy requests: %w", err)
+	}
+
+	details := make([]*BuyRequestDetail, 0, len(requests))
+	for _, req := range requests {
+		detail, err := s.buildBuyRequestDetail(ctx, req)
+		if err != nil {
+			s.log.Error("Failed to build buy request detail", "error", err, "request_id", req.ID)
+			continue
+		}
+		details = append(details, detail)
+	}
+
+	return details, nil
+}
+
+// RejectBuyRequest rejects a buy request and refunds the buyer
+func (s *BuyRequestService) RejectBuyRequest(ctx context.Context, requestID, sellerID uint64) error {
+	buyRequest, err := s.buyRequestRepo.FindByID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("buy request not found: %w", err)
+	}
+	if buyRequest == nil {
+		return fmt.Errorf("buy request not found")
+	}
+
+	// Verify seller
+	if buyRequest.SellerID != sellerID {
+		return fmt.Errorf("unauthorized: not the seller")
+	}
+
+	// Get locked assets
+	lockedAsset, err := s.lockedAssetRepo.GetByBuyRequestID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("locked assets not found: %w", err)
+	}
+
+	// Refund buyer
+	if err := s.commercialClient.AddBalance(ctx, buyRequest.BuyerID, "psc", lockedAsset.PSC); err != nil {
+		return fmt.Errorf("failed to refund PSC: %w", err)
+	}
+	if err := s.commercialClient.AddBalance(ctx, buyRequest.BuyerID, "irr", lockedAsset.IRR); err != nil {
+		return fmt.Errorf("failed to refund IRR: %w", err)
+	}
+
+	// Delete transactions (via commercial service - handled by deleting locked asset)
+	// Delete locked asset and buy request
+	if err := s.lockedAssetRepo.Delete(ctx, requestID); err != nil {
+		s.log.Error("Failed to delete locked asset", "error", err)
+	}
+	if err := s.buyRequestRepo.Delete(ctx, requestID); err != nil {
+		return fmt.Errorf("failed to delete buy request: %w", err)
+	}
+
+	s.log.Info("Buy request rejected", "request_id", requestID, "seller_id", sellerID)
+	return nil
+}
+
+// DeleteBuyRequest deletes a buy request (buyer cancels their own offer)
+func (s *BuyRequestService) DeleteBuyRequest(ctx context.Context, requestID, buyerID uint64) error {
+	buyRequest, err := s.buyRequestRepo.FindByID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("buy request not found: %w", err)
+	}
+	if buyRequest == nil {
+		return fmt.Errorf("buy request not found")
+	}
+
+	// Verify buyer
+	if buyRequest.BuyerID != buyerID {
+		return fmt.Errorf("unauthorized: not the buyer")
+	}
+
+	// Get locked assets
+	lockedAsset, err := s.lockedAssetRepo.GetByBuyRequestID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("locked assets not found: %w", err)
+	}
+
+	// Refund buyer
+	if err := s.commercialClient.AddBalance(ctx, buyRequest.BuyerID, "psc", lockedAsset.PSC); err != nil {
+		return fmt.Errorf("failed to refund PSC: %w", err)
+	}
+	if err := s.commercialClient.AddBalance(ctx, buyRequest.BuyerID, "irr", lockedAsset.IRR); err != nil {
+		return fmt.Errorf("failed to refund IRR: %w", err)
+	}
+
+	// Delete locked asset and buy request
+	if err := s.lockedAssetRepo.Delete(ctx, requestID); err != nil {
+		s.log.Error("Failed to delete locked asset", "error", err)
+	}
+	if err := s.buyRequestRepo.Delete(ctx, requestID); err != nil {
+		return fmt.Errorf("failed to delete buy request: %w", err)
+	}
+
+	s.log.Info("Buy request deleted", "request_id", requestID, "buyer_id", buyerID)
+	return nil
+}
+
+// UpdateGracePeriod updates the grace period for a buy request
+func (s *BuyRequestService) UpdateGracePeriod(ctx context.Context, requestID, sellerID uint64, gracePeriodDays int32) error {
+	if gracePeriodDays < 1 || gracePeriodDays > 30 {
+		return fmt.Errorf("grace period must be between 1 and 30 days")
+	}
+
+	buyRequest, err := s.buyRequestRepo.FindByID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("buy request not found: %w", err)
+	}
+	if buyRequest == nil {
+		return fmt.Errorf("buy request not found")
+	}
+
+	// Verify seller
+	if buyRequest.SellerID != sellerID {
+		return fmt.Errorf("unauthorized: not the seller")
+	}
+
+	// Check status is pending
+	if buyRequest.Status != 0 {
+		return fmt.Errorf("buy request is not pending")
+	}
+
+	// Calculate grace period timestamp
+	gracePeriod := sql.NullTime{
+		Time:  time.Now().AddDate(0, 0, int(gracePeriodDays)),
+		Valid: true,
+	}
+
+	if err := s.buyRequestRepo.UpdateGracePeriod(ctx, requestID, gracePeriod); err != nil {
+		return fmt.Errorf("failed to update grace period: %w", err)
+	}
+
+	s.log.Info("Grace period updated", "request_id", requestID, "grace_period_days", gracePeriodDays)
+	return nil
+}
+
+// BuyRequestDetail contains all information needed for a buy request response
+type BuyRequestDetail struct {
+	ID                   uint64
+	BuyerID              uint64
+	SellerID             uint64
+	FeatureID            uint64
+	Status               int
+	Note                 string
+	PricePSC             float64
+	PriceIRR             float64
+	RequestedGracePeriod *time.Time
+	CreatedAt            time.Time
+	// Loaded relationships
+	BuyerCode          string
+	BuyerProfilePhoto  string
+	SellerCode         string
+	FeatureProperties  *models.FeatureProperties
+	FeatureCoordinates []*models.Coordinate
+}
+
+// buildBuyRequestDetail builds a detailed buy request response with all relationships loaded
+func (s *BuyRequestService) buildBuyRequestDetail(ctx context.Context, req *models.BuyFeatureRequest) (*BuyRequestDetail, error) {
+	detail := &BuyRequestDetail{
+		ID:        req.ID,
+		BuyerID:   req.BuyerID,
+		SellerID:  req.SellerID,
+		FeatureID: req.FeatureID,
+		Status:    req.Status,
+		Note:      req.Note,
+		PricePSC:  req.PricePSC,
+		PriceIRR:  req.PriceIRR,
+		CreatedAt: req.CreatedAt,
+	}
+
+	if req.RequestedGracePeriod.Valid {
+		detail.RequestedGracePeriod = &req.RequestedGracePeriod.Time
+	}
+
+	// Get buyer code
+	buyerCode, err := s.getUserCode(ctx, req.BuyerID)
+	if err == nil {
+		detail.BuyerCode = buyerCode
+	}
+
+	// Get buyer profile photo
+	buyerPhoto, err := s.getLatestProfilePhoto(ctx, req.BuyerID)
+	if err == nil {
+		detail.BuyerProfilePhoto = buyerPhoto
+	}
+
+	// Get seller code
+	sellerCode, err := s.getUserCode(ctx, req.SellerID)
+	if err == nil {
+		detail.SellerCode = sellerCode
+	}
+
+	// Get feature properties
+	_, properties, err := s.featureRepo.FindByID(ctx, req.FeatureID)
+	if err == nil {
+		detail.FeatureProperties = properties
+	}
+
+	// Get feature coordinates (we need geometry repo)
+	// For now, we'll load them in the handler using geometryRepo
+
+	return detail, nil
+}
+
+// getUserCode gets user code from database
+func (s *BuyRequestService) getUserCode(ctx context.Context, userID uint64) (string, error) {
+	var code string
+	err := s.db.QueryRowContext(ctx, "SELECT code FROM users WHERE id = ?", userID).Scan(&code)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("user not found")
+	}
+	return code, err
+}
+
+// getLatestProfilePhoto gets the latest profile photo URL for a user
+func (s *BuyRequestService) getLatestProfilePhoto(ctx context.Context, userID uint64) (string, error) {
+	var url string
+	query := `
+		SELECT url 
+		FROM images 
+		WHERE imageable_type = 'App\\Models\\User' AND imageable_id = ?
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	err := s.db.QueryRowContext(ctx, query, userID).Scan(&url)
+	if err == sql.ErrNoRows {
+		return "", nil // No photo is not an error
+	}
+	return url, err
+}

@@ -17,22 +17,23 @@ import (
 type ObserverService interface {
 	// Login event handler
 	OnUserLogin(ctx context.Context, user *models.User, ip, userAgent string) error
-	
+
 	// Logout event handler
 	OnUserLogout(ctx context.Context, user *models.User, ip, userAgent string) error
-	
+
 	// User created event handler
 	OnUserCreated(ctx context.Context, user *models.User) error
-	
+
 	// Hour reached event (called when activity is logged out)
 	OnHourReached(ctx context.Context, user *models.User) error
-	
+
 	// Calculate and update user score
 	CalculateScore(ctx context.Context, user *models.User) error
 }
 
 type observerService struct {
 	userRepo     repository.UserRepository
+	settingsRepo repository.SettingsRepository
 	activityRepo repository.ActivityRepository
 	publisher    pubsub.RedisPublisher
 	// TODO: Add notification service client for sending login notifications
@@ -46,6 +47,20 @@ func NewObserverService(
 ) ObserverService {
 	return &observerService{
 		userRepo:     userRepo,
+		activityRepo: activityRepo,
+		publisher:    publisher,
+	}
+}
+
+func NewObserverServiceWithSettings(
+	userRepo repository.UserRepository,
+	settingsRepo repository.SettingsRepository,
+	activityRepo repository.ActivityRepository,
+	publisher pubsub.RedisPublisher,
+) ObserverService {
+	return &observerService{
+		userRepo:     userRepo,
+		settingsRepo: settingsRepo,
 		activityRepo: activityRepo,
 		publisher:    publisher,
 	}
@@ -111,11 +126,11 @@ func (s *observerService) OnUserLogout(ctx context.Context, user *models.User, i
 		// 2. Update activity end time and total minutes
 		endTime := time.Now()
 		totalMinutes := int32(endTime.Sub(latestActivity.Start).Minutes())
-		
+
 		latestActivity.End = sql.NullTime{Time: endTime, Valid: true}
 		latestActivity.Total = totalMinutes
 		latestActivity.IP = ip
-		
+
 		if err := s.activityRepo.UpdateActivity(ctx, latestActivity); err != nil {
 			return fmt.Errorf("failed to update activity: %w", err)
 		}
@@ -178,16 +193,31 @@ func (s *observerService) OnUserCreated(ctx context.Context, user *models.User) 
 	if err := s.userRepo.MarkEmailAsVerified(ctx, user.ID); err != nil {
 		return fmt.Errorf("failed to mark email as verified: %w", err)
 	}
-	
+
 	// 2. Create default settings (automatic_logout = 55 minutes by default)
 	settings := &models.Settings{
-		UserID:          user.ID,
-		AutomaticLogout: 55,
+		UserID:            user.ID,
+		Status:            true,
+		Level:             true,
+		Details:           true,
+		CheckoutDaysCount: 3,
+		AutomaticLogout:   55,
+		Privacy:           models.DefaultPrivacySettings(),
+		Notifications:     models.DefaultNotificationSettings(),
 	}
-	if err := s.userRepo.CreateSettings(ctx, settings); err != nil {
-		return fmt.Errorf("failed to create settings: %w", err)
+
+	// Use SettingsRepository if available, otherwise fall back to UserRepository
+	if s.settingsRepo != nil {
+		if err := s.settingsRepo.Create(ctx, settings); err != nil {
+			return fmt.Errorf("failed to create settings: %w", err)
+		}
+	} else {
+		// Fallback for backward compatibility
+		if err := s.userRepo.CreateSettings(ctx, settings); err != nil {
+			return fmt.Errorf("failed to create settings: %w", err)
+		}
 	}
-	
+
 	// 3. Create user log for score tracking
 	log := &models.UserLog{
 		UserID:            user.ID,
@@ -298,4 +328,3 @@ func (s *observerService) CalculateScore(ctx context.Context, user *models.User)
 
 	return nil
 }
-

@@ -9,7 +9,7 @@ import (
 // UserSearchService provides user search functionality
 type UserSearchService struct {
 	db *sql.DB
-	
+
 	// Would call Auth service for complete user details
 	// authClient auth.AuthServiceClient
 }
@@ -43,37 +43,37 @@ func (s *UserSearchService) SearchUsers(
 		WHERE u.code LIKE ? OR u.name LIKE ? OR k.full_name LIKE ?
 		LIMIT ?
 	`
-	
+
 	term := "%" + searchTerm + "%"
 	rows, err := s.db.QueryContext(ctx, query, term, term, term, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search users: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var results []*UserSearchResult
 	for rows.Next() {
 		var r UserSearchResult
 		var displayName string
-		
+
 		if err := rows.Scan(&r.ID, &r.Code, &r.Name, &displayName); err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
-		
+
 		// Use display name (full_name from KYC if available)
 		r.Name = displayName
-		
+
 		// Get profile photo
 		photo, _ := s.getLatestProfilePhoto(ctx, r.ID)
 		r.Image = photo
-		
+
 		// Get level title
 		level, _ := s.getLevelTitle(ctx, r.ID)
 		r.Level = level
-		
+
 		results = append(results, &r)
 	}
-	
+
 	return results, nil
 }
 
@@ -86,7 +86,7 @@ func (s *UserSearchService) getLatestProfilePhoto(ctx context.Context, userID ui
 		ORDER BY id DESC 
 		LIMIT 1
 	`
-	
+
 	var url string
 	err := s.db.QueryRowContext(ctx, query, userID).Scan(&url)
 	if err == sql.ErrNoRows {
@@ -95,7 +95,7 @@ func (s *UserSearchService) getLatestProfilePhoto(ctx context.Context, userID ui
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &url, nil
 }
 
@@ -109,7 +109,7 @@ func (s *UserSearchService) getLevelTitle(ctx context.Context, userID uint64) (s
 		ORDER BY lu.id DESC
 		LIMIT 1
 	`
-	
+
 	var title string
 	err := s.db.QueryRowContext(ctx, query, userID).Scan(&title)
 	if err == sql.ErrNoRows {
@@ -118,7 +118,6 @@ func (s *UserSearchService) getLevelTitle(ctx context.Context, userID uint64) (s
 	if err != nil {
 		return "", err
 	}
-	
+
 	return title, nil
 }
-

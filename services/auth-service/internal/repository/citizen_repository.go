@@ -1,0 +1,420 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"metargb/auth-service/internal/models"
+)
+
+type CitizenRepository interface {
+	GetCitizenByCode(ctx context.Context, code string) (*models.CitizenProfile, error)
+	GetCitizenReferrals(ctx context.Context, referrerID uint64, search string, page int, pageSize int) ([]*models.CitizenReferral, *models.PaginationMeta, error)
+	GetCitizenReferralOrders(ctx context.Context, referralID uint64) ([]*models.ReferrerOrder, error)
+	GetCitizenReferralChartData(ctx context.Context, referrerID uint64, rangeType string) (*models.ReferralChartData, error)
+}
+
+type citizenRepository struct {
+	db *sql.DB
+}
+
+func NewCitizenRepository(db *sql.DB) CitizenRepository {
+	return &citizenRepository{db: db}
+}
+
+// GetCitizenByCode retrieves a citizen's profile data by code
+func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (*models.CitizenProfile, error) {
+	// Get user by code (case-insensitive)
+	query := `
+		SELECT id, name, email, phone, code, score, created_at
+		FROM users
+		WHERE LOWER(code) = LOWER(?)
+		LIMIT 1
+	`
+
+	user := &models.CitizenProfile{}
+	var createdAt time.Time
+	err := r.db.QueryRowContext(ctx, query, code).Scan(
+		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Code, &user.Score, &createdAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to find citizen by code: %w", err)
+	}
+	user.RegisteredAt = createdAt
+
+	// Get KYC data
+	kycQuery := `
+		SELECT id, user_id, fname, lname, melli_code, status, birthdate
+		FROM kycs
+		WHERE user_id = ?
+		LIMIT 1
+	`
+	kyc := &models.CitizenKYC{}
+	var birthdate sql.NullTime
+	var nationalCode string
+	err = r.db.QueryRowContext(ctx, kycQuery, user.ID).Scan(
+		&kyc.ID, &kyc.UserID, &kyc.Fname, &kyc.Lname, &nationalCode, &kyc.Status, &birthdate,
+	)
+	kyc.NationalCode = nationalCode
+	if err == nil {
+		if birthdate.Valid {
+			kyc.Birthdate = birthdate.Time
+		}
+		user.KYC = kyc
+	}
+
+	// Get settings with privacy flags
+	settingsQuery := `
+		SELECT id, user_id, privacy
+		FROM settings
+		WHERE user_id = ?
+		LIMIT 1
+	`
+	var privacyJSON sql.NullString
+	var settingsID uint64
+	err = r.db.QueryRowContext(ctx, settingsQuery, user.ID).Scan(
+		&settingsID, &user.ID, &privacyJSON,
+	)
+	if err == nil && privacyJSON.Valid {
+		var privacy map[string]bool
+		if err := json.Unmarshal([]byte(privacyJSON.String), &privacy); err == nil {
+			user.Privacy = privacy
+		}
+	}
+
+	// Get profile photos
+	photosQuery := `
+		SELECT id, url
+		FROM images
+		WHERE imageable_type = 'App\\Models\\User' AND imageable_id = ?
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, photosQuery, user.ID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var photo models.ProfilePhoto
+			if err := rows.Scan(&photo.ID, &photo.URL); err == nil {
+				user.ProfilePhotos = append(user.ProfilePhotos, &photo)
+			}
+		}
+	}
+
+	// Get personal info
+	personalInfoQuery := `
+		SELECT id, user_id, occupation, education, memory, loved_city, loved_country,
+			loved_language, problem_solving, prediction, about, passions
+		FROM personal_infos
+		WHERE user_id = ?
+		LIMIT 1
+	`
+	personalInfo := &models.CitizenPersonalInfo{}
+	var passionsJSON sql.NullString
+	err = r.db.QueryRowContext(ctx, personalInfoQuery, user.ID).Scan(
+		&personalInfo.ID, &personalInfo.UserID, &personalInfo.Occupation, &personalInfo.Education,
+		&personalInfo.Memory, &personalInfo.LovedCity, &personalInfo.LovedCountry,
+		&personalInfo.LovedLanguage, &personalInfo.ProblemSolving, &personalInfo.Prediction,
+		&personalInfo.About, &passionsJSON,
+	)
+	if err == nil {
+		if passionsJSON.Valid {
+			var passions map[string]bool
+			if err := json.Unmarshal([]byte(passionsJSON.String), &passions); err == nil {
+				personalInfo.Passions = passions
+			}
+		}
+		user.PersonalInfo = personalInfo
+	}
+	// If err == sql.ErrNoRows, personal info doesn't exist - that's fine
+
+	return user, nil
+}
+
+// GetCitizenReferrals retrieves referrals for a citizen with pagination and search
+func (r *citizenRepository) GetCitizenReferrals(ctx context.Context, referrerID uint64, search string, page int, pageSize int) ([]*models.CitizenReferral, *models.PaginationMeta, error) {
+	// Build base query - get users referred by this referrer
+	baseQuery := `
+		SELECT DISTINCT u.id, u.code, u.name, u.created_at
+		FROM users u
+		WHERE u.referrer_id = ?
+	`
+
+	args := []interface{}{referrerID}
+
+	// Add search filter if provided
+	if search != "" {
+		baseQuery += ` AND (LOWER(u.name) LIKE ? OR LOWER(u.code) LIKE ?)`
+		searchPattern := "%" + strings.ToLower(search) + "%"
+		args = append(args, searchPattern, searchPattern)
+	}
+
+	// Get total count for pagination
+	countQuery := `SELECT COUNT(*) FROM (` + baseQuery + `) AS count_query`
+	var totalCount int
+	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&totalCount)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to count referrals: %w", err)
+	}
+
+	// Add ordering and pagination
+	// Order by most recent referral order activity
+	query := `
+		SELECT u.id, u.code, u.name, u.created_at,
+			COALESCE(MAX(roh.created_at), u.created_at) as last_order_date
+		FROM users u
+		LEFT JOIN referral_order_histories roh ON roh.referral_id = u.id
+		WHERE u.referrer_id = ?
+	`
+
+	queryArgs := []interface{}{referrerID}
+
+	if search != "" {
+		query += ` AND (LOWER(u.name) LIKE ? OR LOWER(u.code) LIKE ?)`
+		searchPattern := "%" + strings.ToLower(search) + "%"
+		queryArgs = append(queryArgs, searchPattern, searchPattern)
+	}
+
+	query += `
+		GROUP BY u.id, u.code, u.name, u.created_at
+		ORDER BY last_order_date DESC
+		LIMIT ? OFFSET ?
+	`
+
+	offset := (page - 1) * pageSize
+	queryArgs = append(queryArgs, pageSize, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get referrals: %w", err)
+	}
+	defer rows.Close()
+
+	var referrals []*models.CitizenReferral
+	for rows.Next() {
+		ref := &models.CitizenReferral{}
+		var createdAt time.Time
+		var lastOrderDate sql.NullTime
+		err := rows.Scan(&ref.ID, &ref.Code, &ref.Name, &createdAt, &lastOrderDate)
+		if err != nil {
+			continue
+		}
+		ref.CreatedAt = createdAt
+
+		// Get KYC for name
+		kycQuery := `
+			SELECT fname, lname
+			FROM kycs
+			WHERE user_id = ?
+			LIMIT 1
+		`
+		var fname, lname sql.NullString
+		if err := r.db.QueryRowContext(ctx, kycQuery, ref.ID).Scan(&fname, &lname); err == nil {
+			if fname.Valid && lname.Valid {
+				ref.Name = fname.String + " " + lname.String
+			}
+		}
+
+		// Get latest profile photo
+		photoQuery := `
+			SELECT url
+			FROM images
+			WHERE imageable_type = 'App\\Models\\User' AND imageable_id = ?
+			ORDER BY created_at DESC
+			LIMIT 1
+		`
+		var photoURL sql.NullString
+		if err := r.db.QueryRowContext(ctx, photoQuery, ref.ID).Scan(&photoURL); err == nil {
+			if photoURL.Valid {
+				ref.Image = photoURL.String
+			}
+		}
+
+		referrals = append(referrals, ref)
+	}
+
+	// Build pagination meta
+	meta := &models.PaginationMeta{
+		CurrentPage: int32(page),
+	}
+	if page*pageSize < totalCount {
+		// Next page exists (simplified - in real implementation, you'd construct the full URL)
+		meta.NextPageURL = fmt.Sprintf("?page=%d", page+1)
+		if search != "" {
+			meta.NextPageURL += fmt.Sprintf("&search=%s", search)
+		}
+	}
+	if page > 1 {
+		meta.PrevPageURL = fmt.Sprintf("?page=%d", page-1)
+		if search != "" {
+			meta.PrevPageURL += fmt.Sprintf("&search=%s", search)
+		}
+	}
+
+	return referrals, meta, nil
+}
+
+// GetCitizenReferralOrders retrieves referral order history for a referral
+func (r *citizenRepository) GetCitizenReferralOrders(ctx context.Context, referralID uint64) ([]*models.ReferrerOrder, error) {
+	query := `
+		SELECT id, amount, created_at
+		FROM referral_order_histories
+		WHERE referral_id = ?
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, referralID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get referral orders: %w", err)
+	}
+	defer rows.Close()
+
+	var orders []*models.ReferrerOrder
+	for rows.Next() {
+		order := &models.ReferrerOrder{}
+		var createdAt time.Time
+		err := rows.Scan(&order.ID, &order.Amount, &createdAt)
+		if err != nil {
+			continue
+		}
+		order.CreatedAt = createdAt
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
+// GetCitizenReferralChartData retrieves aggregated referral chart data
+func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, referrerID uint64, rangeType string) (*models.ReferralChartData, error) {
+	// Get all referrals for this referrer
+	referralsQuery := `
+		SELECT u.id
+		FROM users u
+		WHERE u.referrer_id = ?
+	`
+
+	referralRows, err := r.db.QueryContext(ctx, referralsQuery, referrerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get referrals: %w", err)
+	}
+	defer referralRows.Close()
+
+	var referralIDs []uint64
+	for referralRows.Next() {
+		var id uint64
+		if err := referralRows.Scan(&id); err == nil {
+			referralIDs = append(referralIDs, id)
+		}
+	}
+
+	if len(referralIDs) == 0 {
+		return &models.ReferralChartData{
+			TotalReferralsCount:       "0",
+			TotalReferralOrdersAmount: "0",
+			ChartData:                 []*models.ChartDataPoint{},
+		}, nil
+	}
+
+	// Build query based on range type
+	var dateFormat string
+	var groupBy string
+	var timeFilter string
+
+	now := time.Now()
+	switch rangeType {
+	case "yearly":
+		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 YEAR)"
+		groupBy = "YEAR(created_at), MONTH(created_at)"
+		dateFormat = "%Y/%m"
+	case "monthly":
+		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 MONTH)"
+		groupBy = "YEAR(created_at), MONTH(created_at), DAY(created_at)"
+		dateFormat = "%Y/%m/%d"
+	case "weekly":
+		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 WEEK)"
+		groupBy = "YEAR(created_at), MONTH(created_at), DAY(created_at)"
+		dateFormat = "%Y/%m/%d"
+	default: // daily
+		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 DAY)"
+		groupBy = "YEAR(created_at), MONTH(created_at), DAY(created_at), HOUR(created_at)"
+		dateFormat = "%Y/%m/%d %H"
+	}
+
+	// Get total count and amount
+	totalQuery := `
+		SELECT COUNT(DISTINCT referral_id) as total_count, COALESCE(SUM(amount), 0) as total_amount
+		FROM referral_order_histories
+		WHERE referral_id IN (` + buildPlaceholders(len(referralIDs)) + `)
+		AND ` + timeFilter
+	args := make([]interface{}, len(referralIDs))
+	for i, id := range referralIDs {
+		args[i] = id
+	}
+	args = append(args, now)
+
+	var totalCount int
+	var totalAmount int64
+	err = r.db.QueryRowContext(ctx, totalQuery, args...).Scan(&totalCount, &totalAmount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get totals: %w", err)
+	}
+
+	// Get chart data points
+	chartQuery := `
+		SELECT 
+			DATE_FORMAT(created_at, ?) as label,
+			COUNT(DISTINCT referral_id) as count,
+			COALESCE(SUM(amount), 0) as total_amount
+		FROM referral_order_histories
+		WHERE referral_id IN (` + buildPlaceholders(len(referralIDs)) + `)
+		AND ` + timeFilter + `
+		GROUP BY ` + groupBy + `
+		ORDER BY created_at ASC
+	`
+
+	chartArgs := make([]interface{}, 0)
+	chartArgs = append(chartArgs, dateFormat)
+	for _, id := range referralIDs {
+		chartArgs = append(chartArgs, id)
+	}
+	chartArgs = append(chartArgs, now)
+
+	chartRows, err := r.db.QueryContext(ctx, chartQuery, chartArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chart data: %w", err)
+	}
+	defer chartRows.Close()
+
+	var chartData []*models.ChartDataPoint
+	for chartRows.Next() {
+		point := &models.ChartDataPoint{}
+		var label string
+		err := chartRows.Scan(&label, &point.Count, &point.TotalAmount)
+		if err != nil {
+			continue
+		}
+		// Convert Gregorian date to Jalali format
+		point.Label = label // TODO: Convert to Jalali if needed
+		chartData = append(chartData, point)
+	}
+
+	return &models.ReferralChartData{
+		TotalReferralsCount:       fmt.Sprintf("%d", totalCount),
+		TotalReferralOrdersAmount: fmt.Sprintf("%d", totalAmount),
+		ChartData:                 chartData,
+	}, nil
+}
+
+func buildPlaceholders(count int) string {
+	placeholders := make([]string, count)
+	for i := range placeholders {
+		placeholders[i] = "?"
+	}
+	return strings.Join(placeholders, ",")
+}

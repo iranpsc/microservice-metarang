@@ -28,7 +28,7 @@ func (r *variableRepository) GetRate(ctx context.Context, key string) (float64, 
 		WHERE ` + "`key`" + ` = ?
 		LIMIT 1
 	`
-	
+
 	var value float64
 	err := r.db.QueryRowContext(ctx, query, key).Scan(&value)
 	if err == sql.ErrNoRows {
@@ -48,7 +48,7 @@ func (r *variableRepository) GetAllRates(ctx context.Context) (map[string]float6
 		FROM variables
 		WHERE ` + "`key`" + ` IN ('psc', 'red', 'blue', 'yellow')
 	`
-	
+
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all rates: %w", err)
@@ -71,4 +71,3 @@ func (r *variableRepository) GetAllRates(ctx context.Context) (map[string]float6
 
 	return rates, nil
 }
-

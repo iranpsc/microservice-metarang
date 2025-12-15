@@ -23,8 +23,9 @@ type NotificationResult struct {
 
 // NotificationFilter defines pagination and filtering information when querying notifications.
 type NotificationFilter struct {
-	Page    int32
-	PerPage int32
+	Page       int32
+	PerPage    int32
+	UnreadOnly bool // Filter only unread notifications
 }
 
 // SMSPayload contains the minimal information required to send an SMS.

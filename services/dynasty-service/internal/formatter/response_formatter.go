@@ -9,12 +9,12 @@ import (
 
 // DynastyResponse matches Laravel DynastyResource exactly
 type DynastyResponse struct {
-	UserHasDynasty bool              `json:"user-has-dynasty"` // Note: kebab-case!
-	ID             uint64            `json:"id,omitempty"`
-	FamilyID       uint64            `json:"family_id,omitempty"`
-	CreatedAt      string            `json:"created_at,omitempty"`
-	ProfileImage   string            `json:"profile-image,omitempty"` // Note: kebab-case!
-	DynastyFeature *DynastyFeature   `json:"dynasty-feature,omitempty"` // Note: kebab-case!
+	UserHasDynasty bool               `json:"user-has-dynasty"` // Note: kebab-case!
+	ID             uint64             `json:"id,omitempty"`
+	FamilyID       uint64             `json:"family_id,omitempty"`
+	CreatedAt      string             `json:"created_at,omitempty"`
+	ProfileImage   string             `json:"profile-image,omitempty"`   // Note: kebab-case!
+	DynastyFeature *DynastyFeature    `json:"dynasty-feature,omitempty"` // Note: kebab-case!
 	Features       []AvailableFeature `json:"features,omitempty"`
 }
 
@@ -60,12 +60,12 @@ func FormatDynastyResponse(
 	} else {
 		profitIncrease = "0"
 	}
-	
+
 	profileImageStr := ""
 	if profilePhoto != nil {
 		profileImageStr = *profilePhoto
 	}
-	
+
 	return &DynastyResponse{
 		UserHasDynasty: true,
 		ID:             dynasty.ID,
@@ -87,12 +87,12 @@ func FormatDynastyResponse(
 
 // SentRequestResource matches Laravel SentRequestsResource
 type SentRequestResource struct {
-	ID           uint64              `json:"id"`
-	ToUser       UserBasic           `json:"to_user"`
-	Relationship string              `json:"relationship"`
-	Status       int16               `json:"status"`
-	Prize        *PrizeInfo          `json:"prize"`
-	CreatedAt    string              `json:"created_at"`
+	ID           uint64     `json:"id"`
+	ToUser       UserBasic  `json:"to_user"`
+	Relationship string     `json:"relationship"`
+	Status       int16      `json:"status"`
+	Prize        *PrizeInfo `json:"prize"`
+	CreatedAt    string     `json:"created_at"`
 }
 
 // ReceivedRequestResource matches Laravel RecievedJoinRequest
@@ -107,9 +107,9 @@ type ReceivedRequestResource struct {
 
 // FamilyMemberResource matches Laravel FamilyMemberResource
 type FamilyMemberResource struct {
-	ID           uint64         `json:"id"`
-	User         UserWithLevel  `json:"user"`
-	Relationship string         `json:"relationship"`
+	ID           uint64        `json:"id"`
+	User         UserWithLevel `json:"user"`
+	Relationship string        `json:"relationship"`
 }
 
 // UserBasic represents basic user info
@@ -131,11 +131,11 @@ type UserWithLevel struct {
 
 // PrizeInfo represents prize details
 type PrizeInfo struct {
-	Satisfaction                float64 `json:"satisfaction"`
-	PSC                         int     `json:"psc"`
-	IntroductionProfitIncrease  float64 `json:"introduction_profit_increase"`
-	AccumulatedCapitalReserve   float64 `json:"accumulated_capital_reserve"`
-	DataStorage                 float64 `json:"data_storage"`
+	Satisfaction               float64 `json:"satisfaction"`
+	PSC                        int     `json:"psc"`
+	IntroductionProfitIncrease float64 `json:"introduction_profit_increase"`
+	AccumulatedCapitalReserve  float64 `json:"accumulated_capital_reserve"`
+	DataStorage                float64 `json:"data_storage"`
 }
 
 // FormatSentRequest formats sent join request
@@ -154,7 +154,7 @@ func FormatSentRequest(
 			DataStorage:                prize.DataStorage,
 		}
 	}
-	
+
 	return &SentRequestResource{
 		ID:           req.ID,
 		ToUser:       toUser,
@@ -174,7 +174,7 @@ func FormatReceivedRequest(
 	if req.Message != nil {
 		message = *req.Message
 	}
-	
+
 	return &ReceivedRequestResource{
 		ID:           req.ID,
 		FromUser:     fromUser,
@@ -204,4 +204,3 @@ func FormatUserSearchResponse(results interface{}) map[string]interface{} {
 		"date": results, // Yes, 'date' not 'data'! Must preserve typo!
 	}
 }
-

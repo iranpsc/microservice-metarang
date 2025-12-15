@@ -57,4 +57,3 @@ func (p *JoinRequestPolicy) CanReject(
 	// Only receiver can reject, and only if status is pending (0)
 	return request.ToUser == userID && request.Status == 0
 }
-

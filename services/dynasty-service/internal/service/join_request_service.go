@@ -13,6 +13,7 @@ type JoinRequestService struct {
 	joinRequestRepo         *repository.JoinRequestRepository
 	dynastyRepo             *repository.DynastyRepository
 	familyRepo              *repository.FamilyRepository
+	prizeRepo               *repository.PrizeRepository
 	notificationServiceAddr string
 }
 
@@ -20,12 +21,14 @@ func NewJoinRequestService(
 	joinRequestRepo *repository.JoinRequestRepository,
 	dynastyRepo *repository.DynastyRepository,
 	familyRepo *repository.FamilyRepository,
+	prizeRepo *repository.PrizeRepository,
 	notificationServiceAddr string,
 ) *JoinRequestService {
 	return &JoinRequestService{
 		joinRequestRepo:         joinRequestRepo,
 		dynastyRepo:             dynastyRepo,
 		familyRepo:              familyRepo,
+		prizeRepo:               prizeRepo,
 		notificationServiceAddr: notificationServiceAddr,
 	}
 }
@@ -53,7 +56,7 @@ func (s *JoinRequestService) SendJoinRequest(ctx context.Context, fromUserID, to
 	joinRequest := &models.JoinRequest{
 		FromUser:     fromUserID,
 		ToUser:       toUserID,
-		Status:       4, // default status
+		Status:       0, // 0=pending (per API spec)
 		Relationship: relationship,
 		Message:      message,
 	}
@@ -205,8 +208,8 @@ func (s *JoinRequestService) RejectJoinRequest(ctx context.Context, requestID, u
 		return fmt.Errorf("unauthorized to reject this request")
 	}
 
-	// Update request status to rejected
-	if err := s.joinRequestRepo.UpdateJoinRequestStatus(ctx, requestID, 2); err != nil {
+	// Update request status to rejected (-1 per API spec)
+	if err := s.joinRequestRepo.UpdateJoinRequestStatus(ctx, requestID, -1); err != nil {
 		return fmt.Errorf("failed to update request status: %w", err)
 	}
 
@@ -253,3 +256,10 @@ func (s *JoinRequestService) FormatRelationshipMessage(message string, senderNam
 	return message
 }
 
+// GetPrizeByRelationship retrieves dynasty prize by relationship type
+func (s *JoinRequestService) GetPrizeByRelationship(ctx context.Context, relationship string) (*models.DynastyPrize, error) {
+	if s.prizeRepo == nil {
+		return nil, nil
+	}
+	return s.prizeRepo.GetPrizeByRelationship(ctx, relationship)
+}

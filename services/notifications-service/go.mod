@@ -18,8 +18,15 @@ replace metargb/shared => ../../shared
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
+	github.com/go-playground/locales v0.14.1 // indirect
+	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-playground/validator/v10 v10.16.0 // indirect
+	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/yaa110/go-persian-calendar v1.2.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect

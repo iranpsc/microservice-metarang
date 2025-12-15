@@ -17,51 +17,51 @@ type Level struct {
 // LevelGeneralInfo represents detailed information about a level
 // Maps to Laravel: App\Models\Levels\LevelGeneralInfo
 type LevelGeneralInfo struct {
-	ID           uint64     `json:"id" db:"id"`
-	LevelID      uint64     `json:"level_id" db:"level_id"`
-	Score        int32      `json:"score" db:"score"`
-	Rank         string     `json:"rank" db:"rank"`
-	Description  string     `json:"description" db:"description"`
+	ID            uint64    `json:"id" db:"id"`
+	LevelID       uint64    `json:"level_id" db:"level_id"`
+	Score         int32     `json:"score" db:"score"`
+	Rank          string    `json:"rank" db:"rank"`
+	Description   string    `json:"description" db:"description"`
 	Subcategories *string   `json:"subcategories" db:"subcategories"`
-	PersianFont  *string    `json:"persian_font" db:"persian_font"`
-	EnglishFont  *string    `json:"english_font" db:"english_font"`
-	FileVolume   *string    `json:"file_volume" db:"file_volume"`
-	UsedColors   *string    `json:"used_colors" db:"used_colors"`
-	Points       *string    `json:"points" db:"points"`
-	Lines        *string    `json:"lines" db:"lines"`
-	HasAnimation *bool      `json:"has_animation" db:"has_animation"`
-	Designer     *string    `json:"designer" db:"designer"`
+	PersianFont   *string   `json:"persian_font" db:"persian_font"`
+	EnglishFont   *string   `json:"english_font" db:"english_font"`
+	FileVolume    *string   `json:"file_volume" db:"file_volume"`
+	UsedColors    *string   `json:"used_colors" db:"used_colors"`
+	Points        *string   `json:"points" db:"points"`
+	Lines         *string   `json:"lines" db:"lines"`
+	HasAnimation  *bool     `json:"has_animation" db:"has_animation"`
+	Designer      *string   `json:"designer" db:"designer"`
 	ModelDesigner *string   `json:"model_designer" db:"model_designer"`
-	CreationDate *string    `json:"creation_date" db:"creation_date"`
-	PngFile      *string    `json:"png_file" db:"png_file"`
-	FbxFile      *string    `json:"fbx_file" db:"fbx_file"`
-	GifFile      *string    `json:"gif_file" db:"gif_file"`
-	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
+	CreationDate  *string   `json:"creation_date" db:"creation_date"`
+	PngFile       *string   `json:"png_file" db:"png_file"`
+	FbxFile       *string   `json:"fbx_file" db:"fbx_file"`
+	GifFile       *string   `json:"gif_file" db:"gif_file"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // LevelPrize represents prizes awarded when reaching a level
 // Maps to Laravel: App\Models\Levels\LevelPrize (which references prizes table)
 type LevelPrize struct {
-	ID                       uint64     `json:"id" db:"id"`
-	LevelID                  uint64     `json:"level_id" db:"level_id"`
-	Psc                      *int64     `json:"psc" db:"psc"`
-	Blue                     *int64     `json:"blue" db:"blue"`
-	Red                      *int64     `json:"red" db:"red"`
-	Yellow                   *int64     `json:"yellow" db:"yellow"`
-	UnionLicense             *int8      `json:"union_license" db:"union_license"`
-	UnionMembersCount        *int32     `json:"union_members_count" db:"union_members_count"`
-	ObservingLicense         *int8      `json:"observing_license" db:"observing_license"`
-	GateLicense              *int8      `json:"gate_license" db:"gate_license"`
-	LawyerLicense            *int8      `json:"lawyer_license" db:"lawyer_license"`
-	CityCouncilEntry         *int8      `json:"city_counsil_entry" db:"city_counsil_entry"`
-	SpecialResidenceProperty *int64     `json:"special_residence_property" db:"special_residence_property"`
-	PropertyOnArea           *int64     `json:"property_on_area" db:"property_on_area"`
-	JudgeEntry               *int8      `json:"judge_entry" db:"judge_entry"`
-	Satisfaction             float32    `json:"satisfaction" db:"satisfaction"`
-	Effect                   int32      `json:"effect" db:"effect"`
-	CreatedAt                time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt                time.Time  `json:"updated_at" db:"updated_at"`
+	ID                       uint64    `json:"id" db:"id"`
+	LevelID                  uint64    `json:"level_id" db:"level_id"`
+	Psc                      *int64    `json:"psc" db:"psc"`
+	Blue                     *int64    `json:"blue" db:"blue"`
+	Red                      *int64    `json:"red" db:"red"`
+	Yellow                   *int64    `json:"yellow" db:"yellow"`
+	UnionLicense             *int8     `json:"union_license" db:"union_license"`
+	UnionMembersCount        *int32    `json:"union_members_count" db:"union_members_count"`
+	ObservingLicense         *int8     `json:"observing_license" db:"observing_license"`
+	GateLicense              *int8     `json:"gate_license" db:"gate_license"`
+	LawyerLicense            *int8     `json:"lawyer_license" db:"lawyer_license"`
+	CityCouncilEntry         *int8     `json:"city_counsil_entry" db:"city_counsil_entry"`
+	SpecialResidenceProperty *int64    `json:"special_residence_property" db:"special_residence_property"`
+	PropertyOnArea           *int64    `json:"property_on_area" db:"property_on_area"`
+	JudgeEntry               *int8     `json:"judge_entry" db:"judge_entry"`
+	Satisfaction             float32   `json:"satisfaction" db:"satisfaction"`
+	Effect                   int32     `json:"effect" db:"effect"`
+	CreatedAt                time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt                time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // LevelGem represents gem information for a level
@@ -80,8 +80,8 @@ type LevelGem struct {
 // LevelGift represents gift information for a level
 // Maps to Laravel: App\Models\Levels\LevelGift
 type LevelGift struct {
-	ID        uint64    `json:"id" db:"id"`
-	LevelID   uint64    `json:"level_id" db:"level_id"`
+	ID      uint64 `json:"id" db:"id"`
+	LevelID uint64 `json:"level_id" db:"level_id"`
 	// Add gift-specific fields based on the actual database schema
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
@@ -90,8 +90,8 @@ type LevelGift struct {
 // LevelLicense represents license information for a level
 // Maps to Laravel: App\Models\Levels\LevelLicense
 type LevelLicense struct {
-	ID        uint64    `json:"id" db:"id"`
-	LevelID   uint64    `json:"level_id" db:"level_id"`
+	ID      uint64 `json:"id" db:"id"`
+	LevelID uint64 `json:"level_id" db:"level_id"`
 	// Add license-specific fields based on the actual database schema
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
@@ -116,4 +116,3 @@ type ReceivedLevelPrize struct {
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
-

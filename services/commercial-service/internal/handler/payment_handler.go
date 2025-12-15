@@ -67,4 +67,3 @@ func (h *PaymentHandler) VerifyPayment(ctx context.Context, req *pb.VerifyPaymen
 		Message:     message,
 	}, nil
 }
-

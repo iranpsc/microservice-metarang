@@ -12,4 +12,3 @@ type ReceivedPrize struct {
 	UpdatedAt time.Time     `db:"updated_at"`
 	Prize     *DynastyPrize `db:"-"` // Not from DB, joined
 }
-

@@ -98,4 +98,3 @@ func (r *orderRepository) FindLatestByUserID(ctx context.Context, userID uint64)
 	}
 	return order, nil
 }
-

@@ -40,33 +40,64 @@ func (r *HourlyProfitRepository) Create(ctx context.Context, userID, featureID u
 }
 
 // FindByID retrieves a single profit record
+// Joins with feature_properties to get karbari and properties.id
 func (r *HourlyProfitRepository) FindByID(ctx context.Context, id uint64) (*models.FeatureHourlyProfit, error) {
 	profit := &models.FeatureHourlyProfit{}
 
 	query := `
-		SELECT id, user_id, feature_id, asset, amount, dead_line, is_active, created_at, updated_at
-		FROM feature_hourly_profits
-		WHERE id = ?
+		SELECT 
+			fhp.id, 
+			fhp.user_id, 
+			fhp.feature_id, 
+			fhp.asset, 
+			fhp.amount, 
+			fhp.dead_line, 
+			fhp.is_active, 
+			fhp.created_at, 
+			fhp.updated_at,
+			f.id as feature_db_id,
+			fp.id as properties_id,
+			fp.karbari
+		FROM feature_hourly_profits fhp
+		INNER JOIN features f ON fhp.feature_id = f.id
+		LEFT JOIN feature_properties fp ON fhp.feature_id = fp.feature_id
+		WHERE fhp.id = ?
 	`
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&profit.ID, &profit.UserID, &profit.FeatureID, &profit.Asset,
 		&profit.Amount, &profit.Deadline, &profit.IsActive,
 		&profit.CreatedAt, &profit.UpdatedAt,
+		&profit.FeatureDBID, &profit.PropertiesID, &profit.Karbari,
 	)
 
 	return profit, err
 }
 
 // FindByUserID retrieves all profits for a user with pagination
+// Joins with feature_properties to get karbari and properties.id
 func (r *HourlyProfitRepository) FindByUserID(ctx context.Context, userID uint64, page, pageSize int32) ([]*models.FeatureHourlyProfit, error) {
 	offset := (page - 1) * pageSize
 
 	query := `
-		SELECT id, user_id, feature_id, asset, amount, dead_line, is_active, created_at, updated_at
-		FROM feature_hourly_profits
-		WHERE user_id = ?
-		ORDER BY created_at DESC
+		SELECT 
+			fhp.id, 
+			fhp.user_id, 
+			fhp.feature_id, 
+			fhp.asset, 
+			fhp.amount, 
+			fhp.dead_line, 
+			fhp.is_active, 
+			fhp.created_at, 
+			fhp.updated_at,
+			f.id as feature_db_id,
+			fp.id as properties_id,
+			fp.karbari
+		FROM feature_hourly_profits fhp
+		INNER JOIN features f ON fhp.feature_id = f.id
+		LEFT JOIN feature_properties fp ON fhp.feature_id = fp.feature_id
+		WHERE fhp.user_id = ?
+		ORDER BY fhp.created_at DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -83,6 +114,7 @@ func (r *HourlyProfitRepository) FindByUserID(ctx context.Context, userID uint64
 			&profit.ID, &profit.UserID, &profit.FeatureID, &profit.Asset,
 			&profit.Amount, &profit.Deadline, &profit.IsActive,
 			&profit.CreatedAt, &profit.UpdatedAt,
+			&profit.FeatureDBID, &profit.PropertiesID, &profit.Karbari,
 		); err != nil {
 			continue
 		}
@@ -292,6 +324,14 @@ func (r *HourlyProfitRepository) GetAllByUserAndKarbari(ctx context.Context, use
 // Used when destroying buildings
 func (r *HourlyProfitRepository) ActivateProfitsForFeature(ctx context.Context, featureID uint64) error {
 	query := "UPDATE feature_hourly_profits SET is_active = 1, updated_at = NOW() WHERE feature_id = ?"
+	_, err := r.db.ExecContext(ctx, query, featureID)
+	return err
+}
+
+// DeactivateProfitsForFeature deactivates all profits for a feature
+// Used when starting building construction
+func (r *HourlyProfitRepository) DeactivateProfitsForFeature(ctx context.Context, featureID uint64) error {
+	query := "UPDATE feature_hourly_profits SET is_active = 0, updated_at = NOW() WHERE feature_id = ?"
 	_, err := r.db.ExecContext(ctx, query, featureID)
 	return err
 }

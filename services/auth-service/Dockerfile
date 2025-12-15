@@ -9,15 +9,11 @@ WORKDIR /workspace
 # Create the proper directory structure
 RUN mkdir -p /workspace/metargb/auth-service /workspace/metargb/shared
 
-# Copy shared module first
+# Copy only go.mod files first for better layer caching
 COPY ./shared/go.mod /workspace/metargb/shared/
-COPY ./shared/ /workspace/metargb/shared/
-
-# Copy auth service
 COPY ./services/auth-service/go.mod ./services/auth-service/go.sum* /workspace/metargb/auth-service/
-COPY ./services/auth-service/ /workspace/metargb/auth-service/
 
-# Setup go workspace
+# Setup go workspace (before copying source to optimize caching)
 WORKDIR /workspace
 RUN echo 'go 1.24.0' > go.work && \
     echo '' >> go.work && \
@@ -26,13 +22,24 @@ RUN echo 'go 1.24.0' > go.work && \
     echo '    ./metargb/shared' >> go.work && \
     echo ')' >> go.work
 
-# Download dependencies
+# Download dependencies first (this layer will be cached if go.mod doesn't change)
 WORKDIR /workspace/metargb/auth-service
 
 # Update replace directive for Docker context
 RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod
 
+# Use GOPROXY with fallback instead of direct-only (faster and more reliable)
+ENV GOPROXY=https://proxy.golang.org,direct
 RUN go mod download
+
+# Now copy the rest of the source code (this invalidates cache only when source changes)
+WORKDIR /workspace
+COPY ./shared/ /workspace/metargb/shared/
+COPY ./services/auth-service/ /workspace/metargb/auth-service/
+
+# Fix replace directive again after copying source (since go.mod gets overwritten)
+WORKDIR /workspace/metargb/auth-service
+RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod
 
 # Build the application  
 WORKDIR /workspace

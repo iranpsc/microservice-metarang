@@ -13,22 +13,22 @@ import (
 
 // ChunkSession represents an active chunk upload session
 type ChunkSession struct {
-	UploadID     string
-	Filename     string
-	ContentType  string
-	TotalChunks  int32
-	TotalSize    int64
-	UploadPath   string
+	UploadID       string
+	Filename       string
+	ContentType    string
+	TotalChunks    int32
+	TotalSize      int64
+	UploadPath     string
 	ReceivedChunks map[int32]bool
-	TempDir      string
-	CreatedAt    time.Time
-	mu           sync.RWMutex
+	TempDir        string
+	CreatedAt      time.Time
+	mu             sync.RWMutex
 }
 
 // ChunkManager manages chunk upload sessions
 type ChunkManager struct {
-	sessions map[string]*ChunkSession
-	mu       sync.RWMutex
+	sessions    map[string]*ChunkSession
+	mu          sync.RWMutex
 	baseTempDir string
 }
 
@@ -130,7 +130,8 @@ func (cm *ChunkManager) IsComplete(session *ChunkSession) bool {
 }
 
 // AssembleFile assembles all chunks into a single file
-func (cm *ChunkManager) AssembleFile(session *ChunkSession) ([]byte, string, error) {
+// Returns: assembledData, relativePath (like "upload/mime/date/filename"), finalFilename, error
+func (cm *ChunkManager) AssembleFile(session *ChunkSession) ([]byte, string, string, error) {
 	session.mu.RLock()
 	defer session.mu.RUnlock()
 
@@ -138,14 +139,22 @@ func (cm *ChunkManager) AssembleFile(session *ChunkSession) ([]byte, string, err
 	uniqueFilename := cm.createUniqueFilename(session.Filename)
 
 	// Determine final path with mime type and date organization
-	mime := strings.ReplaceAll(session.ContentType, "/", "-")
+	// Format: upload/{mime}/{YYYY-MM-DD}/{filename}
+	// MIME type should be normalized (e.g., "image/jpeg" -> "image-jpeg" or just use the main type)
+	mime := session.ContentType
+	// Remove charset and other parameters from content type
+	mime = strings.Split(mime, ";")[0]
+	mime = strings.TrimSpace(mime)
+	// Replace "/" with "-" for directory name (e.g., "image/jpeg" -> "image-jpeg")
+	mimeDir := strings.ReplaceAll(mime, "/", "-")
 	dateFolder := time.Now().Format("2006-01-02")
-	
-	var finalPath string
+
+	var relativePath string
 	if session.UploadPath != "" {
-		finalPath = filepath.Join(session.UploadPath, uniqueFilename)
+		relativePath = filepath.Join(session.UploadPath, uniqueFilename)
 	} else {
-		finalPath = filepath.Join("upload", mime, dateFolder, uniqueFilename)
+		// Format: upload/{mime}/{YYYY-MM-DD}/{filename}
+		relativePath = filepath.Join("upload", mimeDir, dateFolder, uniqueFilename)
 	}
 
 	// Open a buffer to assemble the file
@@ -154,16 +163,16 @@ func (cm *ChunkManager) AssembleFile(session *ChunkSession) ([]byte, string, err
 	// Assemble chunks in order
 	for i := int32(0); i < session.TotalChunks; i++ {
 		chunkPath := filepath.Join(session.TempDir, fmt.Sprintf("chunk_%d", i))
-		
+
 		chunkData, err := os.ReadFile(chunkPath)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to read chunk %d: %w", i, err)
+			return nil, "", "", fmt.Errorf("failed to read chunk %d: %w", i, err)
 		}
 
 		assembledData = append(assembledData, chunkData...)
 	}
 
-	return assembledData, finalPath, nil
+	return assembledData, relativePath, uniqueFilename, nil
 }
 
 // CleanupSession removes a session and its temporary files
@@ -215,4 +224,3 @@ func (cm *ChunkManager) cleanupExpiredSessions() {
 		cm.mu.Unlock()
 	}
 }
-

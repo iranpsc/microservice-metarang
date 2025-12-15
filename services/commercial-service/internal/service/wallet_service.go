@@ -60,7 +60,7 @@ func (s *walletService) GetWallet(ctx context.Context, userID uint64) (map[strin
 
 func (s *walletService) DeductBalance(ctx context.Context, userID uint64, asset string, amount float64) (map[string]string, error) {
 	amountDec := decimal.NewFromFloat(amount)
-	
+
 	err := s.walletRepo.DeductBalance(ctx, userID, asset, amountDec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deduct balance: %w", err)
@@ -71,7 +71,7 @@ func (s *walletService) DeductBalance(ctx context.Context, userID uint64, asset 
 
 func (s *walletService) AddBalance(ctx context.Context, userID uint64, asset string, amount float64) (map[string]string, error) {
 	amountDec := decimal.NewFromFloat(amount)
-	
+
 	err := s.walletRepo.AddBalance(ctx, userID, asset, amountDec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add balance: %w", err)
@@ -82,7 +82,7 @@ func (s *walletService) AddBalance(ctx context.Context, userID uint64, asset str
 
 func (s *walletService) LockBalance(ctx context.Context, userID uint64, asset string, amount float64, reason string) error {
 	amountDec := decimal.NewFromFloat(amount)
-	
+
 	err := s.walletRepo.LockBalance(ctx, userID, asset, amountDec, reason)
 	if err != nil {
 		return fmt.Errorf("failed to lock balance: %w", err)
@@ -93,7 +93,7 @@ func (s *walletService) LockBalance(ctx context.Context, userID uint64, asset st
 
 func (s *walletService) UnlockBalance(ctx context.Context, userID uint64, asset string, amount float64) error {
 	amountDec := decimal.NewFromFloat(amount)
-	
+
 	err := s.walletRepo.UnlockBalance(ctx, userID, asset, amountDec)
 	if err != nil {
 		return fmt.Errorf("failed to unlock balance: %w", err)
@@ -101,4 +101,3 @@ func (s *walletService) UnlockBalance(ctx context.Context, userID uint64, asset 
 
 	return nil
 }
-

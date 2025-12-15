@@ -102,4 +102,3 @@ func (c *FTPClient) Close() error {
 	}
 	return nil
 }
-

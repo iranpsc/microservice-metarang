@@ -11,7 +11,7 @@ import (
 // PrizeServiceEnhanced provides enhanced prize operations
 type PrizeServiceEnhanced struct {
 	prizeRepo *repository.PrizeRepository
-	
+
 	// gRPC clients (to be injected)
 	// commercialClient commercial.CommercialServiceClient
 }
@@ -38,12 +38,12 @@ func (s *PrizeServiceEnhanced) AwardPrize(
 		// No prize defined for this relationship
 		return nil
 	}
-	
+
 	// Create received prize record
 	if err := s.prizeRepo.AwardPrize(ctx, userID, prize.ID, message); err != nil {
 		return fmt.Errorf("failed to award prize: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -60,70 +60,70 @@ func (s *PrizeServiceEnhanced) ClaimPrize(
 	if receivedPrize == nil {
 		return fmt.Errorf("received prize not found")
 	}
-	
+
 	// Verify ownership
 	if receivedPrize.UserID != userID {
 		return fmt.Errorf("unauthorized to claim this prize")
 	}
-	
+
 	_ = receivedPrize.Prize // Prize is available but not currently used
-	
+
 	// TODO: Update wallet via Commercial Service gRPC call
 	// This is the critical business logic that must be implemented:
 	/*
-	// 1. Get PSC rate from variables
-	pscRate := getVariableRate("psc") // Would call Commercial service
-	
-	// 2. Add PSC to wallet (converted by rate)
-	err = s.commercialClient.UpdateWallet(ctx, &commercial.UpdateWalletRequest{
-		UserId: userID,
-		Updates: []*commercial.WalletUpdate{
-			{
-				Asset:  "psc",
-				Amount: float64(prize.PSC) / pscRate,
-				Action: "increment",
+		// 1. Get PSC rate from variables
+		pscRate := getVariableRate("psc") // Would call Commercial service
+
+		// 2. Add PSC to wallet (converted by rate)
+		err = s.commercialClient.UpdateWallet(ctx, &commercial.UpdateWalletRequest{
+			UserId: userID,
+			Updates: []*commercial.WalletUpdate{
+				{
+					Asset:  "psc",
+					Amount: float64(prize.PSC) / pscRate,
+					Action: "increment",
+				},
+				{
+					Asset:  "satisfaction",
+					Amount: prize.Satisfaction,
+					Action: "increment",
+				},
 			},
-			{
-				Asset:  "satisfaction",
-				Amount: prize.Satisfaction,
-				Action: "increment",
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update wallet: %w", err)
+		}
+
+		// 3. Get current user variables
+		variables, err := s.commercialClient.GetUserVariables(ctx, &commercial.GetUserVariablesRequest{
+			UserId: userID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get user variables: %w", err)
+		}
+
+		// 4. Update user variables with percentage increases
+		err = s.commercialClient.UpdateUserVariables(ctx, &commercial.UpdateUserVariablesRequest{
+			UserId: userID,
+			Updates: map[string]float64{
+				"referral_profit": variables.ReferralProfit +
+					(variables.ReferralProfit * prize.IntroductionProfitIncrease),
+				"data_storage": variables.DataStorage +
+					(variables.DataStorage * prize.DataStorage),
+				"withdraw_profit": variables.WithdrawProfit +
+					(variables.WithdrawProfit * prize.AccumulatedCapitalReserve),
 			},
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update wallet: %w", err)
-	}
-	
-	// 3. Get current user variables
-	variables, err := s.commercialClient.GetUserVariables(ctx, &commercial.GetUserVariablesRequest{
-		UserId: userID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to get user variables: %w", err)
-	}
-	
-	// 4. Update user variables with percentage increases
-	err = s.commercialClient.UpdateUserVariables(ctx, &commercial.UpdateUserVariablesRequest{
-		UserId: userID,
-		Updates: map[string]float64{
-			"referral_profit": variables.ReferralProfit + 
-				(variables.ReferralProfit * prize.IntroductionProfitIncrease),
-			"data_storage": variables.DataStorage + 
-				(variables.DataStorage * prize.DataStorage),
-			"withdraw_profit": variables.WithdrawProfit + 
-				(variables.WithdrawProfit * prize.AccumulatedCapitalReserve),
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update user variables: %w", err)
-	}
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update user variables: %w", err)
+		}
 	*/
-	
+
 	// 5. Delete claimed prize
 	if err := s.prizeRepo.DeleteReceivedPrize(ctx, receivedPrizeID); err != nil {
 		return fmt.Errorf("failed to delete received prize: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -133,7 +133,7 @@ func (s *PrizeServiceEnhanced) GetUserPrizes(ctx context.Context, userID uint64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user prizes: %w", err)
 	}
-	
+
 	return prizes, nil
 }
 
@@ -143,7 +143,6 @@ func (s *PrizeServiceEnhanced) GetIntroductionPrizes(ctx context.Context) ([]*mo
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dynasty prizes: %w", err)
 	}
-	
+
 	return prizes, nil
 }
-

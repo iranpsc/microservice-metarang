@@ -24,13 +24,13 @@ func NewHTTPHandler(storageService *service.StorageService) *HTTPHandler {
 
 // ChunkUploadRequest represents the HTTP request for chunk upload
 type ChunkUploadHTTPRequest struct {
-	UploadID     string `json:"upload_id"`
-	ChunkIndex   int32  `json:"chunk_index"`
-	TotalChunks  int32  `json:"total_chunks"`
-	Filename     string `json:"filename"`
-	ContentType  string `json:"content_type"`
-	TotalSize    int64  `json:"total_size"`
-	UploadPath   string `json:"upload_path,omitempty"`
+	UploadID    string `json:"upload_id"`
+	ChunkIndex  int32  `json:"chunk_index"`
+	TotalChunks int32  `json:"total_chunks"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	TotalSize   int64  `json:"total_size"`
+	UploadPath  string `json:"upload_path,omitempty"`
 }
 
 // ChunkUploadResponse represents the HTTP response for chunk upload
@@ -123,7 +123,8 @@ func (h *HTTPHandler) HandleChunkUpload(w http.ResponseWriter, r *http.Request) 
 	uploadPath := r.FormValue("upload_path")
 
 	// Handle chunk upload
-	isFinished, progress, fileURL, filePath, finalFilename, err := h.storageService.HandleChunkUpload(
+	// Returns: isFinished, progress, filePath (relative path like "upload/mime/date/"), finalFilename, mimeType, error
+	isFinished, progress, filePath, finalFilename, mimeType, err := h.storageService.HandleChunkUpload(
 		uploadID,
 		filename,
 		contentType,
@@ -138,40 +139,25 @@ func (h *HTTPHandler) HandleChunkUpload(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Build response matching Laravel format
-	response := ChunkUploadHTTPResponse{
-		Success:        true,
-		PercentageDone: progress,
-	}
-
-	if isFinished {
-		// Extract mime type from content type
-		mimeType := contentType
-		if len(mimeType) > 0 {
-			// Remove any charset info
-			if idx := len(mimeType); idx > 0 {
-				mimeType = contentType
-			}
-		}
-
-		response.Message = "File uploaded successfully"
-		response.IsFinished = true
-		response.FileURL = filePath // Use filePath as path (matching Laravel structure)
-		response.FileName = finalFilename
-		response.MimeType = mimeType
-
-		// Also include full URL if available
-		if fileURL != "" {
-			response.FileURL = fileURL
-		}
-	} else {
-		response.Message = fmt.Sprintf("Chunk %d/%d uploaded", chunkIndex+1, totalChunks)
-	}
-
-	// Send JSON response
+	// Build response matching Laravel format exactly
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+
+	if isFinished {
+		// Completed upload: { "path": "upload/<mime>/<date>/", "name": "<original>_<hash>.<ext>", "mime_type": "<mime>" }
+		response := map[string]interface{}{
+			"path":      filePath,      // e.g., "upload/image-jpeg/2024-01-15/"
+			"name":      finalFilename, // e.g., "photo_abc123.jpg"
+			"mime_type": mimeType,      // e.g., "image/jpeg"
+		}
+		json.NewEncoder(w).Encode(response)
+	} else {
+		// In-progress chunk: { "done": <float 0-100> }
+		response := map[string]interface{}{
+			"done": progress,
+		}
+		json.NewEncoder(w).Encode(response)
+	}
 }
 
 // HandleHealthCheck handles health check endpoint
@@ -214,4 +200,3 @@ func StartHTTPServer(handler *HTTPHandler, port string) error {
 
 	return server.ListenAndServe()
 }
-

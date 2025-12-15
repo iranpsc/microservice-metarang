@@ -29,7 +29,7 @@ func main() {
 	log.Printf("✅ Chunk manager initialized with temp directory: %s", tempDir)
 
 	// Initialize storage service
-	storageService := service.NewStorageService(ftpClient, chunkManager)
+	storageService := service.NewStorageService(ftpClient, chunkManager, "")
 
 	// Create HTTP handler
 	httpHandler := handler.NewHTTPHandler(storageService)

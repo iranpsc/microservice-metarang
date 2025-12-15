@@ -3,10 +3,10 @@ package handler
 import (
 	"context"
 
-	"metargb/levels-service/internal/service"
-	pb "metargb/shared/pb/levels"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"metargb/levels-service/internal/service"
+	pb "metargb/shared/pb/levels"
 )
 
 type ChallengeHandler struct {
@@ -77,4 +77,3 @@ func (h *ChallengeHandler) GetTimings(ctx context.Context, req *pb.GetTimingsReq
 
 	return timings, nil
 }
-

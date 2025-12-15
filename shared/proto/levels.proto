@@ -107,38 +107,74 @@ message LevelPrize {
   string blue = 4;
   string red = 5;
   string yellow = 6;
-  int32 union_license = 7;
-  int32 union_members_count = 8;
-  int32 observing_license = 9;
-  int32 gate_license = 10;
-  int32 lawyer_license = 11;
-  int32 city_counsil_entry = 12;
-  string special_residence_property = 13;
-  string property_on_area = 14;
-  int32 judge_entry = 15;
-  string satisfaction = 16;
-  int32 effect = 17;
+  int64 effect = 7;
+  string satisfaction = 8;
+  string created_at = 9; // Jalali formatted date
 }
 
 message LevelGem {
   uint64 id = 1;
   uint64 level_id = 2;
   string name = 3;
-  string slug = 4;
-  string description = 5;
-  string image_url = 6;
+  string description = 4;
+  string thread = 5;
+  int32 points = 6;
+  string volume = 7;
+  string color = 8;
+  bool has_animation = 9;
+  int32 lines = 10;
+  string png_file = 11;
+  string fbx_file = 12;
+  bool encryption = 13;
+  string designer = 14;
 }
 
 message LevelGift {
   uint64 id = 1;
   uint64 level_id = 2;
-  // Add fields based on actual database schema
+  string name = 3;
+  string description = 4;
+  int32 monthly_capacity_count = 5;
+  bool store_capacity = 6;
+  bool sell_capacity = 7;
+  string features = 8;
+  bool sell = 9;
+  bool vod_document_registration = 10;
+  string seller_link = 11;
+  string designer = 12;
+  string three_d_model_volume = 13;
+  int32 three_d_model_points = 14;
+  int32 three_d_model_lines = 15;
+  bool has_animation = 16;
+  string png_file = 17;
+  string fbx_file = 18;
+  string gif_file = 19;
+  bool rent = 20;
+  int32 vod_count = 21;
+  string start_vod_id = 22;
+  string end_vod_id = 23;
 }
 
 message LevelLicense {
   uint64 id = 1;
   uint64 level_id = 2;
-  // Add fields based on actual database schema
+  bool create_union = 3;
+  bool add_memeber_to_union = 4;
+  bool observation_license = 5;
+  bool gate_license = 6;
+  bool lawyer_license = 7;
+  bool city_counsile_entry = 8;
+  bool establish_special_residential_property = 9;
+  bool establish_property_on_surface = 10;
+  bool judge_entry = 11;
+  bool upload_image = 12;
+  bool delete_image = 13;
+  bool inter_level_general_points = 14;
+  bool inter_level_special_points = 15;
+  bool rent_out_satisfaction = 16;
+  bool access_to_answer_questions_unit = 17;
+  bool create_challenge_questions = 18;
+  bool upload_music = 19;
 }
 
 message GetLevelGeneralInfoRequest {
@@ -179,6 +215,7 @@ message LevelLicensesResponse {
 
 message GetLevelPrizesRequest {
   uint64 level_id = 1;
+  string level_slug = 2;
 }
 
 message LevelPrizesResponse {

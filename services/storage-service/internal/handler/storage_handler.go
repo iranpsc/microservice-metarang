@@ -164,4 +164,3 @@ func (h *StorageHandler) ChunkUpload(ctx context.Context, req *storagepb.ChunkUp
 
 	return response, nil
 }
-

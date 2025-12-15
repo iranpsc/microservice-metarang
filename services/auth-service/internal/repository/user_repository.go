@@ -24,6 +24,36 @@ type UserRepository interface {
 	UpdatePhone(ctx context.Context, userID uint64, phone string) error
 	MarkPhoneAsVerified(ctx context.Context, userID uint64) error
 	IsPhoneTaken(ctx context.Context, phone string, excludeUserID uint64) (bool, error)
+	// Users API methods
+	ListUsers(ctx context.Context, search string, orderBy string, page int32, limit int32) ([]*UserWithRelations, int32, error)
+	GetFollowersCount(ctx context.Context, userID uint64) (int32, error)
+	GetFollowingCount(ctx context.Context, userID uint64) (int32, error)
+	GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error)
+	GetAllProfilePhotoURLs(ctx context.Context, userID uint64) ([]string, error)
+	GetUserLatestLevel(ctx context.Context, userID uint64) (*UserLevel, error)
+	GetLevelsBelowScore(ctx context.Context, score int32) ([]*UserLevel, error)
+	GetNextLevelScore(ctx context.Context, currentScore int32) (int32, error)
+	GetFeatureCounts(ctx context.Context, userID uint64) (maskoni int32, tejari int32, amoozeshi int32, err error)
+}
+
+// UserLevel represents level information from database
+type UserLevel struct {
+	ID    uint64
+	Name  string
+	Score int32
+	Slug  string
+	Image string
+}
+
+// UserWithRelations represents a user with related data for listing
+type UserWithRelations struct {
+	User              *models.User
+	KYCName           *string // Full name from KYC if available
+	CurrentLevelID    *uint64
+	CurrentLevelName  *string
+	PreviousLevelID   *uint64
+	PreviousLevelName *string
+	ProfilePhotoURL   *string
 }
 
 type userRepository struct {
@@ -146,32 +176,19 @@ func (r *userRepository) FindByCode(ctx context.Context, code string) (*models.U
 }
 
 func (r *userRepository) GetSettings(ctx context.Context, userID uint64) (*models.Settings, error) {
-	query := `SELECT id, user_id, automatic_logout FROM settings WHERE user_id = ?`
-	settings := &models.Settings{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&settings.ID, &settings.UserID, &settings.AutomaticLogout,
-	)
-	if err == sql.ErrNoRows {
-		// Return default settings
-		return &models.Settings{
-			UserID:          userID,
-			AutomaticLogout: 55,
-		}, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get settings: %w", err)
-	}
-	return settings, nil
+	// Use the SettingsRepository implementation for consistency
+	settingsRepo := NewSettingsRepository(r.db)
+	return settingsRepo.FindByUserID(ctx, userID)
 }
 
 func (r *userRepository) GetKYC(ctx context.Context, userID uint64) (*models.KYC, error) {
 	query := `
-		SELECT id, user_id, fname, lname, national_code, status, birthdate, created_at, updated_at
+		SELECT id, user_id, fname, lname, melli_code, status, birthdate, created_at, updated_at
 		FROM kycs WHERE user_id = ?
 	`
 	kyc := &models.KYC{}
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&kyc.ID, &kyc.UserID, &kyc.Fname, &kyc.Lname, &kyc.NationalCode,
+		&kyc.ID, &kyc.UserID, &kyc.Fname, &kyc.Lname, &kyc.MelliCode,
 		&kyc.Status, &kyc.Birthdate, &kyc.CreatedAt, &kyc.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -199,19 +216,9 @@ func (r *userRepository) GetUnreadNotificationsCount(ctx context.Context, userID
 }
 
 func (r *userRepository) CreateSettings(ctx context.Context, settings *models.Settings) error {
-	query := `INSERT INTO settings (user_id, automatic_logout) VALUES (?, ?)`
-	result, err := r.db.ExecContext(ctx, query, settings.UserID, settings.AutomaticLogout)
-	if err != nil {
-		return fmt.Errorf("failed to create settings: %w", err)
-	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("failed to get last insert id: %w", err)
-	}
-	settings.ID = uint64(id)
-
-	return nil
+	// Use the SettingsRepository implementation for consistency
+	settingsRepo := NewSettingsRepository(r.db)
+	return settingsRepo.Create(ctx, settings)
 }
 
 func (r *userRepository) MarkEmailAsVerified(ctx context.Context, userID uint64) error {
@@ -248,4 +255,316 @@ func (r *userRepository) IsPhoneTaken(ctx context.Context, phone string, exclude
 		return false, fmt.Errorf("failed to check phone uniqueness: %w", err)
 	}
 	return count > 0, nil
+}
+
+// ListUsers returns paginated list of users with search and ordering
+// Filters out admin user (code = 'hm-2000000')
+func (r *userRepository) ListUsers(ctx context.Context, search string, orderBy string, page int32, limit int32) ([]*UserWithRelations, int32, error) {
+	offset := (page - 1) * limit
+
+	// Build WHERE clause
+	whereClause := "WHERE u.code != 'hm-2000000'"
+	args := []interface{}{}
+
+	if search != "" {
+		whereClause += " AND u.name LIKE ?"
+		args = append(args, "%"+search+"%")
+	}
+
+	// Build ORDER BY clause
+	orderClause := "ORDER BY u.score DESC" // Default: descending score
+	switch orderBy {
+	case "score":
+		orderClause = "ORDER BY u.score DESC"
+	case "registered_at_asc":
+		orderClause = "ORDER BY u.created_at ASC"
+	case "registered_at_desc":
+		orderClause = "ORDER BY u.created_at DESC"
+	}
+
+	// Query to get users with relations
+	query := fmt.Sprintf(`
+		SELECT 
+			u.id, u.name, u.email, u.phone, u.password, u.code, u.referrer_id, u.score, u.ip,
+			u.last_seen, u.email_verified_at, u.phone_verified_at, u.access_token,
+			u.refresh_token, u.token_type, u.expires_in, u.created_at, u.updated_at,
+			k.fname, k.lname,
+			(SELECT level_id FROM level_user WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as current_level_id,
+			(SELECT name FROM levels WHERE id = (SELECT level_id FROM level_user WHERE user_id = u.id ORDER BY id DESC LIMIT 1)) as current_level_name,
+			(SELECT level_id FROM level_user WHERE user_id = u.id ORDER BY id DESC LIMIT 1 OFFSET 1) as previous_level_id,
+			(SELECT name FROM levels WHERE id = (SELECT level_id FROM level_user WHERE user_id = u.id ORDER BY id DESC LIMIT 1 OFFSET 1)) as previous_level_name,
+			(SELECT url FROM images WHERE imageable_type = 'App\\Models\\User' AND imageable_id = u.id ORDER BY created_at DESC LIMIT 1) as profile_photo_url
+		FROM users u
+		LEFT JOIN kycs k ON k.user_id = u.id AND k.status = 1
+		%s
+		%s
+		LIMIT ? OFFSET ?
+	`, whereClause, orderClause)
+
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*UserWithRelations
+	for rows.Next() {
+		user := &models.User{}
+		ur := &UserWithRelations{User: user}
+
+		var kycFname, kycLname sql.NullString
+		var currentLevelID, previousLevelID sql.NullInt64
+		var currentLevelName, previousLevelName sql.NullString
+		var profilePhotoURL sql.NullString
+
+		err := rows.Scan(
+			&user.ID, &user.Name, &user.Email, &user.Phone, &user.Password, &user.Code,
+			&user.ReferrerID, &user.Score, &user.IP, &user.LastSeen,
+			&user.EmailVerifiedAt, &user.PhoneVerifiedAt, &user.AccessToken,
+			&user.RefreshToken, &user.TokenType, &user.ExpiresIn,
+			&user.CreatedAt, &user.UpdatedAt,
+			&kycFname, &kycLname,
+			&currentLevelID, &currentLevelName,
+			&previousLevelID, &previousLevelName,
+			&profilePhotoURL,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
+		}
+
+		// Set KYC name if available
+		if kycFname.Valid && kycLname.Valid {
+			fullName := kycFname.String + " " + kycLname.String
+			ur.KYCName = &fullName
+		}
+
+		// Set level info
+		if currentLevelID.Valid {
+			id := uint64(currentLevelID.Int64)
+			ur.CurrentLevelID = &id
+			if currentLevelName.Valid {
+				name := currentLevelName.String
+				ur.CurrentLevelName = &name
+			}
+		}
+
+		if previousLevelID.Valid {
+			id := uint64(previousLevelID.Int64)
+			ur.PreviousLevelID = &id
+			if previousLevelName.Valid {
+				name := previousLevelName.String
+				ur.PreviousLevelName = &name
+			}
+		}
+
+		// Set profile photo
+		if profilePhotoURL.Valid {
+			url := profilePhotoURL.String
+			ur.ProfilePhotoURL = &url
+		}
+
+		users = append(users, ur)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating users: %w", err)
+	}
+
+	// Get total count for pagination
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users u %s", whereClause)
+	var totalCount int32
+	countArgs := args[:len(args)-2] // Remove LIMIT and OFFSET
+	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount); err != nil {
+		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
+	}
+
+	return users, totalCount, nil
+}
+
+// GetFollowersCount returns the number of followers for a user
+func (r *userRepository) GetFollowersCount(ctx context.Context, userID uint64) (int32, error) {
+	query := `SELECT COUNT(*) FROM follows WHERE following_id = ?`
+	var count int32
+	if err := r.db.QueryRowContext(ctx, query, userID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to get followers count: %w", err)
+	}
+	return count, nil
+}
+
+// GetFollowingCount returns the number of users being followed
+func (r *userRepository) GetFollowingCount(ctx context.Context, userID uint64) (int32, error) {
+	query := `SELECT COUNT(*) FROM follows WHERE follower_id = ?`
+	var count int32
+	if err := r.db.QueryRowContext(ctx, query, userID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to get following count: %w", err)
+	}
+	return count, nil
+}
+
+// GetLatestProfilePhotoURL returns the URL of the latest profile photo for a user
+func (r *userRepository) GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error) {
+	query := `
+		SELECT url FROM images
+		WHERE imageable_type = 'App\\Models\\User' AND imageable_id = ?
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	var url sql.NullString
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&url)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get latest profile photo: %w", err)
+	}
+	if url.Valid {
+		return url.String, nil
+	}
+	return "", nil
+}
+
+// GetAllProfilePhotoURLs returns all profile photo URLs for a user
+func (r *userRepository) GetAllProfilePhotoURLs(ctx context.Context, userID uint64) ([]string, error) {
+	query := `
+		SELECT url FROM images
+		WHERE imageable_type = 'App\\Models\\User' AND imageable_id = ?
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get profile photos: %w", err)
+	}
+	defer rows.Close()
+
+	var urls []string
+	for rows.Next() {
+		var url string
+		if err := rows.Scan(&url); err != nil {
+			return nil, fmt.Errorf("failed to scan profile photo URL: %w", err)
+		}
+		urls = append(urls, url)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating profile photos: %w", err)
+	}
+
+	return urls, nil
+}
+
+// GetUserLatestLevel returns the user's latest level
+func (r *userRepository) GetUserLatestLevel(ctx context.Context, userID uint64) (*UserLevel, error) {
+	query := `
+		SELECT l.id, l.name, l.slug, CAST(l.score AS SIGNED) as score,
+		       COALESCE(i.url, '') as image_url
+		FROM level_user lu
+		INNER JOIN levels l ON l.id = lu.level_id
+		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
+		WHERE lu.user_id = ?
+		ORDER BY lu.id DESC
+		LIMIT 1
+	`
+
+	var level UserLevel
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest level: %w", err)
+	}
+	return &level, nil
+}
+
+// GetLevelsBelowScore returns all levels below the given score
+func (r *userRepository) GetLevelsBelowScore(ctx context.Context, score int32) ([]*UserLevel, error) {
+	query := `
+		SELECT l.id, l.name, l.slug, CAST(l.score AS SIGNED) as score,
+		       COALESCE(i.url, '') as image_url
+		FROM levels l
+		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
+		WHERE CAST(l.score AS SIGNED) < ?
+		ORDER BY CAST(l.score AS SIGNED) ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, score)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get levels below score: %w", err)
+	}
+	defer rows.Close()
+
+	var levels []*UserLevel
+	for rows.Next() {
+		var level UserLevel
+		if err := rows.Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image); err != nil {
+			return nil, fmt.Errorf("failed to scan level: %w", err)
+		}
+		levels = append(levels, &level)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating levels: %w", err)
+	}
+
+	return levels, nil
+}
+
+// GetNextLevelScore returns the score of the next level above current score
+func (r *userRepository) GetNextLevelScore(ctx context.Context, currentScore int32) (int32, error) {
+	query := `
+		SELECT CAST(l.score AS SIGNED) as score
+		FROM levels l
+		WHERE CAST(l.score AS SIGNED) > ?
+		ORDER BY CAST(l.score AS SIGNED) ASC
+		LIMIT 1
+	`
+
+	var nextScore sql.NullInt64
+	err := r.db.QueryRowContext(ctx, query, currentScore).Scan(&nextScore)
+	if err == sql.ErrNoRows {
+		return 0, nil // No next level
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to get next level score: %w", err)
+	}
+	if nextScore.Valid {
+		return int32(nextScore.Int64), nil
+	}
+	return 0, nil
+}
+
+// GetFeatureCounts returns feature counts by category for a user
+func (r *userRepository) GetFeatureCounts(ctx context.Context, userID uint64) (maskoni int32, tejari int32, amoozeshi int32, err error) {
+	query := `
+		SELECT 
+			SUM(CASE WHEN fp.karbari = 'm' THEN 1 ELSE 0 END) as maskoni_count,
+			SUM(CASE WHEN fp.karbari = 't' THEN 1 ELSE 0 END) as tejari_count,
+			SUM(CASE WHEN fp.karbari = 'a' THEN 1 ELSE 0 END) as amoozeshi_count
+		FROM features f
+		INNER JOIN feature_properties fp ON f.id = fp.feature_id
+		WHERE f.owner_id = ?
+	`
+
+	var maskoniCount, tejariCount, amoozeshiCount sql.NullInt64
+	err = r.db.QueryRowContext(ctx, query, userID).Scan(&maskoniCount, &tejariCount, &amoozeshiCount)
+	if err == sql.ErrNoRows {
+		return 0, 0, 0, nil
+	}
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to get feature counts: %w", err)
+	}
+
+	if maskoniCount.Valid {
+		maskoni = int32(maskoniCount.Int64)
+	}
+	if tejariCount.Valid {
+		tejari = int32(tejariCount.Int64)
+	}
+	if amoozeshiCount.Valid {
+		amoozeshi = int32(amoozeshiCount.Int64)
+	}
+
+	return maskoni, tejari, amoozeshi, nil
 }

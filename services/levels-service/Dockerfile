@@ -35,6 +35,7 @@ RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /
 # Ensure metargb/shared is in the go.mod
 RUN go get metargb/shared@v0.0.0 || true
 
+ENV GOPROXY=https://proxy.golang.org,direct
 RUN go mod download
 
 # Build the application  

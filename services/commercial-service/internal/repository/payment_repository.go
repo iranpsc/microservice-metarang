@@ -65,4 +65,3 @@ func (r *paymentRepository) FindLatestByUserID(ctx context.Context, userID uint6
 	}
 	return payment, nil
 }
-

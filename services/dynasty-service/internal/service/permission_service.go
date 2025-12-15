@@ -42,7 +42,7 @@ func (s *PermissionService) UpdateChildPermission(
 	if !canControl {
 		return fmt.Errorf("شما مجاز به تغییر دسترسی این کاربر نیستید")
 	}
-	
+
 	// Get existing permissions
 	existingPerm, err := s.joinRequestRepo.GetChildPermission(ctx, childUserID)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *PermissionService) UpdateChildPermission(
 	if existingPerm == nil {
 		return fmt.Errorf("child has no permission record")
 	}
-	
+
 	// Update specific permission
 	switch permission {
 	case "BFR":
@@ -77,12 +77,12 @@ func (s *PermissionService) UpdateChildPermission(
 	default:
 		return fmt.Errorf("invalid permission: %s", permission)
 	}
-	
+
 	// Save updated permissions
 	if err := s.joinRequestRepo.UpdateChildPermission(ctx, childUserID, existingPerm); err != nil {
 		return fmt.Errorf("failed to update permission: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -96,7 +96,7 @@ func (s *PermissionService) CanControlPermissions(
 	if parentUserID == childUserID {
 		return false, nil
 	}
-	
+
 	// Child must be under 18
 	isUnder18, err := s.joinRequestRepo.CheckUserAge(ctx, childUserID)
 	if err != nil {
@@ -105,7 +105,7 @@ func (s *PermissionService) CanControlPermissions(
 	if !isUnder18 {
 		return false, nil
 	}
-	
+
 	// Get parent's dynasty
 	dynasty, err := s.dynastyRepo.GetDynastyByUserID(ctx, parentUserID)
 	if err != nil {
@@ -114,26 +114,26 @@ func (s *PermissionService) CanControlPermissions(
 	if dynasty == nil {
 		return false, nil
 	}
-	
+
 	// Get family
 	family, err := s.familyRepo.GetFamilyByDynastyID(ctx, dynasty.ID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get family: %w", err)
 	}
-	
+
 	// Check if child is in family
 	// Use large page size to get all members at once
 	members, _, err := s.familyRepo.GetFamilyMembers(ctx, family.ID, 1, 1000)
 	if err != nil {
 		return false, fmt.Errorf("failed to get family members: %w", err)
 	}
-	
+
 	for _, member := range members {
 		if member.UserID == childUserID {
 			return true, nil
 		}
 	}
-	
+
 	return false, nil
 }
 
@@ -143,7 +143,7 @@ func (s *PermissionService) GetDefaultPermissions(ctx context.Context) (*models.
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default permissions: %w", err)
 	}
-	
+
 	return perm, nil
 }
 
@@ -158,12 +158,12 @@ func (s *PermissionService) CheckPermission(
 	if err != nil {
 		return false, fmt.Errorf("failed to check age: %w", err)
 	}
-	
+
 	// If not under 18, all permissions are granted
 	if !isUnder18 {
 		return true, nil
 	}
-	
+
 	// Get permissions
 	perm, err := s.joinRequestRepo.GetChildPermission(ctx, userID)
 	if err != nil {
@@ -173,12 +173,12 @@ func (s *PermissionService) CheckPermission(
 		// No permissions record means no permissions
 		return false, nil
 	}
-	
+
 	// Check if verified
 	if !perm.Verified {
 		return false, nil
 	}
-	
+
 	// Check specific permission
 	switch permission {
 	case "BFR":
@@ -205,4 +205,3 @@ func (s *PermissionService) CheckPermission(
 		return false, fmt.Errorf("invalid permission: %s", permission)
 	}
 }
-

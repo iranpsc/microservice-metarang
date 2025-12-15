@@ -9,8 +9,8 @@ import (
 )
 
 type DynastyService struct {
-	dynastyRepo           *repository.DynastyRepository
-	familyRepo            *repository.FamilyRepository
+	dynastyRepo             *repository.DynastyRepository
+	familyRepo              *repository.FamilyRepository
 	notificationServiceAddr string
 }
 
@@ -20,8 +20,8 @@ func NewDynastyService(
 	notificationServiceAddr string,
 ) *DynastyService {
 	return &DynastyService{
-		dynastyRepo:           dynastyRepo,
-		familyRepo:            familyRepo,
+		dynastyRepo:             dynastyRepo,
+		familyRepo:              familyRepo,
 		notificationServiceAddr: notificationServiceAddr,
 	}
 }
@@ -128,3 +128,19 @@ func (s *DynastyService) GetUserProfilePhoto(ctx context.Context, userID uint64)
 	return s.dynastyRepo.GetUserProfilePhoto(ctx, userID)
 }
 
+// GetFamilyByDynastyID retrieves family by dynasty ID
+func (s *DynastyService) GetFamilyByDynastyID(ctx context.Context, dynastyID uint64) (*models.Family, error) {
+	return s.familyRepo.GetFamilyByDynastyID(ctx, dynastyID)
+}
+
+// GetFamilyMemberCount retrieves the count of family members
+func (s *DynastyService) GetFamilyMemberCount(ctx context.Context, familyID uint64) (int32, error) {
+	return s.familyRepo.GetFamilyMemberCount(ctx, familyID)
+}
+
+// GetIntroductionPrizes retrieves introduction prizes (for users without dynasty)
+func (s *DynastyService) GetIntroductionPrizes(ctx context.Context) ([]*models.DynastyPrize, error) {
+	// This would typically come from prize repository
+	// For now, return empty list
+	return []*models.DynastyPrize{}, nil
+}

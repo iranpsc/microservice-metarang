@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"time"
 
 	"metargb/features-service/internal/constants"
 	"metargb/features-service/internal/repository"
@@ -176,7 +177,9 @@ func (s *FeaturePricingService) isUserUnder18(ctx context.Context, userID uint64
 		return false, nil
 	}
 
-	age := (float64(birthdate.Time.Unix()) - float64(birthdate.Time.Unix())) / (365.25 * 24 * 3600)
+	// Calculate age correctly
+	now := time.Now()
+	age := float64(now.Sub(birthdate.Time).Hours()) / (365.25 * 24)
 	return age < 18, nil
 }
 
@@ -193,4 +196,3 @@ func parseStringToFloat(s string) float64 {
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
 }
-

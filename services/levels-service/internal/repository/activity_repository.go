@@ -25,17 +25,17 @@ func (r *ActivityRepository) CreateActivity(ctx context.Context, req *pb.LogActi
 		INSERT INTO user_activities (user_id, start, ip, created_at, updated_at)
 		VALUES (?, NOW(), ?, NOW(), NOW())
 	`
-	
+
 	result, err := r.db.ExecContext(ctx, query, req.UserId, req.Ip)
 	if err != nil {
 		return 0, err
 	}
-	
+
 	id, err := result.LastInsertId()
 	if err != nil {
 		return 0, err
 	}
-	
+
 	return uint64(id), nil
 }
 
@@ -48,44 +48,44 @@ func (r *ActivityRepository) FindByUserID(ctx context.Context, userID uint64, li
 		WHERE user_id = ?
 		ORDER BY id DESC
 	`
-	
+
 	if limit > 0 {
 		query += " LIMIT ?"
 	}
-	
+
 	var rows *sql.Rows
 	var err error
-	
+
 	if limit > 0 {
 		rows, err = r.db.QueryContext(ctx, query, userID, limit)
 	} else {
 		rows, err = r.db.QueryContext(ctx, query, userID)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var activities []*pb.UserActivity
 	for rows.Next() {
 		var activity pb.UserActivity
 		var start, end sql.NullTime
-		
+
 		if err := rows.Scan(&activity.Id, &activity.UserId, &start, &end, &activity.Total, &activity.Ip); err != nil {
 			return nil, err
 		}
-		
+
 		if start.Valid {
 			activity.Start = start.Time.Format(time.RFC3339)
 		}
 		if end.Valid {
 			activity.End = end.Time.Format(time.RFC3339)
 		}
-		
+
 		activities = append(activities, &activity)
 	}
-	
+
 	return activities, nil
 }
 
@@ -99,10 +99,10 @@ func (r *ActivityRepository) GetLatestActivity(ctx context.Context, userID uint6
 		ORDER BY id DESC
 		LIMIT 1
 	`
-	
+
 	var activity pb.UserActivity
 	var start, end sql.NullTime
-	
+
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&activity.Id,
 		&activity.UserId,
@@ -111,18 +111,18 @@ func (r *ActivityRepository) GetLatestActivity(ctx context.Context, userID uint6
 		&activity.Total,
 		&activity.Ip,
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if start.Valid {
 		activity.Start = start.Time.Format(time.RFC3339)
 	}
 	if end.Valid {
 		activity.End = end.Time.Format(time.RFC3339)
 	}
-	
+
 	return &activity, nil
 }
 
@@ -134,7 +134,7 @@ func (r *ActivityRepository) UpdateActivity(ctx context.Context, activityID uint
 		SET end = ?, total = ?, updated_at = NOW()
 		WHERE id = ?
 	`
-	
+
 	_, err := r.db.ExecContext(ctx, query, endTime, totalMinutes, activityID)
 	return err
 }
@@ -155,8 +155,7 @@ func (r *ActivityRepository) CreateUserEvent(ctx context.Context, userID uint64,
 		INSERT INTO user_events (user_id, event, ip, device, status, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, NOW(), NOW())
 	`
-	
+
 	_, err := r.db.ExecContext(ctx, query, userID, event, ip, device, status)
 	return err
 }
-

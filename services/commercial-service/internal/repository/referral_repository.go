@@ -32,7 +32,7 @@ func (r *referralRepository) GetReferrerID(ctx context.Context, userID uint64) (
 		WHERE id = ?
 		LIMIT 1
 	`
-	
+
 	var referrerID sql.NullInt64
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&referrerID)
 	if err == sql.ErrNoRows {
@@ -58,7 +58,7 @@ func (r *referralRepository) GetTotalReferredAmount(ctx context.Context, referre
 		FROM referral_order_histories
 		WHERE user_id = ?
 	`
-	
+
 	var total float64
 	err := r.db.QueryRowContext(ctx, query, referrerID).Scan(&total)
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *referralRepository) CreateReferralOrder(ctx context.Context, history *m
 		INSERT INTO referral_order_histories (user_id, referral_id, amount, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
 	`
-	
+
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, query,
 		history.UserID,
@@ -95,4 +95,3 @@ func (r *referralRepository) CreateReferralOrder(ctx context.Context, history *m
 
 	return nil
 }
-

@@ -49,4 +49,3 @@ type CalendarStats struct {
 	LikesCount    int32
 	DislikesCount int32
 }
-

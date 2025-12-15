@@ -12,4 +12,3 @@ type TransactionDTO struct {
 	Date   string `json:"date"`   // Jalali format: Y/m/d
 	Time   string `json:"time"`   // Jalali format: H:i:s
 }
-

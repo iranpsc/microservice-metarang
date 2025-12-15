@@ -5,13 +5,13 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
-	calendarpb "metargb/shared/pb/calendar"
-	commonpb "metargb/shared/pb/common"
 	"metargb/calendar-service/internal/models"
 	"metargb/calendar-service/internal/service"
+	calendarpb "metargb/shared/pb/calendar"
+	commonpb "metargb/shared/pb/common"
 	"metargb/shared/pkg/jalali"
 )
 
@@ -26,11 +26,14 @@ func RegisterCalendarHandler(grpcServer *grpc.Server, svc *service.CalendarServi
 }
 
 // GetEvents retrieves events with optional filtering
+// NOTE: When date is provided, returns all entries (no pagination) per API documentation
 func (h *CalendarHandler) GetEvents(ctx context.Context, req *calendarpb.GetEventsRequest) (*calendarpb.EventsResponse, error) {
-	// Default pagination
+	// Default pagination (only used when date is not provided)
 	page := int32(1)
 	perPage := int32(10)
-	if req.Pagination != nil {
+	hasDateFilter := req.Date != ""
+
+	if !hasDateFilter && req.Pagination != nil {
 		if req.Pagination.Page > 0 {
 			page = req.Pagination.Page
 		}
@@ -48,12 +51,16 @@ func (h *CalendarHandler) GetEvents(ctx context.Context, req *calendarpb.GetEven
 	// Build response
 	response := &calendarpb.EventsResponse{
 		Events: make([]*calendarpb.EventResponse, 0, len(events)),
-		Pagination: &commonpb.PaginationMeta{
+	}
+
+	// Only include pagination metadata when date filter is not provided
+	if !hasDateFilter {
+		response.Pagination = &commonpb.PaginationMeta{
 			CurrentPage: page,
 			PerPage:     perPage,
 			Total:       total,
 			LastPage:    (total + perPage - 1) / perPage,
-		},
+		}
 	}
 
 	for _, event := range events {
@@ -158,9 +165,25 @@ func (h *CalendarHandler) GetLatestVersion(ctx context.Context, req *calendarpb.
 }
 
 // AddInteraction adds or updates a user's interaction with an event
+// NOTE: liked values: 1=like, 0=dislike, -1=remove interaction
 func (h *CalendarHandler) AddInteraction(ctx context.Context, req *calendarpb.AddInteractionRequest) (*calendarpb.EventResponse, error) {
+	// Validate liked value
+	if req.Liked < -1 || req.Liked > 1 {
+		return nil, status.Errorf(codes.InvalidArgument, "liked value must be -1, 0, or 1")
+	}
+
+	// Get client IP from metadata
+	ipAddress := "unknown"
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
+			ipAddress = ips[0]
+		} else if ips := md.Get("x-real-ip"); len(ips) > 0 {
+			ipAddress = ips[0]
+		}
+	}
+
 	// Add interaction
-	err := h.service.AddInteraction(ctx, req.EventId, req.UserId, req.Liked, "")
+	err := h.service.AddInteraction(ctx, req.EventId, req.UserId, req.Liked, ipAddress)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to add interaction: %v", err)
 	}
@@ -178,7 +201,7 @@ func buildEventResponse(event *models.Calendar, stats *models.CalendarStats, use
 	response := &calendarpb.EventResponse{
 		Id:          event.ID,
 		Title:       event.Title,
-		Description: event.Content, // Laravel calls it "description" not "content"
+		Description: event.Content,                                 // Laravel calls it "description" not "content"
 		StartsAt:    jalali.CarbonToJalaliDateTime(event.StartsAt), // Y/m/d H:i format
 	}
 
@@ -188,7 +211,7 @@ func buildEventResponse(event *models.Calendar, stats *models.CalendarStats, use
 		if event.EndsAt != nil {
 			response.EndsAt = jalali.CarbonToJalaliDateTime(*event.EndsAt) // Y/m/d H:i format
 		}
-		
+
 		if stats != nil {
 			response.Views = stats.ViewsCount
 			response.Likes = stats.LikesCount
@@ -205,7 +228,7 @@ func buildEventResponse(event *models.Calendar, stats *models.CalendarStats, use
 		if event.Image != nil {
 			response.Image = *event.Image
 		}
-		
+
 		response.UserInteraction = userInteraction
 	} else {
 		// Version-specific fields
@@ -216,4 +239,3 @@ func buildEventResponse(event *models.Calendar, stats *models.CalendarStats, use
 
 	return response
 }
-

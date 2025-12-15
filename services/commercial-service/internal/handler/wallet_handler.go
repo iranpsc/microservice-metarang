@@ -107,4 +107,3 @@ func (h *WalletHandler) UnlockBalance(ctx context.Context, req *pb.UnlockBalance
 
 	return &emptypb.Empty{}, nil
 }
-

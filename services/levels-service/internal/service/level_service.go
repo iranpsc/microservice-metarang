@@ -88,7 +88,7 @@ func (s *LevelService) GetLevelGeneralInfo(ctx context.Context, levelID uint64, 
 		}
 		levelID = level.Id
 	}
-	
+
 	return s.levelRepo.GetLevelGeneralInfo(ctx, levelID)
 }
 
@@ -103,7 +103,7 @@ func (s *LevelService) GetLevelGem(ctx context.Context, levelID uint64, levelSlu
 		}
 		levelID = level.Id
 	}
-	
+
 	return s.levelRepo.GetLevelGem(ctx, levelID)
 }
 
@@ -118,7 +118,7 @@ func (s *LevelService) GetLevelGift(ctx context.Context, levelID uint64, levelSl
 		}
 		levelID = level.Id
 	}
-	
+
 	return s.levelRepo.GetLevelGift(ctx, levelID)
 }
 
@@ -133,14 +133,28 @@ func (s *LevelService) GetLevelLicenses(ctx context.Context, levelID uint64, lev
 		}
 		levelID = level.Id
 	}
-	
+
 	return s.levelRepo.GetLevelLicenses(ctx, levelID)
 }
 
 // GetLevelPrizes retrieves prizes for a level
 // Implements Laravel: LevelController@prizes
-func (s *LevelService) GetLevelPrizes(ctx context.Context, levelID uint64) (*pb.LevelPrize, error) {
-	return s.levelRepo.GetLevelPrize(ctx, levelID)
+func (s *LevelService) GetLevelPrizes(ctx context.Context, levelID uint64, levelSlug string) (*pb.LevelPrize, error) {
+	// Get level first if only slug is provided
+	if levelID == 0 && levelSlug != "" {
+		level, err := s.levelRepo.FindBySlug(ctx, levelSlug)
+		if err != nil {
+			return nil, err
+		}
+		levelID = level.Id
+	}
+
+	prize, err := s.levelRepo.GetLevelPrize(ctx, levelID)
+	if err != nil {
+		return nil, err
+	}
+	// prize can be nil if not found (allowed per API docs)
+	return prize, nil
 }
 
 // ClaimPrize allows user to claim prize (future implementation with wallet service integration)
@@ -151,17 +165,20 @@ func (s *LevelService) ClaimPrize(ctx context.Context, userID, levelID uint64) e
 	if err != nil {
 		return fmt.Errorf("failed to get level prize: %w", err)
 	}
-	
+	if prize == nil {
+		return fmt.Errorf("prize not found for level")
+	}
+
 	// Check if user has already received this prize
 	hasReceived, err := s.levelRepo.HasUserReceivedPrize(ctx, userID, prize.Id)
 	if err != nil {
 		return fmt.Errorf("failed to check prize status: %w", err)
 	}
-	
+
 	if hasReceived {
 		return fmt.Errorf("prize already claimed")
 	}
-	
+
 	// TODO: Call commercial service to increment wallet
 	// This matches Laravel's prize award logic in UserObserver:
 	// $wallet->increment('psc', ($levelPrize->psc / Variable::getRate('psc')));
@@ -170,11 +187,11 @@ func (s *LevelService) ClaimPrize(ctx context.Context, userID, levelID uint64) e
 	// $wallet->increment('yellow', $levelPrize->yellow);
 	// $wallet->update(['effect' => $levelPrize->effect]);
 	// $wallet->increment('satisfaction', $levelPrize->satisfaction);
-	
+
 	// Record that prize has been received
 	if err := s.levelRepo.RecordReceivedPrize(ctx, userID, prize.Id); err != nil {
 		return fmt.Errorf("failed to record received prize: %w", err)
 	}
-	
+
 	return nil
 }

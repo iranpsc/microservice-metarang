@@ -54,7 +54,7 @@ func (h *TransactionHandler) ListTransactions(ctx context.Context, req *pb.ListT
 		// Parse amount string to float64
 		var amount float64
 		fmt.Sscanf(t.Amount, "%f", &amount)
-		
+
 		resources = append(resources, &pb.TransactionResource{
 			Id:     t.ID,
 			Type:   t.Type,
@@ -68,9 +68,9 @@ func (h *TransactionHandler) ListTransactions(ctx context.Context, req *pb.ListT
 	}
 
 	return &pb.ListTransactionsResponse{
-		Transactions:  resources,
-		CurrentPage:   req.Page,
-		HasMorePages:  len(resources) >= int(req.PerPage),
+		Transactions: resources,
+		CurrentPage:  req.Page,
+		HasMorePages: len(resources) >= int(req.PerPage),
 	}, nil
 }
 
@@ -81,19 +81,19 @@ func (h *TransactionHandler) GetLatestTransaction(ctx context.Context, req *pb.G
 	}
 
 	response := &pb.LatestTransactionResponse{}
-	
+
 	if transaction != nil {
 		response.LatestTransaction = &pb.Transaction{
-			Id:      transaction.ID,
-			UserId:  transaction.UserID,
-			Asset:   transaction.Asset,
-			Amount:  transaction.Amount,
-			Action:  transaction.Action,
-			Status:  transaction.Status,
+			Id:        transaction.ID,
+			UserId:    transaction.UserID,
+			Asset:     transaction.Asset,
+			Amount:    transaction.Amount,
+			Action:    transaction.Action,
+			Status:    transaction.Status,
 			CreatedAt: timestamppb.New(transaction.CreatedAt),
 			UpdatedAt: timestamppb.New(transaction.UpdatedAt),
 		}
-		
+
 		if transaction.Token != nil {
 			response.LatestTransaction.Token = *transaction.Token
 		}
@@ -143,4 +143,3 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 		UpdatedAt: timestamppb.New(transaction.UpdatedAt),
 	}, nil
 }
-
