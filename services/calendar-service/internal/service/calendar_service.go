@@ -8,11 +8,23 @@ import (
 	"metargb/calendar-service/internal/repository"
 )
 
-type CalendarService struct {
-	repo *repository.CalendarRepository
+// CalendarServiceInterface defines the interface for calendar service operations
+type CalendarServiceInterface interface {
+	GetEvents(ctx context.Context, eventType, search, date string, userID uint64, page, perPage int32) ([]*models.Calendar, int32, error)
+	GetEvent(ctx context.Context, eventID, userID uint64) (*models.Calendar, error)
+	FilterByDateRange(ctx context.Context, startDate, endDate string) ([]*models.Calendar, error)
+	GetLatestVersionTitle(ctx context.Context) (string, error)
+	GetEventStats(ctx context.Context, eventID uint64) (*models.CalendarStats, error)
+	GetUserInteraction(ctx context.Context, eventID, userID uint64) (*models.Interaction, error)
+	AddInteraction(ctx context.Context, eventID, userID uint64, liked int32, ipAddress string) error
+	IncrementView(ctx context.Context, eventID uint64, ipAddress string) error
 }
 
-func NewCalendarService(repo *repository.CalendarRepository) *CalendarService {
+type CalendarService struct {
+	repo repository.CalendarRepositoryInterface
+}
+
+func NewCalendarService(repo repository.CalendarRepositoryInterface) CalendarServiceInterface {
 	return &CalendarService{repo: repo}
 }
 

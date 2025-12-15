@@ -15,7 +15,7 @@ func TestSettingsRepository_FindByUserID(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	db := setupTestDB(t)
+	db := setupSettingsTestDB(t)
 	defer db.Close()
 
 	repo := NewSettingsRepository(db)
@@ -102,7 +102,7 @@ func TestSettingsRepository_Update(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	db := setupTestDB(t)
+	db := setupSettingsTestDB(t)
 	defer db.Close()
 
 	repo := NewSettingsRepository(db)
@@ -162,7 +162,7 @@ func TestSettingsRepository_Update(t *testing.T) {
 	}
 }
 
-func setupTestDB(t *testing.T) *sql.DB {
+func setupSettingsTestDB(t *testing.T) *sql.DB {
 	// This should use a test database connection
 	// For now, we'll skip if DB is not available
 	db, err := sql.Open("mysql", "root@tcp(localhost:3306)/metargb_test?parseTime=true")

@@ -25,6 +25,41 @@ type mockUserEventsService struct {
 	closeEventReportFunc   func(ctx context.Context, userID, eventID uint64) error
 }
 
+func (m *mockUserEventsService) ListUserEvents(ctx context.Context, userID uint64, page int32) ([]*models.UserEvent, string, string, error) {
+	if m.listUserEventsFunc != nil {
+		return m.listUserEventsFunc(ctx, userID, page)
+	}
+	return nil, "", "", errors.New("not implemented")
+}
+
+func (m *mockUserEventsService) GetUserEvent(ctx context.Context, userID, eventID uint64) (*models.UserEvent, *models.UserEventReport, []*models.UserEventReportResponse, error) {
+	if m.getUserEventFunc != nil {
+		return m.getUserEventFunc(ctx, userID, eventID)
+	}
+	return nil, nil, nil, errors.New("not implemented")
+}
+
+func (m *mockUserEventsService) ReportUserEvent(ctx context.Context, userID, eventID uint64, suspeciousCitizen *string, eventDescription string) (*models.UserEventReport, error) {
+	if m.reportUserEventFunc != nil {
+		return m.reportUserEventFunc(ctx, userID, eventID, suspeciousCitizen, eventDescription)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockUserEventsService) SendReportResponse(ctx context.Context, userID, eventID uint64, responserName, response string) (*models.UserEventReportResponse, error) {
+	if m.sendReportResponseFunc != nil {
+		return m.sendReportResponseFunc(ctx, userID, eventID, responserName, response)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockUserEventsService) CloseEventReport(ctx context.Context, userID, eventID uint64) error {
+	if m.closeEventReportFunc != nil {
+		return m.closeEventReportFunc(ctx, userID, eventID)
+	}
+	return errors.New("not implemented")
+}
+
 type mockUserRepo struct {
 	findByIDFunc func(ctx context.Context, id uint64) (*models.User, error)
 }

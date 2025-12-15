@@ -38,6 +38,10 @@ func (m *mockProfitService) GetProfitsByApplication(ctx context.Context, userID 
 	return 0, errors.New("not implemented")
 }
 
+func (m *mockProfitService) TransferProfitOnSale(ctx context.Context, featureID, sellerID, buyerID uint64, withdrawProfitDays int) error {
+	return errors.New("not implemented")
+}
+
 func TestProfitHandler_GetHourlyProfits(t *testing.T) {
 	ctx := context.Background()
 

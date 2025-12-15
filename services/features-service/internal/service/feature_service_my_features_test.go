@@ -84,10 +84,10 @@ func (m *mockGeometryRepo) GetCoordinatesByFeatureID(ctx context.Context, featur
 }
 
 type mockTradeRepo struct {
-	getLatestForFeatureWithSellerFunc func(ctx context.Context, featureID uint64) (*models.Trade, *models.Seller, error)
+	getLatestForFeatureWithSellerFunc func(ctx context.Context, featureID uint64) (*models.Trade, *repository.SellerInfo, error)
 }
 
-func (m *mockTradeRepo) GetLatestForFeatureWithSeller(ctx context.Context, featureID uint64) (*models.Trade, *models.Seller, error) {
+func (m *mockTradeRepo) GetLatestForFeatureWithSeller(ctx context.Context, featureID uint64) (*models.Trade, *repository.SellerInfo, error) {
 	if m.getLatestForFeatureWithSellerFunc != nil {
 		return m.getLatestForFeatureWithSellerFunc(ctx, featureID)
 	}
@@ -223,8 +223,8 @@ func TestFeatureService_GetMyFeature(t *testing.T) {
 		}
 
 		mockTradeRepo := &mockTradeRepo{}
-		mockTradeRepo.getLatestForFeatureWithSellerFunc = func(ctx context.Context, featureID uint64) (*models.Trade, *models.Seller, error) {
-			return &models.Trade{ID: 1}, &models.Seller{ID: 2, Name: "Seller", Code: "S001"}, nil
+		mockTradeRepo.getLatestForFeatureWithSellerFunc = func(ctx context.Context, featureID uint64) (*models.Trade, *repository.SellerInfo, error) {
+			return &models.Trade{ID: 1}, &repository.SellerInfo{ID: 2, Name: "Seller", Code: "S001"}, nil
 		}
 
 		service := &FeatureService{

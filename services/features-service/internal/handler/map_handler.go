@@ -12,10 +12,10 @@ import (
 
 type MapHandler struct {
 	pb.UnimplementedMapsServiceServer
-	service *service.MapService
+	service service.MapServiceInterface
 }
 
-func NewMapHandler(service *service.MapService) *MapHandler {
+func NewMapHandler(service service.MapServiceInterface) *MapHandler {
 	return &MapHandler{
 		service: service,
 	}

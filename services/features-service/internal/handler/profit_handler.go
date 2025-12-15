@@ -14,10 +14,10 @@ import (
 
 type ProfitHandler struct {
 	pb.UnimplementedFeatureProfitServiceServer
-	service *service.ProfitService
+	service service.ProfitServiceInterface
 }
 
-func NewProfitHandler(service *service.ProfitService) *ProfitHandler {
+func NewProfitHandler(service service.ProfitServiceInterface) *ProfitHandler {
 	return &ProfitHandler{
 		service: service,
 	}

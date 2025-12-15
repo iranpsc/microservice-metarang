@@ -9,6 +9,18 @@ import (
 	"metargb/shared/pkg/jalali"
 )
 
+// CalendarRepositoryInterface defines the interface for calendar repository operations
+type CalendarRepositoryInterface interface {
+	GetEvents(ctx context.Context, eventType, search, date string, userID uint64, page, perPage int32) ([]*models.Calendar, int32, error)
+	GetEventByID(ctx context.Context, id uint64) (*models.Calendar, error)
+	FilterByDateRange(ctx context.Context, startDate, endDate string) ([]*models.Calendar, error)
+	GetLatestVersionTitle(ctx context.Context) (string, error)
+	GetEventStats(ctx context.Context, eventID uint64) (*models.CalendarStats, error)
+	GetUserInteraction(ctx context.Context, eventID, userID uint64) (*models.Interaction, error)
+	AddInteraction(ctx context.Context, eventID, userID uint64, liked int32, ipAddress string) error
+	IncrementView(ctx context.Context, eventID uint64, ipAddress string) error
+}
+
 type CalendarRepository struct {
 	db *sql.DB
 }

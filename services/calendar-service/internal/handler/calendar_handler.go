@@ -17,10 +17,10 @@ import (
 
 type CalendarHandler struct {
 	calendarpb.UnimplementedCalendarServiceServer
-	service *service.CalendarService
+	service service.CalendarServiceInterface
 }
 
-func RegisterCalendarHandler(grpcServer *grpc.Server, svc *service.CalendarService) {
+func RegisterCalendarHandler(grpcServer *grpc.Server, svc service.CalendarServiceInterface) {
 	handler := &CalendarHandler{service: svc}
 	calendarpb.RegisterCalendarServiceServer(grpcServer, handler)
 }

@@ -13,6 +13,14 @@ import (
 	"metargb/shared/pkg/logger"
 )
 
+// ProfitServiceInterface defines the interface for profit service operations
+type ProfitServiceInterface interface {
+	GetSingleProfit(ctx context.Context, profitID, userID uint64) (*models.FeatureHourlyProfit, error)
+	GetProfitsByApplication(ctx context.Context, userID uint64, karbari string) (float64, error)
+	TransferProfitOnSale(ctx context.Context, featureID, sellerID, buyerID uint64, withdrawProfitDays int) error
+	GetHourlyProfits(ctx context.Context, userID uint64, page, pageSize int32) ([]*models.FeatureHourlyProfit, string, string, string, error)
+}
+
 // ProfitService implements profit service with gRPC cross-service calls
 type ProfitService struct {
 	profitRepo         *repository.HourlyProfitRepository
@@ -32,7 +40,7 @@ func NewProfitService(
 	notificationClient *client.NotificationClient,
 	db *sql.DB,
 	log *logger.Logger,
-) *ProfitService {
+) ProfitServiceInterface {
 	return &ProfitService{
 		profitRepo:         profitRepo,
 		featureRepo:        featureRepo,

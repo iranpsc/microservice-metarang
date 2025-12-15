@@ -21,7 +21,7 @@ func TestSearchRepository_SearchUsers(t *testing.T) {
 	// Create test users
 	user1ID := createTestUser(t, db, "john", "john@example.com", "USR001")
 	user2ID := createTestUser(t, db, "jane doe", "jane@example.com", "USR002")
-	user3ID := createTestUser(t, db, "bob smith", "bob@example.com", "USR003")
+	_ = createTestUser(t, db, "bob smith", "bob@example.com", "USR003")
 
 	// Create test KYC for user1
 	createTestKYC(t, db, user1ID, "John", "Smith", 1)

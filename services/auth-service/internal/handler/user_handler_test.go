@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"metargb/auth-service/internal/models"
 	"metargb/auth-service/internal/service"
 	pb "metargb/shared/pb/auth"
 )
@@ -50,11 +51,9 @@ func (m *mockUserService) GetUserFeaturesCount(ctx context.Context, userID uint6
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockUserService) GetUser(ctx context.Context, userID uint64) error {
-	if m.getUserFunc != nil {
-		return m.getUserFunc(ctx, userID)
-	}
-	return errors.New("not implemented")
+func (m *mockUserService) GetUser(ctx context.Context, userID uint64) (*models.User, error) {
+	// This method is not used in tests, but required by interface
+	return nil, errors.New("not implemented")
 }
 
 func (m *mockUserService) UpdateProfile(ctx context.Context, userID uint64, name, email, phone string) error {

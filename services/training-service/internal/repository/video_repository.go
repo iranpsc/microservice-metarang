@@ -8,6 +8,17 @@ import (
 	"metargb/training-service/internal/models"
 )
 
+// VideoRepositoryInterface defines the interface for video repository operations
+type VideoRepositoryInterface interface {
+	GetVideos(ctx context.Context, page, perPage int32, categoryID, subCategoryID *uint64) ([]*models.Video, int32, error)
+	GetVideoBySlug(ctx context.Context, slug string) (*models.Video, error)
+	GetVideoByFileName(ctx context.Context, fileName string) (*models.Video, error)
+	SearchVideos(ctx context.Context, searchTerm string, page, perPage int32) ([]*models.Video, int32, error)
+	GetVideoStats(ctx context.Context, videoID uint64) (*models.VideoStats, error)
+	IncrementView(ctx context.Context, videoID uint64, ipAddress string) error
+	AddInteraction(ctx context.Context, videoID, userID uint64, liked bool, ipAddress string) error
+}
+
 type VideoRepository struct {
 	db *sql.DB
 }

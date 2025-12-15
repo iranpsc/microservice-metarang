@@ -6,6 +6,12 @@ import (
 	"fmt"
 )
 
+// UserRepositoryInterface defines the interface for user repository operations
+type UserRepositoryInterface interface {
+	GetUserBasicByCode(ctx context.Context, code string) (*UserBasic, error)
+	GetUserByID(ctx context.Context, userID uint64) (*UserBasic, error)
+}
+
 type UserRepository struct {
 	db *sql.DB
 }

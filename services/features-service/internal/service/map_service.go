@@ -11,6 +11,13 @@ import (
 	"metargb/shared/pkg/helpers"
 )
 
+// MapServiceInterface defines the interface for map service operations
+type MapServiceInterface interface {
+	ListMaps(ctx context.Context) ([]*pb.Map, error)
+	GetMap(ctx context.Context, mapID uint64) (*pb.Map, error)
+	GetMapBorder(ctx context.Context, mapID uint64) (string, error)
+}
+
 type MapService struct {
 	mapRepo     *repository.MapRepository
 	featureRepo *repository.FeatureRepository
@@ -19,7 +26,7 @@ type MapService struct {
 func NewMapService(
 	mapRepo *repository.MapRepository,
 	featureRepo *repository.FeatureRepository,
-) *MapService {
+) MapServiceInterface {
 	return &MapService{
 		mapRepo:     mapRepo,
 		featureRepo: featureRepo,

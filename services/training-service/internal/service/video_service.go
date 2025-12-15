@@ -10,12 +10,12 @@ import (
 )
 
 type VideoService struct {
-	videoRepo    *repository.VideoRepository
-	categoryRepo *repository.CategoryRepository
-	userRepo     *repository.UserRepository
+	videoRepo    repository.VideoRepositoryInterface
+	categoryRepo repository.CategoryRepositoryInterface
+	userRepo     repository.UserRepositoryInterface
 }
 
-func NewVideoService(videoRepo *repository.VideoRepository, categoryRepo *repository.CategoryRepository, userRepo *repository.UserRepository) *VideoService {
+func NewVideoService(videoRepo repository.VideoRepositoryInterface, categoryRepo repository.CategoryRepositoryInterface, userRepo repository.UserRepositoryInterface) *VideoService {
 	return &VideoService{
 		videoRepo:    videoRepo,
 		categoryRepo: categoryRepo,

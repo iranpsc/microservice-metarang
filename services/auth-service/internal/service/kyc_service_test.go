@@ -111,20 +111,20 @@ func (r *fakeKYCRepository) CheckUniqueCard(ctx context.Context, cardNum string,
 	return true, nil
 }
 
-// fakeUserRepository is a minimal mock for UserRepository
-type fakeUserRepository struct {
+// fakeKYCUserRepository is a minimal mock for UserRepository
+type fakeKYCUserRepository struct {
 	users map[uint64]*models.User
 }
 
-func newFakeUserRepository(users map[uint64]*models.User) *fakeUserRepository {
-	return &fakeUserRepository{users: users}
+func newFakeKYCUserRepository(users map[uint64]*models.User) *fakeKYCUserRepository {
+	return &fakeKYCUserRepository{users: users}
 }
 
-func (r *fakeUserRepository) FindByID(ctx context.Context, id uint64) (*models.User, error) {
+func (r *fakeKYCUserRepository) FindByID(ctx context.Context, id uint64) (*models.User, error) {
 	return r.users[id], nil
 }
 
-func (r *fakeUserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+func (r *fakeKYCUserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	for _, user := range r.users {
 		if user.Email == email {
 			return user, nil
@@ -133,7 +133,7 @@ func (r *fakeUserRepository) FindByEmail(ctx context.Context, email string) (*mo
 	return nil, nil
 }
 
-func (r *fakeUserRepository) FindByPhone(ctx context.Context, phone string) (*models.User, error) {
+func (r *fakeKYCUserRepository) FindByPhone(ctx context.Context, phone string) (*models.User, error) {
 	for _, user := range r.users {
 		if user.Phone == phone {
 			return user, nil
@@ -142,70 +142,70 @@ func (r *fakeUserRepository) FindByPhone(ctx context.Context, phone string) (*mo
 	return nil, nil
 }
 
-func (r *fakeUserRepository) Create(ctx context.Context, user *models.User) error {
+func (r *fakeKYCUserRepository) Create(ctx context.Context, user *models.User) error {
 	return nil
 }
 
-func (r *fakeUserRepository) Update(ctx context.Context, user *models.User) error {
+func (r *fakeKYCUserRepository) Update(ctx context.Context, user *models.User) error {
 	return nil
 }
 
-func (r *fakeUserRepository) UpdateLastSeen(ctx context.Context, userID uint64) error {
+func (r *fakeKYCUserRepository) UpdateLastSeen(ctx context.Context, userID uint64) error {
 	return nil
 }
 
-func (r *fakeUserRepository) UpdateScore(ctx context.Context, userID uint64, score int32) error {
+func (r *fakeKYCUserRepository) UpdateScore(ctx context.Context, userID uint64, score int32) error {
 	return nil
 }
 
-func (r *fakeUserRepository) FindByCode(ctx context.Context, code string) (*models.User, error) {
+func (r *fakeKYCUserRepository) FindByCode(ctx context.Context, code string) (*models.User, error) {
 	return nil, nil
 }
 
-func (r *fakeUserRepository) FindReferrals(ctx context.Context, referrerID uint64) ([]*models.User, error) {
+func (r *fakeKYCUserRepository) FindReferrals(ctx context.Context, referrerID uint64) ([]*models.User, error) {
 	return nil, nil
 }
 
-func (r *fakeUserRepository) FindReferrer(ctx context.Context, userID uint64) (*models.User, error) {
+func (r *fakeKYCUserRepository) FindReferrer(ctx context.Context, userID uint64) (*models.User, error) {
 	return nil, nil
 }
 
-func (r *fakeUserRepository) CreateSettings(ctx context.Context, settings *models.Settings) error {
+func (r *fakeKYCUserRepository) CreateSettings(ctx context.Context, settings *models.Settings) error {
 	return nil
 }
 
-func (r *fakeUserRepository) GetSettings(ctx context.Context, userID uint64) (*models.Settings, error) {
+func (r *fakeKYCUserRepository) GetSettings(ctx context.Context, userID uint64) (*models.Settings, error) {
 	return nil, nil
 }
 
-func (r *fakeUserRepository) GetKYC(ctx context.Context, userID uint64) (*models.KYC, error) {
+func (r *fakeKYCUserRepository) GetKYC(ctx context.Context, userID uint64) (*models.KYC, error) {
 	return nil, nil
 }
 
-func (r *fakeUserRepository) GetUnreadNotificationsCount(ctx context.Context, userID uint64) (int32, error) {
+func (r *fakeKYCUserRepository) GetUnreadNotificationsCount(ctx context.Context, userID uint64) (int32, error) {
 	return 0, nil
 }
 
-func (r *fakeUserRepository) MarkEmailAsVerified(ctx context.Context, userID uint64) error {
+func (r *fakeKYCUserRepository) MarkEmailAsVerified(ctx context.Context, userID uint64) error {
 	return nil
 }
 
-func (r *fakeUserRepository) UpdatePhone(ctx context.Context, userID uint64, phone string) error {
+func (r *fakeKYCUserRepository) UpdatePhone(ctx context.Context, userID uint64, phone string) error {
 	return nil
 }
 
-func (r *fakeUserRepository) MarkPhoneAsVerified(ctx context.Context, userID uint64) error {
+func (r *fakeKYCUserRepository) MarkPhoneAsVerified(ctx context.Context, userID uint64) error {
 	return nil
 }
 
-func (r *fakeUserRepository) IsPhoneTaken(ctx context.Context, phone string, excludeUserID uint64) (bool, error) {
+func (r *fakeKYCUserRepository) IsPhoneTaken(ctx context.Context, phone string, excludeUserID uint64) (bool, error) {
 	return false, nil
 }
 
 func TestGetKYC_NotFound(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	kyc, err := service.GetKYC(ctx, 1)
@@ -230,7 +230,7 @@ func TestGetKYC_Found(t *testing.T) {
 		Birthdate: sql.NullTime{Time: time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
 	}
 	kycRepo.kycs[1] = existingKYC
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	kyc, err := service.GetKYC(ctx, 1)
@@ -248,7 +248,7 @@ func TestGetKYC_Found(t *testing.T) {
 func TestUpdateKYC_CreateNew(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	kyc, err := service.UpdateKYC(
@@ -296,7 +296,7 @@ func TestUpdateKYC_UpdateRejected(t *testing.T) {
 		Birthdate: sql.NullTime{Time: time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
 	}
 	kycRepo.kycs[1] = existingKYC
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	kyc, err := service.UpdateKYC(
@@ -343,7 +343,7 @@ func TestUpdateKYC_RejectPendingUpdate(t *testing.T) {
 		Birthdate: sql.NullTime{Time: time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
 	}
 	kycRepo.kycs[1] = existingKYC
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	_, err := service.UpdateKYC(
@@ -381,7 +381,7 @@ func TestUpdateKYC_RejectApprovedUpdate(t *testing.T) {
 		Birthdate: sql.NullTime{Time: time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
 	}
 	kycRepo.kycs[1] = existingKYC
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	_, err := service.UpdateKYC(
@@ -409,7 +409,7 @@ func TestUpdateKYC_RejectApprovedUpdate(t *testing.T) {
 func TestUpdateKYC_InvalidFname(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	_, err := service.UpdateKYC(
@@ -437,7 +437,7 @@ func TestUpdateKYC_InvalidFname(t *testing.T) {
 func TestUpdateKYC_InvalidLname(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	_, err := service.UpdateKYC(
@@ -465,7 +465,7 @@ func TestUpdateKYC_InvalidLname(t *testing.T) {
 func TestUpdateKYC_InvalidGender(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	_, err := service.UpdateKYC(
@@ -493,7 +493,7 @@ func TestUpdateKYC_InvalidGender(t *testing.T) {
 func TestUpdateKYC_InvalidBirthdate(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	_, err := service.UpdateKYC(
@@ -529,7 +529,7 @@ func TestUpdateKYC_DuplicateMelliCode(t *testing.T) {
 		Status:    -1,
 	}
 	kycRepo.kycs[2] = existingKYC
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	_, err := service.UpdateKYC(
@@ -561,7 +561,7 @@ func TestUpdateKYC_ValidGenders(t *testing.T) {
 	for _, gender := range validGenders {
 		t.Run(gender, func(t *testing.T) {
 			kycRepo := newFakeKYCRepository()
-			userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+			userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 			service := NewKYCService(kycRepo, userRepo)
 
 			_, err := service.UpdateKYC(
@@ -588,7 +588,7 @@ func TestUpdateKYC_ValidGenders(t *testing.T) {
 func TestUpdateKYC_TrimsWhitespace(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
-	userRepo := newFakeUserRepository(map[uint64]*models.User{1: {ID: 1}})
+	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
 	service := NewKYCService(kycRepo, userRepo)
 
 	kyc, err := service.UpdateKYC(

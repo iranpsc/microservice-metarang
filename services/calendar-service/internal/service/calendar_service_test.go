@@ -93,7 +93,7 @@ func TestCalendarService_GetEvents(t *testing.T) {
 			}, 1, nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		events, total, err := service.GetEvents(ctx, "event", "", "", 0, 1, 10)
 
 		if err != nil {
@@ -115,7 +115,7 @@ func TestCalendarService_GetEvents(t *testing.T) {
 			return nil, 0, errors.New("database error")
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		_, _, err := service.GetEvents(ctx, "event", "", "", 0, 1, 10)
 
 		if err == nil {
@@ -138,7 +138,7 @@ func TestCalendarService_GetEvent(t *testing.T) {
 			}, nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		event, err := service.GetEvent(ctx, 1, 0)
 
 		if err != nil {
@@ -156,7 +156,7 @@ func TestCalendarService_GetEvent(t *testing.T) {
 			return nil, nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		_, err := service.GetEvent(ctx, 999, 0)
 
 		if err == nil {
@@ -181,7 +181,7 @@ func TestCalendarService_AddInteraction(t *testing.T) {
 			return nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		err := service.AddInteraction(ctx, 1, 123, 1, "192.168.1.1")
 
 		if err != nil {
@@ -198,7 +198,7 @@ func TestCalendarService_AddInteraction(t *testing.T) {
 			return nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		err := service.AddInteraction(ctx, 1, 123, 0, "192.168.1.1")
 
 		if err != nil {
@@ -215,7 +215,7 @@ func TestCalendarService_AddInteraction(t *testing.T) {
 			return nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		err := service.AddInteraction(ctx, 1, 123, -1, "192.168.1.1")
 
 		if err != nil {
@@ -225,7 +225,7 @@ func TestCalendarService_AddInteraction(t *testing.T) {
 
 	t.Run("invalid liked value", func(t *testing.T) {
 		mockRepo := &mockCalendarRepository{}
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 
 		err := service.AddInteraction(ctx, 1, 123, 2, "192.168.1.1")
 
@@ -248,7 +248,7 @@ func TestCalendarService_GetLatestVersionTitle(t *testing.T) {
 			return "v1.2.3", nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		version, err := service.GetLatestVersionTitle(ctx)
 
 		if err != nil {
@@ -280,7 +280,7 @@ func TestCalendarService_FilterByDateRange(t *testing.T) {
 			}, nil
 		}
 
-		service := NewCalendarService(mockRepo)
+		service := NewCalendarService(mockRepo).(*CalendarService)
 		events, err := service.FilterByDateRange(ctx, "1403/01/01", "1403/01/05")
 
 		if err != nil {

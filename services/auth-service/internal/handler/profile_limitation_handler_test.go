@@ -302,7 +302,7 @@ func TestProfileLimitationHandler_GetProfileLimitation(t *testing.T) {
 				LimiterUserID: 1,
 				LimitedUserID: 2,
 				Options:       models.DefaultOptions(),
-				Note:          models.NullString{String: "Test note", Valid: true},
+				Note:          sql.NullString{String: "Test note", Valid: true},
 			}, nil
 		}
 

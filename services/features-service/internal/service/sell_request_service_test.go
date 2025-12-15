@@ -95,7 +95,7 @@ func TestMarketplaceService_CreateSellRequest(t *testing.T) {
 			},
 		}
 
-		mockFeatureRepo := &mockFeatureRepository{
+		mockFeatureRepo := &mockSellRequestFeatureRepository{
 			findByIDFunc: func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
 				return &models.Feature{
 						ID:      100,
@@ -166,7 +166,7 @@ func TestMarketplaceService_CreateSellRequest(t *testing.T) {
 			},
 		}
 
-		mockFeatureRepo := &mockFeatureRepository{
+		mockFeatureRepo := &mockSellRequestFeatureRepository{
 			findByIDFunc: func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
 				return &models.Feature{
 						ID:      100,
@@ -213,7 +213,7 @@ func TestMarketplaceService_CreateSellRequest(t *testing.T) {
 	})
 
 	t.Run("unauthorized - not owner", func(t *testing.T) {
-		mockFeatureRepo := &mockFeatureRepository{
+		mockFeatureRepo := &mockSellRequestFeatureRepository{
 			findByIDFunc: func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
 				return &models.Feature{
 					ID:      100,
@@ -233,7 +233,7 @@ func TestMarketplaceService_CreateSellRequest(t *testing.T) {
 		}
 
 		_, err := service.CreateSellRequest(ctx, req)
-		if err == nil || !contains(err.Error(), "unauthorized") {
+		if err == nil || !containsSellRequest(err.Error(), "unauthorized") {
 			t.Errorf("Expected unauthorized error, got: %v", err)
 		}
 	})
@@ -257,7 +257,7 @@ func TestMarketplaceService_CreateSellRequest(t *testing.T) {
 	})
 
 	t.Run("pricing below floor", func(t *testing.T) {
-		mockFeatureRepo := &mockFeatureRepository{
+		mockFeatureRepo := &mockSellRequestFeatureRepository{
 			findByIDFunc: func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
 				return &models.Feature{
 						ID:      100,
@@ -347,7 +347,7 @@ func TestMarketplaceService_DeleteSellRequest(t *testing.T) {
 			},
 		}
 
-		mockFeatureRepo := &mockFeatureRepository{
+		mockFeatureRepo := &mockSellRequestFeatureRepository{
 			findByIDFunc: func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
 				return &models.Feature{
 						ID: 100,
@@ -392,18 +392,18 @@ func TestMarketplaceService_DeleteSellRequest(t *testing.T) {
 		}
 
 		err := service.DeleteSellRequest(ctx, 1, 1)
-		if err == nil || !contains(err.Error(), "unauthorized") {
+		if err == nil || !containsSellRequest(err.Error(), "unauthorized") {
 			t.Errorf("Expected unauthorized error, got: %v", err)
 		}
 	})
 }
 
 // Helper functions and mock repositories
-type mockFeatureRepository struct {
+type mockSellRequestFeatureRepository struct {
 	findByIDFunc func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error)
 }
 
-func (m *mockFeatureRepository) FindByID(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
+func (m *mockSellRequestFeatureRepository) FindByID(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
@@ -421,11 +421,11 @@ func (m *mockPropertiesRepository) Update(ctx context.Context, featureID uint64,
 	return errors.New("not implemented")
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsMiddle(s, substr)))
+func containsSellRequest(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsSellRequestMiddle(s, substr)))
 }
 
-func containsMiddle(s, substr string) bool {
+func containsSellRequestMiddle(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
 			return true

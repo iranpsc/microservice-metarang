@@ -61,8 +61,6 @@ func TestSettingsHandler_UpdateSettings(t *testing.T) {
 func TestSettingsHandler_UpdateGeneralSettings(t *testing.T) {
 	t.Skip("requires proto generation - test structure ready")
 
-	ctx := context.Background()
-
 	t.Run("maps NotFound error correctly", func(t *testing.T) {
 		// Verify error mapping after proto generation
 		_ = service.ErrSettingsNotFound

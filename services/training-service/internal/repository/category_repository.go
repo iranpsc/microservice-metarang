@@ -8,6 +8,12 @@ import (
 	"metargb/training-service/internal/models"
 )
 
+// CategoryRepositoryInterface defines the interface for category repository operations
+type CategoryRepositoryInterface interface {
+	GetSubCategoryByID(ctx context.Context, subCategoryID uint64) (*models.VideoSubCategory, error)
+	GetCategoryByID(ctx context.Context, categoryID uint64) (*models.VideoCategory, error)
+}
+
 type CategoryRepository struct {
 	db *sql.DB
 }
