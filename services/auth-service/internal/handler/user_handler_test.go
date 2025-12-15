@@ -19,8 +19,8 @@ type mockUserService struct {
 	getUserLevelsFunc        func(ctx context.Context, userID uint64) (*service.UserLevelsData, error)
 	getUserProfileFunc       func(ctx context.Context, userID uint64, viewerUserID *uint64) (*service.UserProfileData, error)
 	getUserFeaturesCountFunc func(ctx context.Context, userID uint64) (*service.UserFeaturesCountData, error)
-	getUserFunc              func(ctx context.Context, userID uint64) error
-	updateProfileFunc        func(ctx context.Context, userID uint64, name, email, phone string) error
+	getUserFunc              func(ctx context.Context, userID uint64) (*models.User, error)
+	updateProfileFunc        func(ctx context.Context, userID uint64, name, email, phone string) (*models.User, error)
 }
 
 func (m *mockUserService) ListUsers(ctx context.Context, search string, orderBy string, page int32) ([]*service.UserListItem, int32, int32, error) {
@@ -52,15 +52,18 @@ func (m *mockUserService) GetUserFeaturesCount(ctx context.Context, userID uint6
 }
 
 func (m *mockUserService) GetUser(ctx context.Context, userID uint64) (*models.User, error) {
+	if m.getUserFunc != nil {
+		return m.getUserFunc(ctx, userID)
+	}
 	// This method is not used in tests, but required by interface
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockUserService) UpdateProfile(ctx context.Context, userID uint64, name, email, phone string) error {
+func (m *mockUserService) UpdateProfile(ctx context.Context, userID uint64, name, email, phone string) (*models.User, error) {
 	if m.updateProfileFunc != nil {
 		return m.updateProfileFunc(ctx, userID, name, email, phone)
 	}
-	return errors.New("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func TestUserHandler_ListUsers(t *testing.T) {

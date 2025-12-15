@@ -938,6 +938,22 @@ func (f *fakeActivityRepository) GetUserEventByID(context.Context, uint64, uint6
 	panic("unexpected call to GetUserEventByID")
 }
 
+func (f *fakeActivityRepository) GetUserEventsByUserID(context.Context, uint64, int32) ([]*models.UserEvent, error) {
+	panic("unexpected call to GetUserEventsByUserID")
+}
+
+func (f *fakeActivityRepository) GetUserEventReportByEventID(context.Context, uint64) (*models.UserEventReport, error) {
+	return nil, nil
+}
+
+func (f *fakeActivityRepository) UpdateUserEventReportStatus(context.Context, uint64, int32) error {
+	panic("unexpected call to UpdateUserEventReportStatus")
+}
+
+func (f *fakeActivityRepository) GetUserEventReportResponses(context.Context, uint64) ([]*models.UserEventReportResponse, error) {
+	panic("unexpected call to GetUserEventReportResponses")
+}
+
 var _ repository.ActivityRepository = (*fakeActivityRepository)(nil)
 
 type fakeSMSServiceClient struct {

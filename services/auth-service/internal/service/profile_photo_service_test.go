@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -82,10 +83,30 @@ func (r *fakeProfilePhotoRepository) CheckOwnership(ctx context.Context, id uint
 	return photo.ImageableID == userID, nil
 }
 
+// fakeStorageClient is a mock implementation of StorageClient for testing
+type fakeStorageClient struct {
+	uploadCount int
+	uploadURLs  map[uint64]string
+}
+
+func newFakeStorageClient() *fakeStorageClient {
+	return &fakeStorageClient{
+		uploadURLs: make(map[uint64]string),
+	}
+}
+
+func (f *fakeStorageClient) UploadFile(ctx context.Context, imageData []byte, filename, contentType string, userID uint64) (string, error) {
+	f.uploadCount++
+	url := fmt.Sprintf("https://example.com/storage/%d/%s", userID, filename)
+	f.uploadURLs[userID] = url
+	return url, nil
+}
+
 func TestProfilePhotoService_ListProfilePhotos(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
-	service, _ := NewProfilePhotoService(repo, "")
+	storageClient := newFakeStorageClient()
+	service := NewProfilePhotoService(repo, storageClient)
 
 	t.Run("successful list", func(t *testing.T) {
 		userID := uint64(1)
@@ -119,7 +140,8 @@ func TestProfilePhotoService_ListProfilePhotos(t *testing.T) {
 func TestProfilePhotoService_UploadProfilePhoto(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
-	service, _ := NewProfilePhotoService(repo, "")
+	storageClient := newFakeStorageClient()
+	service := NewProfilePhotoService(repo, storageClient)
 
 	t.Run("successful upload", func(t *testing.T) {
 		userID := uint64(1)
@@ -211,7 +233,8 @@ func TestProfilePhotoService_UploadProfilePhoto(t *testing.T) {
 func TestProfilePhotoService_GetProfilePhoto(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
-	service, _ := NewProfilePhotoService(repo, "")
+	storageClient := newFakeStorageClient()
+	service := NewProfilePhotoService(repo, storageClient)
 
 	t.Run("successful get", func(t *testing.T) {
 		userID := uint64(1)
@@ -252,7 +275,8 @@ func TestProfilePhotoService_GetProfilePhoto(t *testing.T) {
 func TestProfilePhotoService_DeleteProfilePhoto(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
-	service, _ := NewProfilePhotoService(repo, "")
+	storageClient := newFakeStorageClient()
+	service := NewProfilePhotoService(repo, storageClient)
 
 	t.Run("successful delete", func(t *testing.T) {
 		userID := uint64(1)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"metargb/auth-service/internal/models"
+	"metargb/auth-service/internal/repository"
 )
 
 // fakeKYCRepository is a mock implementation of KYCRepository for testing
@@ -200,6 +201,42 @@ func (r *fakeKYCUserRepository) MarkPhoneAsVerified(ctx context.Context, userID 
 
 func (r *fakeKYCUserRepository) IsPhoneTaken(ctx context.Context, phone string, excludeUserID uint64) (bool, error) {
 	return false, nil
+}
+
+func (r *fakeKYCUserRepository) ListUsers(ctx context.Context, search, orderBy string, page, pageSize int32) ([]*repository.UserWithRelations, int32, error) {
+	return nil, 0, nil
+}
+
+func (r *fakeKYCUserRepository) GetFollowersCount(ctx context.Context, userID uint64) (int32, error) {
+	return 0, nil
+}
+
+func (r *fakeKYCUserRepository) GetFollowingCount(ctx context.Context, userID uint64) (int32, error) {
+	return 0, nil
+}
+
+func (r *fakeKYCUserRepository) GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error) {
+	return "", nil
+}
+
+func (r *fakeKYCUserRepository) GetAllProfilePhotoURLs(ctx context.Context, userID uint64) ([]string, error) {
+	return nil, nil
+}
+
+func (r *fakeKYCUserRepository) GetUserLatestLevel(ctx context.Context, userID uint64) (*repository.UserLevel, error) {
+	return nil, nil
+}
+
+func (r *fakeKYCUserRepository) GetLevelsBelowScore(ctx context.Context, score int32) ([]*repository.UserLevel, error) {
+	return nil, nil
+}
+
+func (r *fakeKYCUserRepository) GetNextLevelScore(ctx context.Context, score int32) (int32, error) {
+	return 0, nil
+}
+
+func (r *fakeKYCUserRepository) GetFeatureCounts(ctx context.Context, userID uint64) (int32, int32, int32, error) {
+	return 0, 0, 0, nil
 }
 
 func TestGetKYC_NotFound(t *testing.T) {
