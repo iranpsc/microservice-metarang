@@ -82,7 +82,7 @@ func (h *SMSHandler) SendOTP(ctx context.Context, req *pb.SendOTPRequest) (*pb.S
 
 func handleSMSError(err error) error {
 	if errors.Is(err, errs.ErrNotImplemented) {
-		return status.Error(codes.Unimplemented, err.Error())
+		return status.Error(codes.FailedPrecondition, "SMS service is not configured. Please set SMS_PROVIDER and SMS_API_KEY environment variables.")
 	}
 	return status.Errorf(codes.Internal, "sms service error: %v", err)
 }

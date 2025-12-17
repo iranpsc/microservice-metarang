@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,8 +50,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		Referral string `json:"referral"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -120,8 +126,12 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		Token string `json:"token"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -169,8 +179,12 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		Token string `json:"token"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -193,8 +207,12 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 		Token string `json:"token"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -242,8 +260,12 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 		Phone string `json:"phone,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -289,8 +311,12 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 		Code string `json:"code"` // 6-digit OTP code
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -351,8 +377,12 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		Phone  string `json:"phone"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -743,8 +773,12 @@ func (h *AuthHandler) CreateBankAccount(w http.ResponseWriter, r *http.Request) 
 		CardNum  string `json:"card_num"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -849,8 +883,12 @@ func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) 
 		CardNum  string `json:"card_num"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -925,6 +963,33 @@ func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 // Helper functions
+
+// decodeJSONBody safely decodes JSON from request body, handling empty bodies
+func decodeJSONBody(r *http.Request, v interface{}) error {
+	if r.Body == nil {
+		return io.EOF
+	}
+
+	// Check if body is empty
+	if r.ContentLength == 0 {
+		return io.EOF
+	}
+
+	// Try to peek at the body to see if it's already consumed
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	
+	// Restore body for potential subsequent reads
+	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+	if len(bodyBytes) == 0 {
+		return io.EOF
+	}
+
+	return json.Unmarshal(bodyBytes, v)
+}
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -1261,8 +1326,12 @@ func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request)
 		Passions       map[string]bool `json:"passions"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -1322,8 +1391,12 @@ func (h *AuthHandler) CreateProfileLimitation(w http.ResponseWriter, r *http.Req
 		Note string `json:"note,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -1412,8 +1485,12 @@ func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Req
 		Note string `json:"note,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -1773,8 +1850,12 @@ func (h *AuthHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		Status            bool   `json:"status"`  // boolean value
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -1910,8 +1991,12 @@ func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Reque
 		TradesEmail            bool `json:"trades_email"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -2010,8 +2095,12 @@ func (h *AuthHandler) UpdatePrivacySettings(w http.ResponseWriter, r *http.Reque
 		Value interface{} `json:"value"` // Accepts boolean or numeric (0/1)
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -2182,8 +2271,12 @@ func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
 		EventDescription  string `json:"event_description"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -2237,8 +2330,12 @@ func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request)
 		Response string `json:"response"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -2308,8 +2405,12 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -2352,8 +2453,12 @@ func (h *AuthHandler) SearchFeatures(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 
@@ -2405,8 +2510,12 @@ func (h *AuthHandler) SearchIsicCodes(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := decodeJSONBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
 		return
 	}
 

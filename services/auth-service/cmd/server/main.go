@@ -150,7 +150,7 @@ func main() {
 
 	// Initialize notifications SMS client (optional - service can work without it)
 	var smsClient notificationspb.SMSServiceClient
-	notificationsAddr := getEnv("NOTIFICATIONS_SERVICE_ADDR", "notifications-service:50051")
+	notificationsAddr := getEnv("NOTIFICATIONS_SERVICE_ADDR", "notifications-service:50058")
 	notificationsConn, err := grpc.Dial(notificationsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Printf("Warning: Failed to connect to notifications service: %v (continuing without SMS support)", err)

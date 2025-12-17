@@ -22,8 +22,28 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: .env file not found: %v", err)
+	// Load environment variables from config.env
+	// Try multiple possible paths for config.env
+	configPaths := []string{
+		"config.env",
+		"./config.env",
+		"../config.env",
+		"../../config.env",
+		"services/notifications-service/config.env",
+	}
+	var configLoaded bool
+	for _, configPath := range configPaths {
+		if err := godotenv.Load(configPath); err == nil {
+			configLoaded = true
+			log.Printf("Loaded config from: %s", configPath)
+			break
+		}
+	}
+	if !configLoaded {
+		// Fallback to .env if config.env not found
+		if err2 := godotenv.Load(); err2 != nil {
+			log.Printf("Warning: config.env and .env files not found, using environment variables only")
+		}
 	}
 
 	db, err := setupDatabase()
@@ -40,6 +60,17 @@ func main() {
 	notificationRepo := repository.NewNotificationRepository(db)
 	smsChannel := service.NewSMSChannel()
 	emailChannel := service.NewEmailChannel()
+
+	// Verify SMS configuration
+	smsProvider := getEnv("SMS_PROVIDER", "")
+	smsApiKey := getEnv("SMS_API_KEY", "")
+	smsSender := getEnv("SMS_SENDER", "")
+	if smsProvider == "" || smsApiKey == "" {
+		log.Printf("WARNING: SMS not fully configured (SMS_PROVIDER=%s, SMS_API_KEY set=%v). SMS features will not work and will return 'not implemented' errors.", smsProvider, smsApiKey != "")
+		log.Printf("Please set SMS_PROVIDER and SMS_API_KEY environment variables or ensure config.env is loaded.")
+	} else {
+		log.Printf("SMS configured: provider=%s, sender=%s", smsProvider, smsSender)
+	}
 
 	notificationService := service.NewNotificationService(notificationRepo, smsChannel, emailChannel)
 	smsService := service.NewSMSService(smsChannel)

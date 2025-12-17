@@ -69,12 +69,15 @@ services:
       REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379/0
       KAVENEGAR_API_KEY: ${KAVENEGAR_API_KEY:-}
+      NOTIFICATIONS_SERVICE_ADDR: notifications-service:50058
       # OAUTH_SERVER_URL, OAUTH_CLIENT_ID, and OAUTH_CLIENT_SECRET are loaded from config.env via env_file
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      notifications-service:
+        condition: service_started
     networks:
       - metargb-network
     restart: unless-stopped
@@ -280,6 +283,7 @@ services:
       REDIS_DB: 0
       SMS_PROVIDER: kavenegar
       SMS_API_KEY: ${KAVENEGAR_API_KEY:-}
+      SMS_SENDER: ${KAVENEGAR_SENDER:-10008663}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
