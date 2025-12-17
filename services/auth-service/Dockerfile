@@ -29,7 +29,7 @@ WORKDIR /workspace/metargb/auth-service
 RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod
 
 # Use GOPROXY with fallback instead of direct-only (faster and more reliable)
-ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=https://goproxy.io,direct
 RUN go mod download
 
 # Now copy the rest of the source code (this invalidates cache only when source changes)

@@ -39,7 +39,7 @@ RUN go get metargb/shared@v0.0.0 || true
 RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod || true
 
 # Use GOPROXY with fallback instead of direct-only (faster and more reliable)
-ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=https://goproxy.io,direct
 
 # Build the application (go build will download dependencies automatically)  
 WORKDIR /workspace

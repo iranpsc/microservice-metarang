@@ -10,7 +10,7 @@ WORKDIR /app
 COPY services/health-check-service/go.mod services/health-check-service/go.sum* ./
 
 # Download dependencies
-ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=https://goproxy.io,direct
 RUN go mod download
 
 # Copy source

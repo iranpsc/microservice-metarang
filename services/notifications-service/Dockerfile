@@ -32,7 +32,7 @@ WORKDIR /workspace/metargb/notifications-service
 # Update replace directive for Docker context
 RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod
 
-ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=https://goproxy.io,direct
 RUN go mod download
 
 # Build the application  

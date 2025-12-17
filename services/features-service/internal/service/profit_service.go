@@ -19,6 +19,7 @@ type ProfitServiceInterface interface {
 	GetProfitsByApplication(ctx context.Context, userID uint64, karbari string) (float64, error)
 	TransferProfitOnSale(ctx context.Context, featureID, sellerID, buyerID uint64, withdrawProfitDays int) error
 	GetHourlyProfits(ctx context.Context, userID uint64, page, pageSize int32) ([]*models.FeatureHourlyProfit, string, string, string, error)
+	StartHourlyProfitCalculator(ctx context.Context, log *logger.Logger)
 }
 
 // ProfitService implements profit service with gRPC cross-service calls

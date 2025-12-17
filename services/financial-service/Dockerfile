@@ -9,7 +9,7 @@ COPY shared/go.mod shared/go.sum ./shared/
 COPY services/financial-service/go.mod services/financial-service/go.sum ./services/financial-service/
 
 # Download dependencies
-ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=https://goproxy.io,direct
 RUN go mod download
 
 # Copy source code
