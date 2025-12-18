@@ -30,7 +30,10 @@ RUN echo 'go 1.24.0' > go.work && \
 WORKDIR /workspace/metargb/support-service
 
 # Update replace directive for Docker context
-RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod
+RUN sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod || true
+
+# Ensure metargb/shared is in the go.mod
+RUN go get metargb/shared@v0.0.0 || true
 
 ENV GOPROXY=https://goproxy.io,direct
 RUN go mod download

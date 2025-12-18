@@ -157,39 +157,39 @@ build-phase5: build-calendar build-storage build-websocket
 
 build-dynasty:
 	@echo "Building dynasty service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/dynasty-service:$(VERSION) services/dynasty-service/
+	docker build -f services/dynasty-service/Dockerfile -t $(DOCKER_REGISTRY)/dynasty-service:$(VERSION) .
 
 build-support:
 	@echo "Building support service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/support-service:$(VERSION) services/support-service/
+	docker build -f services/support-service/Dockerfile -t $(DOCKER_REGISTRY)/support-service:$(VERSION) .
 
 build-training:
 	@echo "Building training service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/training-service:$(VERSION) services/training-service/
+	docker build -f services/training-service/Dockerfile -t $(DOCKER_REGISTRY)/training-service:$(VERSION) .
 
 build-notifications:
 	@echo "Building notifications service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/notifications-service:$(VERSION) services/notifications-service/
+	docker build -f services/notifications-service/Dockerfile -t $(DOCKER_REGISTRY)/notifications-service:$(VERSION) .
 
 build-calendar:
 	@echo "Building calendar service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/calendar-service:$(VERSION) services/calendar-service/
+	docker build -f services/calendar-service/Dockerfile -t $(DOCKER_REGISTRY)/calendar-service:$(VERSION) .
 
 build-storage:
 	@echo "Building storage service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/storage-service:$(VERSION) services/storage-service/
+	docker build -f services/storage-service/Dockerfile -t $(DOCKER_REGISTRY)/storage-service:$(VERSION) .
 
 build-websocket:
 	@echo "Building websocket gateway Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/websocket-gateway:$(VERSION) websocket-gateway/
+	docker build -f websocket-gateway/Dockerfile -t $(DOCKER_REGISTRY)/websocket-gateway:$(VERSION) .
 
 build-features:
 	@echo "Building features service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/features-service:$(VERSION) services/features-service/
+	docker build -f services/features-service/Dockerfile -t $(DOCKER_REGISTRY)/features-service:$(VERSION) .
 
 build-levels:
 	@echo "Building levels service Docker image..."
-	docker build -t $(DOCKER_REGISTRY)/levels-service:$(VERSION) services/levels-service/
+	docker build -f services/levels-service/Dockerfile -t $(DOCKER_REGISTRY)/levels-service:$(VERSION) .
 
 # Deploy targets
 deploy-features:
