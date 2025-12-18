@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
@@ -55,8 +55,11 @@ func main() {
 		}
 	}
 
-	// Database connection
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+	// Database connection with proper UTF-8 encoding for Persian/Farsi text
+	// Using utf8mb4 charset for proper Persian/Farsi support
+	// interpolateParams=true helps with proper handling of multi-byte characters in parameterized queries
+	// Note: collation is not a valid DSN parameter - it's automatically set based on charset
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&loc=Local&tls=false&interpolateParams=true",
 		getEnv("DB_USER", "root"),
 		getEnv("DB_PASSWORD", ""),
 		getEnv("DB_HOST", "localhost"),
@@ -64,23 +67,55 @@ func main() {
 		getEnv("DB_DATABASE", "metargb_db"),
 	)
 
-	db, err := sql.Open("mysql", dsn)
+	// Parse DSN to get config
+	cfg, err := mysql.ParseDSN(dsn)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Failed to parse DSN: %v", err)
 	}
+
+	// Ensure charset is explicitly set to utf8mb4 in connection parameters
+	// The collation will be automatically set to utf8mb4_unicode_ci by MySQL based on the charset
+	// Note: parseTime and interpolateParams are DSN-level settings, not connection parameters
+	if cfg.Params == nil {
+		cfg.Params = make(map[string]string)
+	}
+	cfg.Params["charset"] = "utf8mb4"
+	// interpolateParams is already in DSN, so it's handled automatically
+
+	// Create connector with proper charset configuration
+	connector, err := mysql.NewConnector(cfg)
+	if err != nil {
+		log.Fatalf("Failed to create connector: %v", err)
+	}
+
+	// Open database using connector
+	db := sql.OpenDB(connector)
 	defer db.Close()
 
 	// Configure connection pool
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	if err := db.PingContext(ctx); err != nil {
-		cancel()
 		log.Fatalf("Failed to ping database: %v", err)
 	}
+
+	// Explicitly set charset to UTF-8 for proper Persian/Farsi text handling
+	// SET NAMES sets character_set_client, character_set_connection, and character_set_results
+	// This ensures all queries return UTF-8 encoded strings
+	// Note: This is executed on the test connection; the connector config ensures all new connections use utf8mb4
+	if _, err := db.ExecContext(ctx, "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"); err != nil {
+		log.Printf("Warning: Failed to set charset to utf8mb4: %v", err)
+	} else {
+		log.Println("Successfully set database charset to utf8mb4 for UTF-8/Persian text support")
+	}
+
 	log.Println("Successfully connected to database")
 
 	// Initialize Redis connection for caching and pub/sub
@@ -146,6 +181,7 @@ func main() {
 	helperService := service.NewHelperService(
 		getEnv("LEVELS_SERVICE_ADDR", "levels-service:50051"),
 		getEnv("FEATURES_SERVICE_ADDR", "features-service:50051"),
+		getEnv("COMMERCIAL_SERVICE_ADDR", "commercial-service:50051"),
 	)
 
 	// Initialize notifications SMS client (optional - service can work without it)
@@ -205,7 +241,7 @@ func main() {
 
 	// Register handlers
 	handler.RegisterAuthHandler(grpcServer, authService, tokenRepo)
-	handler.RegisterUserHandler(grpcServer, userService, profileLimitationService)
+	handler.RegisterUserHandler(grpcServer, userService, profileLimitationService, helperService)
 	handler.RegisterKYCHandler(grpcServer, kycService)
 	handler.RegisterCitizenHandler(grpcServer, citizenService)
 	handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)

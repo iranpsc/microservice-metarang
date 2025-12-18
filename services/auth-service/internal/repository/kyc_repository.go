@@ -54,6 +54,7 @@ func (r *kycRepository) Create(ctx context.Context, kyc *models.KYC) error {
 }
 
 func (r *kycRepository) FindByUserID(ctx context.Context, userID uint64) (*models.KYC, error) {
+	// Note: fname and lname are read as-is; charset is handled at connection level
 	query := `
 		SELECT id, user_id, fname, lname, melli_code, melli_card, video, verify_text_id, province, gender, status, birthdate, errors, created_at, updated_at
 		FROM kycs

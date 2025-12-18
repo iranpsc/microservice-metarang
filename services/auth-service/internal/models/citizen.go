@@ -6,17 +6,21 @@ import (
 
 // CitizenProfile represents a citizen's public profile data
 type CitizenProfile struct {
-	ID            uint64
-	Name          string
-	Email         string
-	Phone         string
-	Code          string
-	Score         int32
-	RegisteredAt  time.Time
-	KYC           *CitizenKYC
-	Privacy       map[string]bool
-	ProfilePhotos []*ProfilePhoto
-	PersonalInfo  *CitizenPersonalInfo
+	ID             uint64
+	Name           string
+	Email          string
+	Phone          string
+	Code           string
+	Position       string // User position field
+	Score          int32
+	RegisteredAt   time.Time
+	KYC            *CitizenKYC
+	Privacy        map[string]bool
+	ProfilePhotos  []*ProfilePhoto
+	PersonalInfo   *CitizenPersonalInfo
+	CurrentLevel   *CitizenLevel   // Current level (if privacy allows)
+	AchievedLevels []*CitizenLevel // All achieved levels (if privacy allows)
+	Avatar         string          // Avatar URL (if privacy allows)
 }
 
 // CitizenKYC represents KYC data for citizen profile
@@ -28,6 +32,7 @@ type CitizenKYC struct {
 	NationalCode string
 	Status       int32
 	Birthdate    time.Time
+	Address      string // Address field from KYC
 }
 
 // ProfilePhoto represents a profile photo
@@ -88,4 +93,12 @@ type ChartDataPoint struct {
 	Label       string
 	Count       int32
 	TotalAmount int64
+}
+
+// CitizenLevel represents level information for citizen profile
+type CitizenLevel struct {
+	ID          uint64
+	Title       string
+	Description string
+	Score       int32
 }

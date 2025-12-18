@@ -39,9 +39,10 @@ func (h *citizenHandler) GetCitizenProfile(ctx context.Context, req *pb.GetCitiz
 	}
 
 	response := &pb.CitizenProfileResponse{
-		Code:  profile.Code,
-		Name:  profile.Name,
-		Score: profile.Score,
+		Code:     profile.Code,
+		Name:     profile.Name,
+		Position: profile.Position,
+		Score:    profile.Score,
 	}
 
 	// Convert profile photos
@@ -79,6 +80,11 @@ func (h *citizenHandler) GetCitizenProfile(ctx context.Context, req *pb.GetCitiz
 			kyc.Email = profile.Email
 		}
 
+		// Add address if privacy allows
+		if profile.KYC.Address != "" && (profile.Privacy == nil || h.checkPrivacy(profile.Privacy, "address")) {
+			kyc.Address = profile.KYC.Address
+		}
+
 		response.Kyc = kyc
 	}
 
@@ -111,9 +117,30 @@ func (h *citizenHandler) GetCitizenProfile(ctx context.Context, req *pb.GetCitiz
 	// For now, set to 0
 	response.ScorePercentageToNextLevel = 0
 
-	// TODO: Add current_level and achieved_levels (would need level service call)
+	// Add current_level if privacy allows
+	if profile.CurrentLevel != nil {
+		response.CurrentLevel = &pb.CitizenLevel{
+			Id:          profile.CurrentLevel.ID,
+			Title:       profile.CurrentLevel.Title,
+			Description: profile.CurrentLevel.Description,
+			Score:       profile.CurrentLevel.Score,
+		}
+	}
 
-	// TODO: Add avatar if privacy allows
+	// Add achieved_levels if privacy allows
+	for _, level := range profile.AchievedLevels {
+		response.AchievedLevels = append(response.AchievedLevels, &pb.CitizenLevel{
+			Id:          level.ID,
+			Title:       level.Title,
+			Description: level.Description,
+			Score:       level.Score,
+		})
+	}
+
+	// Add avatar if privacy allows
+	if profile.Avatar != "" {
+		response.Avatar = profile.Avatar
+	}
 
 	return response, nil
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"metargb/auth-service/internal/models"
@@ -120,7 +121,7 @@ func (s *userService) UpdateProfile(ctx context.Context, userID uint64, name, em
 
 	user.Name = name
 	user.Email = email
-	user.Phone = phone
+	user.Phone = sql.NullString{String: phone, Valid: phone != ""}
 
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)

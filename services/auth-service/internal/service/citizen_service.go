@@ -39,6 +39,21 @@ func (s *citizenService) GetCitizenProfile(ctx context.Context, code string) (*m
 		return nil, nil // Not found
 	}
 
+	// Get levels if privacy allows
+	if s.checkPrivacy(profile.Privacy, "level") {
+		currentLevel, achievedLevels, err := s.citizenRepo.GetCitizenLevels(ctx, profile.ID)
+		if err == nil {
+			profile.CurrentLevel = currentLevel
+			profile.AchievedLevels = achievedLevels
+		}
+	}
+
+	// Set avatar URL if privacy allows
+	if s.checkPrivacy(profile.Privacy, "avatar") {
+		// Avatar URL format: /uploads/avatars/{user_id}.svg
+		profile.Avatar = fmt.Sprintf("/uploads/avatars/%d.svg", profile.ID)
+	}
+
 	// Apply privacy filtering
 	s.applyPrivacyFilters(profile)
 
@@ -133,7 +148,7 @@ func (s *citizenService) applyPrivacyFilters(profile *models.CitizenProfile) {
 			profile.Email = ""
 		}
 		if !s.checkPrivacy(profile.Privacy, "address") {
-			// Address not in KYC model, but would be filtered here
+			profile.KYC.Address = ""
 		}
 	}
 
@@ -149,7 +164,13 @@ func (s *citizenService) applyPrivacyFilters(profile *models.CitizenProfile) {
 
 	// Filter avatar
 	if !s.checkPrivacy(profile.Privacy, "avatar") {
-		// Avatar would be filtered here
+		profile.Avatar = ""
+	}
+
+	// Filter level data
+	if !s.checkPrivacy(profile.Privacy, "level") {
+		profile.CurrentLevel = nil
+		profile.AchievedLevels = []*models.CitizenLevel{}
 	}
 }
 

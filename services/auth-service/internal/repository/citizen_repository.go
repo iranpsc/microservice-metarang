@@ -16,6 +16,7 @@ type CitizenRepository interface {
 	GetCitizenReferrals(ctx context.Context, referrerID uint64, search string, page int, pageSize int) ([]*models.CitizenReferral, *models.PaginationMeta, error)
 	GetCitizenReferralOrders(ctx context.Context, referralID uint64) ([]*models.ReferrerOrder, error)
 	GetCitizenReferralChartData(ctx context.Context, referrerID uint64, rangeType string) (*models.ReferralChartData, error)
+	GetCitizenLevels(ctx context.Context, userID uint64) (*models.CitizenLevel, []*models.CitizenLevel, error)
 }
 
 type citizenRepository struct {
@@ -30,7 +31,7 @@ func NewCitizenRepository(db *sql.DB) CitizenRepository {
 func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (*models.CitizenProfile, error) {
 	// Get user by code (case-insensitive)
 	query := `
-		SELECT id, name, email, phone, code, score, created_at
+		SELECT id, name, email, phone, code, position, score, created_at
 		FROM users
 		WHERE LOWER(code) = LOWER(?)
 		LIMIT 1
@@ -38,9 +39,13 @@ func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (
 
 	user := &models.CitizenProfile{}
 	var createdAt time.Time
+	var position sql.NullString
 	err := r.db.QueryRowContext(ctx, query, code).Scan(
-		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Code, &user.Score, &createdAt,
+		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Code, &position, &user.Score, &createdAt,
 	)
+	if err == nil && position.Valid {
+		user.Position = position.String
+	}
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -51,7 +56,7 @@ func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (
 
 	// Get KYC data
 	kycQuery := `
-		SELECT id, user_id, fname, lname, melli_code, status, birthdate
+		SELECT id, user_id, fname, lname, melli_code, status, birthdate, address
 		FROM kycs
 		WHERE user_id = ?
 		LIMIT 1
@@ -59,9 +64,13 @@ func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (
 	kyc := &models.CitizenKYC{}
 	var birthdate sql.NullTime
 	var nationalCode string
+	var address sql.NullString
 	err = r.db.QueryRowContext(ctx, kycQuery, user.ID).Scan(
-		&kyc.ID, &kyc.UserID, &kyc.Fname, &kyc.Lname, &nationalCode, &kyc.Status, &birthdate,
+		&kyc.ID, &kyc.UserID, &kyc.Fname, &kyc.Lname, &nationalCode, &kyc.Status, &birthdate, &address,
 	)
+	if err == nil && address.Valid {
+		kyc.Address = address.String
+	}
 	kyc.NationalCode = nationalCode
 	if err == nil {
 		if birthdate.Valid {
@@ -133,6 +142,11 @@ func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (
 		user.PersonalInfo = personalInfo
 	}
 	// If err == sql.ErrNoRows, personal info doesn't exist - that's fine
+
+	// Get avatar URL (static 3D avatar - this would typically come from a config or service)
+	// For now, we'll set it to empty and let the service/handler populate it if needed
+	// The avatar URL format is typically: /uploads/avatars/{user_id}.svg or similar
+	user.Avatar = ""
 
 	return user, nil
 }
@@ -409,6 +423,73 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 		TotalReferralOrdersAmount: fmt.Sprintf("%d", totalAmount),
 		ChartData:                 chartData,
 	}, nil
+}
+
+// GetCitizenLevels retrieves current level and all achieved levels for a user
+func (r *citizenRepository) GetCitizenLevels(ctx context.Context, userID uint64) (*models.CitizenLevel, []*models.CitizenLevel, error) {
+	// Get current level (latest level_user entry)
+	currentLevelQuery := `
+		SELECT l.id, l.name, l.description, l.score
+		FROM levels l
+		INNER JOIN level_user lu ON lu.level_id = l.id
+		WHERE lu.user_id = ?
+		ORDER BY lu.id DESC
+		LIMIT 1
+	`
+
+	var currentLevel *models.CitizenLevel
+	var levelID uint64
+	var name, description sql.NullString
+	var score sql.NullInt32
+	err := r.db.QueryRowContext(ctx, currentLevelQuery, userID).Scan(&levelID, &name, &description, &score)
+	if err == nil {
+		currentLevel = &models.CitizenLevel{
+			ID: levelID,
+		}
+		if name.Valid {
+			currentLevel.Title = name.String
+		}
+		if description.Valid {
+			currentLevel.Description = description.String
+		}
+		if score.Valid {
+			currentLevel.Score = score.Int32
+		}
+	}
+
+	// Get all achieved levels (all level_user entries for this user)
+	achievedLevelsQuery := `
+		SELECT l.id, l.name, l.description, l.score
+		FROM levels l
+		INNER JOIN level_user lu ON lu.level_id = l.id
+		WHERE lu.user_id = ?
+		ORDER BY l.score ASC
+	`
+
+	var achievedLevels []*models.CitizenLevel
+	rows, err := r.db.QueryContext(ctx, achievedLevelsQuery, userID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var level models.CitizenLevel
+			var name, description sql.NullString
+			var score sql.NullInt32
+			if err := rows.Scan(&level.ID, &name, &description, &score); err == nil {
+				if name.Valid {
+					level.Title = name.String
+				}
+				if description.Valid {
+					level.Description = description.String
+				}
+				if score.Valid {
+					level.Score = score.Int32
+				}
+				achievedLevels = append(achievedLevels, &level)
+			}
+		}
+	}
+
+	return currentLevel, achievedLevels, nil
 }
 
 func buildPlaceholders(count int) string {

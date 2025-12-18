@@ -101,7 +101,7 @@ func main() {
 	}
 
 	// Initialize notification client for profit notifications
-	notificationServiceAddr := getEnv("NOTIFICATIONS_SERVICE_ADDR", "notifications-service:50054")
+	notificationServiceAddr := getEnv("NOTIFICATIONS_SERVICE_ADDR", "notifications-service:50058")
 	notificationClient, err := client.NewNotificationClient(notificationServiceAddr)
 	if err != nil {
 		log.Warn("Failed to connect to notification service - notifications disabled", "error", err)

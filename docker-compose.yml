@@ -70,6 +70,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       KAVENEGAR_API_KEY: ${KAVENEGAR_API_KEY:-}
       NOTIFICATIONS_SERVICE_ADDR: notifications-service:50058
+      LEVELS_SERVICE_ADDR: levels-service:50054
+      FEATURES_SERVICE_ADDR: features-service:50053
+      COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       # OAUTH_SERVER_URL, OAUTH_CLIENT_ID, and OAUTH_CLIENT_SECRET are loaded from config.env via env_file
     depends_on:
       mysql:

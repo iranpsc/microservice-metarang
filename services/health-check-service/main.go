@@ -161,18 +161,20 @@ var serviceNameMap = map[string]string{
 
 // Map service labels to their running ports
 var servicePortMap = map[string]string{
-	"mysql":              "3306",
-	"redis":              "6379",
-	"auth-service":       "50051",
-	"commercial-service": "50052",
-	"features-service":   "50053",
-	"levels-service":     "50054",
-	"dynasty-service":    "50055",
-	"calendar-service":   "50058",
-	"storage-service":    "50059",
-	"kong":               "8000",
-	"websocket-gateway":  "3000",
-	"grpc-gateway":       "8080",
+	"mysql":                 "3306",
+	"redis":                 "6379",
+	"auth-service":          "50051",
+	"commercial-service":    "50052",
+	"features-service":      "50053",
+	"levels-service":        "50054",
+	"dynasty-service":       "50055",
+	"support-service":       "50056",
+	"notifications-service": "50058",
+	"calendar-service":      "50059",
+	"storage-service":       "50060",
+	"kong":                  "8000",
+	"websocket-gateway":     "3000",
+	"grpc-gateway":          "8080",
 }
 
 func main() {
@@ -393,8 +395,10 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	services = append(services, checkTCP(ctx, "Features Service", "features-service", 50053))
 	services = append(services, checkTCP(ctx, "Levels Service", "levels-service", 50054))
 	services = append(services, checkTCP(ctx, "Dynasty Service", "dynasty-service", 50055))
-	services = append(services, checkTCP(ctx, "Calendar Service", "calendar-service", 50058))
-	services = append(services, checkTCP(ctx, "Storage Service (gRPC)", "storage-service", 50059))
+	services = append(services, checkTCP(ctx, "Support Service", "support-service", 50056))
+	services = append(services, checkTCP(ctx, "Notifications Service", "notifications-service", 50058))
+	services = append(services, checkTCP(ctx, "Calendar Service", "calendar-service", 50059))
+	services = append(services, checkTCP(ctx, "Storage Service (gRPC)", "storage-service", 50060))
 
 	// Gateway Services (HTTP)
 	services = append(services, checkHTTP(ctx, "Kong API Gateway", "http://kong:8001/status"))
@@ -808,8 +812,10 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	services = append(services, checkTCP(ctx, "Features Service", "features-service", 50053))
 	services = append(services, checkTCP(ctx, "Levels Service", "levels-service", 50054))
 	services = append(services, checkTCP(ctx, "Dynasty Service", "dynasty-service", 50055))
-	services = append(services, checkTCP(ctx, "Calendar Service", "calendar-service", 50058))
-	services = append(services, checkTCP(ctx, "Storage Service (gRPC)", "storage-service", 50059))
+	services = append(services, checkTCP(ctx, "Support Service", "support-service", 50056))
+	services = append(services, checkTCP(ctx, "Notifications Service", "notifications-service", 50058))
+	services = append(services, checkTCP(ctx, "Calendar Service", "calendar-service", 50059))
+	services = append(services, checkTCP(ctx, "Storage Service (gRPC)", "storage-service", 50060))
 	services = append(services, checkHTTP(ctx, "Kong API Gateway", "http://kong:8001/status"))
 	services = append(services, checkHTTP(ctx, "WebSocket Gateway", "http://websocket-gateway:3000/health"))
 	services = append(services, checkHTTP(ctx, "Storage Service (HTTP)", "http://storage-service:8059/health"))
@@ -844,8 +850,10 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 			{"Features Service", "features-service", 50053},
 			{"Levels Service", "levels-service", 50054},
 			{"Dynasty Service", "dynasty-service", 50055},
-			{"Calendar Service", "calendar-service", 50058},
-			{"Storage Service (gRPC)", "storage-service", 50059},
+			{"Support Service", "support-service", 50056},
+			{"Notifications Service", "notifications-service", 50058},
+			{"Calendar Service", "calendar-service", 50059},
+			{"Storage Service (gRPC)", "storage-service", 50060},
 			{"Kong API Gateway", "kong", 0},
 			{"WebSocket Gateway", "websocket-gateway", 0},
 			{"gRPC Gateway", "grpc-gateway", 0},

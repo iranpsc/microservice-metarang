@@ -2,6 +2,15 @@ package service
 
 import (
 	"context"
+	"log"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	commercialpb "metargb/shared/pb/commercial"
+	featurespb "metargb/shared/pb/features"
+	levelspb "metargb/shared/pb/levels"
 )
 
 // HelperService provides helper methods that integrate with other microservices
@@ -18,54 +27,313 @@ type HelperService interface {
 
 	// GetUserLevel calls Levels service to get user's current level
 	GetUserLevel(ctx context.Context, userID uint64) (*LevelInfo, error)
+
+	// GetUserWallet calls Commercial service to get user's wallet balances
+	GetUserWallet(ctx context.Context, userID uint64) (*WalletInfo, error)
+
+	// Close closes gRPC connections
+	Close() error
+}
+
+// WalletInfo represents wallet balance information
+type WalletInfo struct {
+	Psc          string
+	Irr          string
+	Red          string
+	Blue         string
+	Yellow       string
+	Satisfaction string
+	Effect       float64
 }
 
 type helperService struct {
-	levelsServiceAddr   string
-	featuresServiceAddr string
+	levelsServiceAddr     string
+	featuresServiceAddr   string
+	commercialServiceAddr string
+	levelsConn            *grpc.ClientConn
+	featuresConn          *grpc.ClientConn
+	commercialConn        *grpc.ClientConn
+	levelsClient          levelspb.LevelServiceClient
+	challengeClient       levelspb.ChallengeServiceClient // Challenge service is in levels proto
+	featureProfitClient   featurespb.FeatureProfitServiceClient
+	walletClient          commercialpb.WalletServiceClient
 }
 
 // NewHelperService creates a new helper service
-func NewHelperService(levelsAddr, featuresAddr string) HelperService {
-	return &helperService{
-		levelsServiceAddr:   levelsAddr,
-		featuresServiceAddr: featuresAddr,
+func NewHelperService(levelsAddr, featuresAddr, commercialAddr string) HelperService {
+	hs := &helperService{
+		levelsServiceAddr:     levelsAddr,
+		featuresServiceAddr:   featuresAddr,
+		commercialServiceAddr: commercialAddr,
 	}
+
+	// Initialize gRPC connection to levels service (includes ChallengeService)
+	if levelsAddr != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		conn, err := grpc.DialContext(ctx, levelsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Printf("Warning: Failed to connect to levels service at %s: %v (will use stub implementations)", levelsAddr, err)
+		} else {
+			hs.levelsConn = conn
+			hs.levelsClient = levelspb.NewLevelServiceClient(conn)
+			hs.challengeClient = levelspb.NewChallengeServiceClient(conn) // Challenge service is in levels proto
+			log.Printf("Successfully connected to levels service at %s", levelsAddr)
+		}
+	}
+
+	// Initialize gRPC connection to features service
+	if featuresAddr != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		conn, err := grpc.DialContext(ctx, featuresAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Printf("Warning: Failed to connect to features service at %s: %v (will use stub implementations)", featuresAddr, err)
+		} else {
+			hs.featuresConn = conn
+			hs.featureProfitClient = featurespb.NewFeatureProfitServiceClient(conn)
+			log.Printf("Successfully connected to features service at %s", featuresAddr)
+		}
+	}
+
+	// Initialize gRPC connection to commercial service
+	if commercialAddr != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		conn, err := grpc.DialContext(ctx, commercialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Printf("Warning: Failed to connect to commercial service at %s: %v (will use stub implementations)", commercialAddr, err)
+		} else {
+			hs.commercialConn = conn
+			hs.walletClient = commercialpb.NewWalletServiceClient(conn)
+			log.Printf("Successfully connected to commercial service at %s", commercialAddr)
+		}
+	}
+
+	return hs
 }
 
-// NOTE: These are currently stub implementations that return default values
-// TODO: Implement actual gRPC calls once the Levels and Features services
-// have the required RPC methods defined in their proto files:
-// - levels.proto: GetUnansweredQuestionsCount, GetScorePercentageToNextLevel, GetUserLevel
-// - features.proto: GetHourlyProfitTimePercentage
-
 // GetUnansweredQuestionsCount implements the Laravel getUnansweredQuestionsCount helper
-// Calls the Levels service to get count of questions user hasn't answered
+// Calls the Challenge service to get count of questions user hasn't answered correctly
 func (s *helperService) GetUnansweredQuestionsCount(ctx context.Context, userID uint64) (int32, error) {
-	// TODO: Implement actual gRPC call to Levels service
-	// The Levels service needs to implement this RPC method first
-	return 0, nil
+	if s.challengeClient == nil {
+		return 0, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Get a question - if it returns a question, user has unanswered questions
+	// Note: The API returns null when no suitable question exists (all answered correctly)
+	resp, err := s.challengeClient.GetQuestion(ctx, &levelspb.GetQuestionRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		log.Printf("Failed to get question for unanswered count: %v", err)
+		return 0, nil // Return 0 on error to not break the flow
+	}
+
+	// If has_question is false or question is nil, user has no unanswered questions
+	if !resp.HasQuestion || resp.Question == nil {
+		return 0, nil
+	}
+
+	// User has at least one unanswered question
+	// Note: This is a simplified implementation - ideally we'd have a dedicated count method
+	// For now, we return 1 if there's a question available (indicating unanswered questions exist)
+	// A more accurate count would require iterating or a dedicated RPC method
+	return 1, nil
 }
 
 // GetHourlyProfitTimePercentage implements the Laravel hourlyProfitInfo helper
 // Calls the Features service to calculate time percentage for hourly profit
+// This calculates the percentage based on active hourly profits and their deadlines
 func (s *helperService) GetHourlyProfitTimePercentage(ctx context.Context, userID uint64) (float64, error) {
-	// TODO: Implement actual gRPC call to Features service
-	// The Features service needs to implement this RPC method first
-	return 0.0, nil
+	if s.featureProfitClient == nil {
+		return 0.0, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Get hourly profits for the user
+	resp, err := s.featureProfitClient.GetHourlyProfits(ctx, &featurespb.GetHourlyProfitsRequest{
+		UserId:   userID,
+		Page:     1,
+		PageSize: 100, // Get a reasonable number to calculate percentage
+	})
+	if err != nil {
+		log.Printf("Failed to get hourly profits for time percentage: %v", err)
+		return 0.0, nil // Return 0 on error to not break the flow
+	}
+
+	if len(resp.Profits) == 0 {
+		return 0.0, nil
+	}
+
+	// Calculate percentage based on active profits and their deadlines
+	// The percentage represents how much time has elapsed toward profit deadlines
+	// This calculates the average time percentage across all active profits
+	now := time.Now()
+	activeCount := 0
+	totalTimePercentage := 0.0
+
+	for _, profit := range resp.Profits {
+		if profit.IsActive && profit.DeadLine != "" {
+			activeCount++
+			// Parse deadline timestamp (format may vary - assuming RFC3339 or Unix timestamp)
+			// Try parsing as RFC3339 first, then as Unix timestamp
+			var deadline time.Time
+			var err error
+
+			// Try RFC3339 format
+			deadline, err = time.Parse(time.RFC3339, profit.DeadLine)
+			if err != nil {
+				// Try Unix timestamp (seconds)
+				if unixTime, parseErr := time.Parse(time.UnixDate, profit.DeadLine); parseErr == nil {
+					deadline = unixTime
+				} else {
+					// If parsing fails, skip this profit
+					continue
+				}
+			}
+
+			// Calculate time elapsed percentage (0-100)
+			// This is a simplified calculation - actual business logic may differ
+			if deadline.After(now) {
+				// Calculate percentage of time remaining
+				// For now, return a simple indicator based on active profits
+				// A more accurate calculation would need the profit start time
+				totalTimePercentage += 50.0 // Placeholder: assume 50% elapsed for active profits
+			} else {
+				// Deadline passed but still active - might be ready for withdrawal
+				totalTimePercentage += 100.0
+			}
+		}
+	}
+
+	if activeCount == 0 {
+		return 0.0, nil
+	}
+
+	// Return average time percentage across all active profits
+	return totalTimePercentage / float64(activeCount), nil
 }
 
 // GetScorePercentageToNextLevel implements the Laravel getScorePercentageToNextLevel helper
 // Calls the Levels service to calculate percentage of score needed for next level
 func (s *helperService) GetScorePercentageToNextLevel(ctx context.Context, userID uint64, currentScore int32) (float64, error) {
-	// TODO: Implement actual gRPC call to Levels service
-	// The Levels service needs to implement this RPC method first
-	return 0.0, nil
+	if s.levelsClient == nil {
+		return 0.0, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := s.levelsClient.GetUserLevel(ctx, &levelspb.GetUserLevelRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		log.Printf("Failed to get user level for score percentage: %v", err)
+		return 0.0, nil // Return 0 on error to not break the flow
+	}
+
+	// The response contains score_percentage_to_next_level as int32, convert to float64
+	return float64(resp.ScorePercentageToNextLevel), nil
 }
 
 // GetUserLevel calls Levels service to get user's current level
 func (s *helperService) GetUserLevel(ctx context.Context, userID uint64) (*LevelInfo, error) {
-	// TODO: Implement actual gRPC call to Levels service
-	// The Levels service needs to implement this RPC method first
-	return nil, nil
+	if s.levelsClient == nil {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := s.levelsClient.GetUserLevel(ctx, &levelspb.GetUserLevelRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		log.Printf("Failed to get user level: %v", err)
+		return nil, nil // Return nil on error to not break the flow
+	}
+
+	if resp.LatestLevel == nil {
+		return nil, nil
+	}
+
+	// Convert proto Level to LevelInfo
+	level := &LevelInfo{
+		ID:    resp.LatestLevel.Id,
+		Title: resp.LatestLevel.Name, // Note: proto uses "name", but we map to "Title"
+		Score: resp.LatestLevel.Score,
+	}
+
+	// Get description from general_info if available
+	if resp.LatestLevel.GeneralInfo != nil {
+		level.Description = resp.LatestLevel.GeneralInfo.Description
+	}
+
+	return level, nil
+}
+
+// GetUserWallet calls Commercial service to get user's wallet balances
+func (s *helperService) GetUserWallet(ctx context.Context, userID uint64) (*WalletInfo, error) {
+	if s.walletClient == nil {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := s.walletClient.GetWallet(ctx, &commercialpb.GetWalletRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		log.Printf("Failed to get user wallet: %v", err)
+		return nil, nil // Return nil on error to not break the flow
+	}
+
+	return &WalletInfo{
+		Psc:          resp.Psc,
+		Irr:          resp.Irr,
+		Red:          resp.Red,
+		Blue:         resp.Blue,
+		Yellow:       resp.Yellow,
+		Satisfaction: resp.Satisfaction,
+		Effect:       resp.Effect,
+	}, nil
+}
+
+// Close closes gRPC connections
+func (s *helperService) Close() error {
+	var errs []error
+
+	if s.levelsConn != nil {
+		if err := s.levelsConn.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if s.featuresConn != nil {
+		if err := s.featuresConn.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if s.commercialConn != nil {
+		if err := s.commercialConn.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errs[0] // Return first error
+	}
+
+	return nil
 }

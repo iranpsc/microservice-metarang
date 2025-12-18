@@ -249,7 +249,7 @@ func (s *authService) Callback(ctx context.Context, state, code string) (*Callba
 		user = &models.User{
 			Name:         userData.Name,
 			Email:        userData.Email,
-			Phone:        userData.Mobile,
+			Phone:        sql.NullString{String: userData.Mobile, Valid: userData.Mobile != ""},
 			Password:     string(hashedPassword),
 			Code:         userData.Code,
 			IP:           "", // Should be set from request context
@@ -277,7 +277,7 @@ func (s *authService) Callback(ctx context.Context, state, code string) (*Callba
 		// Update existing user
 		user.Name = userData.Name
 		user.Email = userData.Email
-		user.Phone = userData.Mobile
+		user.Phone = sql.NullString{String: userData.Mobile, Valid: userData.Mobile != ""}
 		user.AccessToken = sql.NullString{String: tokenData.AccessToken, Valid: true}
 		user.RefreshToken = sql.NullString{String: tokenData.RefreshToken, Valid: true}
 		user.TokenType = sql.NullString{String: tokenData.TokenType, Valid: true}
@@ -428,8 +428,11 @@ func (s *authService) GetMe(ctx context.Context, token string) (*UserDetails, er
 		}
 	}
 
-	// TODO: Get profile image (from images table with polymorphic relation)
-	// This would require either a separate repository or a join query
+	// Get profile image (latest profile photo)
+	imageURL, err := s.userRepo.GetLatestProfilePhotoURL(ctx, user.ID)
+	if err == nil && imageURL != "" {
+		details.Image = imageURL
+	}
 
 	return details, nil
 }
@@ -501,7 +504,7 @@ func (s *authService) RequestAccountSecurity(ctx context.Context, userID uint64,
 	}
 
 	// Only validate phone if user doesn't have a verified phone (both phone and phone_verified_at must be set)
-	hasVerifiedPhone := strings.TrimSpace(user.Phone) != "" && user.PhoneVerifiedAt.Valid
+	hasVerifiedPhone := user.Phone.Valid && strings.TrimSpace(user.Phone.String) != "" && user.PhoneVerifiedAt.Valid
 	if !hasVerifiedPhone {
 		sanitizedPhone := strings.TrimSpace(phone)
 		if sanitizedPhone == "" {
@@ -512,7 +515,10 @@ func (s *authService) RequestAccountSecurity(ctx context.Context, userID uint64,
 		}
 
 		// If the phone matches the user's current phone, skip the "phone already taken" check
-		currentPhone := strings.TrimSpace(user.Phone)
+		currentPhone := ""
+		if user.Phone.Valid {
+			currentPhone = strings.TrimSpace(user.Phone.String)
+		}
 		if sanitizedPhone != currentPhone {
 			taken, err := s.userRepo.IsPhoneTaken(ctx, sanitizedPhone, user.ID)
 			if err != nil {
@@ -526,10 +532,12 @@ func (s *authService) RequestAccountSecurity(ctx context.Context, userID uint64,
 		if err := s.userRepo.UpdatePhone(ctx, user.ID, sanitizedPhone); err != nil {
 			return fmt.Errorf("failed to update phone: %w", err)
 		}
-		user.Phone = sanitizedPhone
+		user.Phone = sql.NullString{String: sanitizedPhone, Valid: true}
 	}
 
-	user.Phone = strings.TrimSpace(user.Phone)
+	if user.Phone.Valid {
+		user.Phone = sql.NullString{String: strings.TrimSpace(user.Phone.String), Valid: true}
+	}
 
 	code, err := generateOtpCode()
 	if err != nil {
@@ -551,7 +559,11 @@ func (s *authService) RequestAccountSecurity(ctx context.Context, userID uint64,
 		return fmt.Errorf("failed to persist otp: %w", err)
 	}
 
-	if err := s.dispatchAccountSecurityOTP(ctx, user.Phone, code); err != nil {
+	phoneForOTP := ""
+	if user.Phone.Valid {
+		phoneForOTP = user.Phone.String
+	}
+	if err := s.dispatchAccountSecurityOTP(ctx, phoneForOTP, code); err != nil {
 		return err
 	}
 

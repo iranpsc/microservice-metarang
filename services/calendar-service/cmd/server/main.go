@@ -56,7 +56,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	handler.RegisterCalendarHandler(grpcServer, calendarService)
 
-	port := getEnv("GRPC_PORT", "50058")
+	port := getEnv("GRPC_PORT", "50059")
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)

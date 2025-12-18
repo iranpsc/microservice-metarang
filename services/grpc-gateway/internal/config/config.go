@@ -22,7 +22,7 @@ func Load() *Config {
 	return &Config{
 		HTTPPort:                getEnv("HTTP_PORT", "8080"),
 		AuthServiceAddr:         getEnv("AUTH_SERVICE_ADDR", "auth-service:50051"),
-		CalendarServiceAddr:     getEnv("CALENDAR_SERVICE_ADDR", "calendar-service:50058"),
+		CalendarServiceAddr:     getEnv("CALENDAR_SERVICE_ADDR", "calendar-service:50059"),
 		DynastyServiceAddr:      getEnv("DYNASTY_SERVICE_ADDR", "dynasty-service:50055"),
 		FeaturesServiceAddr:     getEnv("FEATURES_SERVICE_ADDR", "features-service:50053"),
 		FinancialServiceAddr:    getEnv("FINANCIAL_SERVICE_ADDR", "financial-service:50058"),

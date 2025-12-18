@@ -9,7 +9,7 @@ type User struct {
 	ID              uint64         `db:"id"`
 	Name            string         `db:"name"`
 	Email           string         `db:"email"`
-	Phone           string         `db:"phone"`
+	Phone           sql.NullString `db:"phone"`
 	Password        string         `db:"password"`
 	Code            string         `db:"code"`
 	ReferrerID      sql.NullInt64  `db:"referrer_id"`

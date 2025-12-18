@@ -70,8 +70,14 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 			access_token, refresh_token, token_type, expires_in, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
+	var phoneValue interface{}
+	if user.Phone.Valid {
+		phoneValue = user.Phone.String
+	} else {
+		phoneValue = nil
+	}
 	result, err := r.db.ExecContext(ctx, query,
-		user.Name, user.Email, user.Phone, user.Password, user.Code, user.IP,
+		user.Name, user.Email, phoneValue, user.Password, user.Code, user.IP,
 		user.ReferrerID, user.AccessToken, user.RefreshToken, user.TokenType,
 		user.ExpiresIn, time.Now(), time.Now())
 	if err != nil {
@@ -144,8 +150,14 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) error {
 			token_type = ?, expires_in = ?, updated_at = ?
 		WHERE id = ?
 	`
+	var phoneValue interface{}
+	if user.Phone.Valid {
+		phoneValue = user.Phone.String
+	} else {
+		phoneValue = nil
+	}
 	_, err := r.db.ExecContext(ctx, query,
-		user.Name, user.Email, user.Phone, user.AccessToken, user.RefreshToken,
+		user.Name, user.Email, phoneValue, user.AccessToken, user.RefreshToken,
 		user.TokenType, user.ExpiresIn, time.Now(), user.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)

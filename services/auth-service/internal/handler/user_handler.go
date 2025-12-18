@@ -19,12 +19,14 @@ type userHandler struct {
 	pb.UnimplementedUserServiceServer
 	userService              service.UserService
 	profileLimitationService service.ProfileLimitationService
+	helperService            service.HelperService
 }
 
-func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService, profileLimitationService service.ProfileLimitationService) {
+func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService, profileLimitationService service.ProfileLimitationService, helperService service.HelperService) {
 	pb.RegisterUserServiceServer(grpcServer, &userHandler{
 		userService:              userService,
 		profileLimitationService: profileLimitationService,
+		helperService:            helperService,
 	})
 }
 
@@ -38,11 +40,14 @@ func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 		Id:        user.ID,
 		Name:      user.Name,
 		Email:     user.Email,
-		Phone:     user.Phone,
 		Code:      user.Code,
 		Score:     user.Score,
 		Ip:        user.IP,
 		CreatedAt: timestamppb.New(user.CreatedAt),
+	}
+
+	if user.Phone.Valid {
+		response.Phone = user.Phone.String
 	}
 
 	if user.ReferrerID.Valid {
@@ -90,26 +95,95 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRe
 		Id:        user.ID,
 		Name:      user.Name,
 		Email:     user.Email,
-		Phone:     user.Phone,
 		Code:      user.Code,
 		Score:     user.Score,
 		Ip:        user.IP,
 		CreatedAt: timestamppb.New(user.CreatedAt),
 	}
 
+	if user.Phone.Valid {
+		response.Phone = user.Phone.String
+	}
+
 	return response, nil
 }
 
 func (h *userHandler) GetUserWallet(ctx context.Context, req *pb.GetUserWalletRequest) (*pb.UserWalletResponse, error) {
-	// This should call the Commercial service's WalletService
-	// For now, return a placeholder error
-	return nil, status.Errorf(codes.Unimplemented, "wallet service not yet implemented - should call Commercial service")
+	if h.helperService == nil {
+		return nil, status.Errorf(codes.Unimplemented, "wallet service not available")
+	}
+
+	// Get wallet from commercial service via helper service
+	wallet, err := h.helperService.GetUserWallet(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get user wallet: %v", err)
+	}
+
+	if wallet == nil {
+		// Return empty wallet response
+		return &pb.UserWalletResponse{
+			Psc:          "0",
+			Irr:          "0",
+			Red:          "0",
+			Blue:         "0",
+			Yellow:       "0",
+			Satisfaction: "0",
+			Effect:       0,
+		}, nil
+	}
+
+	return &pb.UserWalletResponse{
+		Psc:          wallet.Psc,
+		Irr:          wallet.Irr,
+		Red:          wallet.Red,
+		Blue:         wallet.Blue,
+		Yellow:       wallet.Yellow,
+		Satisfaction: wallet.Satisfaction,
+		Effect:       wallet.Effect,
+	}, nil
 }
 
 func (h *userHandler) GetUserLevel(ctx context.Context, req *pb.GetUserLevelRequest) (*pb.UserLevelResponse, error) {
-	// This should call the Levels service
-	// For now, return a placeholder error
-	return nil, status.Errorf(codes.Unimplemented, "levels service not yet implemented - should call Levels service")
+	if h.helperService == nil {
+		return nil, status.Errorf(codes.Unimplemented, "levels service not available")
+	}
+
+	// Get user level from levels service via helper service
+	level, err := h.helperService.GetUserLevel(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get user level: %v", err)
+	}
+
+	if level == nil {
+		return &pb.UserLevelResponse{
+			Level:            nil,
+			Score:            0,
+			PercentageToNext: 0.0,
+		}, nil
+	}
+
+	// Get score percentage to next level
+	user, err := h.userService.GetUser(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "user not found: %v", err)
+	}
+
+	scorePercentage, err := h.helperService.GetScorePercentageToNextLevel(ctx, req.UserId, user.Score)
+	if err != nil {
+		// Log error but continue with 0.0
+		scorePercentage = 0.0
+	}
+
+	return &pb.UserLevelResponse{
+		Level: &pb.Level{
+			Id:          level.ID,
+			Title:       level.Title,
+			Description: level.Description,
+			Score:       level.Score,
+		},
+		Score:            user.Score,
+		PercentageToNext: scorePercentage,
+	}, nil
 }
 
 func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProfileLimitationsRequest) (*pb.GetProfileLimitationsResponse, error) {
