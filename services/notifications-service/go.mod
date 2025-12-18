@@ -15,7 +15,7 @@ require (
 	metargb/shared v0.0.0
 )
 
-replace metargb/shared => ../../shared
+replace metargb/shared => /workspace/metargb/shared
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

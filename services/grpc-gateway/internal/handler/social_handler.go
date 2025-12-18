@@ -70,7 +70,6 @@ func (h *SocialHandler) GetFollowers(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
 
 	grpcReq := &socialpb.GetFollowersRequest{UserId: userID}
 	resp, err := h.followClient.GetFollowers(r.Context(), grpcReq)
@@ -94,7 +93,6 @@ func (h *SocialHandler) GetFollowing(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
 
 	grpcReq := &socialpb.GetFollowingRequest{UserId: userID}
 	resp, err := h.followClient.GetFollowing(r.Context(), grpcReq)
@@ -118,7 +116,6 @@ func (h *SocialHandler) Follow(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
 
 	// Extract target user ID from path: /api/follow/{user}
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/follow/"), "/")
@@ -158,7 +155,6 @@ func (h *SocialHandler) Unfollow(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
 
 	// Extract target user ID from path: /api/unfollow/{user}
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/unfollow/"), "/")
@@ -198,7 +194,6 @@ func (h *SocialHandler) Remove(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
 
 	// Extract target user ID from path: /api/remove/{user}
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/remove/"), "/")
@@ -238,7 +233,7 @@ func (h *SocialHandler) GetTimings(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
+	_ = userID // Token validated but userID not used in request (service gets it from context)
 
 	// Note: The proto GetTimingsRequest doesn't have user_id field
 	// The service will get it from context via auth interceptor
@@ -265,7 +260,6 @@ func (h *SocialHandler) GetQuestion(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
 
 	grpcReq := &socialpb.GetQuestionRequest{UserId: userID}
 	resp, err := h.challengeClient.GetQuestion(r.Context(), grpcReq)
@@ -289,7 +283,6 @@ func (h *SocialHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
-	_ = userID // Used in grpcReq below
 
 	var req struct {
 		QuestionID uint64 `json:"question_id"`

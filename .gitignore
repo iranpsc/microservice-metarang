@@ -77,3 +77,4 @@ docker/*.env.*
 __pycache__/
 coverage-final.json
 .env
+/scripts/metargb_db.sql

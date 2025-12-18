@@ -43,6 +43,10 @@ help:
 	@echo "Test:"
 	@echo "  test             - Run all integration tests"
 	@echo ""
+	@echo "Database:"
+	@echo "  import-schema    - Import database schema only (schema.sql)"
+	@echo "  import-database  - Import database with data (metargb_db.sql)"
+	@echo ""
 	@echo "Phase 6 - Service Mesh & Observability:"
 	@echo "  phase6-setup     - Complete Phase 6 setup (Istio + Monitoring)"
 	@echo "  phase6-istio     - Install and configure Istio service mesh"
@@ -505,7 +509,7 @@ phase6-cleanup:
 # Docker Compose Management
 # =============================================================================
 
-.PHONY: up down restart logs ps build clean import-schema help-docker
+.PHONY: up down restart logs ps build clean import-schema import-database help-docker dev-up dev-down dev-build dev-logs dev-restart dev-ps
 
 up:
 	@echo "🚀 Starting all microservices..."
@@ -577,6 +581,29 @@ import-schema:
 	@echo "Verifying tables..."
 	@docker exec metargb-mysql mysql -uroot -proot_password metargb_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metargb_db';" 2>/dev/null | grep -v table_count || echo "Could not verify"
 
+import-database:
+	@echo "Importing database (schema + data) from metargb_db.sql..."
+	@echo "Dropping and recreating database..."
+ifeq ($(OS),Windows_NT)
+	@docker exec -i metargb-mysql mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS metargb_db; CREATE DATABASE metargb_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>nul
+	@echo "Importing data..."
+	@powershell -Command "Get-Content scripts\metargb_db.sql | docker exec -i metargb-mysql mysql -uroot -proot_password metargb_db"
+else
+	@docker exec -i metargb-mysql mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS metargb_db; CREATE DATABASE metargb_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+	@echo "Importing data..."
+	@docker exec -i metargb-mysql mysql -uroot -proot_password metargb_db < scripts/metargb_db.sql
+endif
+	@echo "Database imported successfully"
+	@echo ""
+	@echo "Verifying import..."
+ifeq ($(OS),Windows_NT)
+	@docker exec metargb-mysql mysql -uroot -proot_password metargb_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metargb_db';" 2>nul | findstr /v table_count || echo "Could not verify table count"
+	@docker exec metargb-mysql mysql -uroot -proot_password metargb_db -e "SELECT COUNT(*) as row_count FROM account_securities;" 2>nul | findstr /v row_count || echo "Could not verify data"
+else
+	@docker exec metargb-mysql mysql -uroot -proot_password metargb_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metargb_db';" 2>/dev/null | grep -v table_count || echo "Could not verify table count"
+	@docker exec metargb-mysql mysql -uroot -proot_password metargb_db -e "SELECT COUNT(*) as row_count FROM account_securities;" 2>/dev/null | grep -v row_count || echo "Could not verify data"
+endif
+
 dev:
 	@echo "🚀 Starting development environment..."
 	@if [ ! -f .env ]; then \
@@ -625,6 +652,56 @@ logs-service:
 	fi
 	docker-compose logs -f $(SERVICE)
 
+# =============================================================================
+# Development with Hot Reloading
+# =============================================================================
+
+dev-up:
+	@echo "🚀 Starting development environment with hot reloading..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	@echo "✅ Development services started with hot reloading!"
+	@echo ""
+	@echo "Services available at:"
+	@echo "  Kong API Gateway: http://localhost:8000"
+	@echo "  Kong Admin:       http://localhost:8001"
+	@echo "  WebSocket:        http://localhost:3000"
+	@echo ""
+	@echo "Changes to Go files will automatically trigger rebuilds via Air"
+	@echo "Changes to Node.js files will automatically restart via nodemon"
+	@echo ""
+	@echo "Run 'make dev-logs' to view logs"
+	@echo "Run 'make dev-down' to stop services"
+
+dev-down:
+	@echo "🛑 Stopping development services..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+	@echo "✅ Development services stopped"
+
+dev-build:
+	@echo "🔨 Building development images with hot reloading support..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml build
+	@echo "✅ Development images built successfully"
+
+dev-logs:
+	@echo "📝 Following development service logs (Ctrl+C to stop)..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+
+dev-restart:
+	@echo "🔄 Restarting development services..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart
+	@echo "✅ Development services restarted"
+
+dev-ps:
+	@echo "📊 Development Service Status:"
+	@echo ""
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml ps
+	@echo ""
+	@echo "Healthy services:"
+	@docker ps --filter "health=healthy" --format "  ✅ {{.Names}}"
+	@echo ""
+	@echo "Unhealthy services:"
+	@docker ps --filter "health=unhealthy" --format "  ❌ {{.Names}}"
+
 help-docker:
 	@echo "Docker Compose Commands:"
 	@echo ""
@@ -636,7 +713,14 @@ help-docker:
 	@echo "  make logs             - Follow all service logs"
 	@echo "  make build            - Build all services"
 	@echo "  make clean            - Stop services and remove volumes"
-	@echo "  make import-schema    - Import database schema"
+	@echo "  make import-schema    - Import database schema only"
+	@echo "  make import-database  - Import database with data (metargb_db.sql)"
+	@echo ""
+	@echo "Development (Hot Reloading):"
+	@echo "  make dev-up           - Start services with hot reloading"
+	@echo "  make dev-down         - Stop hot reloading services"
+	@echo "  make dev-build        - Build dev images with hot reloading support"
+	@echo "  make dev-logs         - View logs from dev services"
 	@echo ""
 	@echo "Service-specific commands:"
 	@echo "  make build-service SERVICE=auth-service   - Build specific service"
@@ -646,5 +730,6 @@ help-docker:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make dev                                  - Complete setup"
+	@echo "  make dev-up                               - Start with hot reloading"
 	@echo "  make logs-service SERVICE=auth-service    - View auth logs"
 	@echo "  make restart                              - Restart everything"

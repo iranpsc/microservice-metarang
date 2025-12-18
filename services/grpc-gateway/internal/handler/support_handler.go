@@ -82,7 +82,7 @@ func (h *SupportHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse received parameter (not used but kept for future use)
-	_ = r.URL.Query().Get("recieved")
+	// _ = r.URL.Query().Get("recieved")
 
 	grpcReq := &pbSupport.GetTicketsRequest{
 		UserId: userID,

@@ -500,7 +500,9 @@ func (s *authService) RequestAccountSecurity(ctx context.Context, userID uint64,
 		}
 	}
 
-	if !user.PhoneVerifiedAt.Valid {
+	// Only validate phone if user doesn't have a verified phone (both phone and phone_verified_at must be set)
+	hasVerifiedPhone := strings.TrimSpace(user.Phone) != "" && user.PhoneVerifiedAt.Valid
+	if !hasVerifiedPhone {
 		sanitizedPhone := strings.TrimSpace(phone)
 		if sanitizedPhone == "" {
 			return ErrPhoneRequired
@@ -509,12 +511,16 @@ func (s *authService) RequestAccountSecurity(ctx context.Context, userID uint64,
 			return ErrInvalidPhoneFormat
 		}
 
-		taken, err := s.userRepo.IsPhoneTaken(ctx, sanitizedPhone, user.ID)
-		if err != nil {
-			return fmt.Errorf("failed to validate phone uniqueness: %w", err)
-		}
-		if taken {
-			return ErrPhoneAlreadyTaken
+		// If the phone matches the user's current phone, skip the "phone already taken" check
+		currentPhone := strings.TrimSpace(user.Phone)
+		if sanitizedPhone != currentPhone {
+			taken, err := s.userRepo.IsPhoneTaken(ctx, sanitizedPhone, user.ID)
+			if err != nil {
+				return fmt.Errorf("failed to validate phone uniqueness: %w", err)
+			}
+			if taken {
+				return ErrPhoneAlreadyTaken
+			}
 		}
 
 		if err := s.userRepo.UpdatePhone(ctx, user.ID, sanitizedPhone); err != nil {

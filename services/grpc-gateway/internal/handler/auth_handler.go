@@ -140,22 +140,24 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := map[string]interface{}{
-		"id":                             resp.Id,
-		"name":                           resp.Name,
-		"token":                          resp.Token,
-		"automatic_logout":               resp.AutomaticLogout,
-		"code":                           resp.Code,
-		"image":                          resp.Image,
-		"notifications":                  resp.Notifications,
-		"socre_percentage_to_next_level": resp.SocrePercentageToNextLevel,
-		"unasnwered_questions_count":     resp.UnasnweredQuestionsCount,
-		"hourly_profit_time_percentage":  resp.HourlyProfitTimePercentage,
-		"verified_kyc":                   resp.VerifiedKyc,
-		"birthdate":                      resp.Birthdate,
+		"data": map[string]interface{}{
+			"id":                             resp.Id,
+			"name":                           resp.Name,
+			"token":                          resp.Token,
+			"automatic_logout":               resp.AutomaticLogout,
+			"code":                           resp.Code,
+			"image":                          resp.Image,
+			"notifications":                  resp.Notifications,
+			"socre_percentage_to_next_level": resp.SocrePercentageToNextLevel,
+			"unasnwered_questions_count":     resp.UnasnweredQuestionsCount,
+			"hourly_profit_time_percentage":  resp.HourlyProfitTimePercentage,
+			"verified_kyc":                   resp.VerifiedKyc,
+			"birthdate":                      resp.Birthdate,
+		},
 	}
 
 	if resp.Level != nil {
-		response["level"] = map[string]interface{}{
+		response["data"].(map[string]interface{})["level"] = map[string]interface{}{
 			"id":          resp.Level.Id,
 			"title":       resp.Level.Title,
 			"description": resp.Level.Description,
@@ -1020,6 +1022,9 @@ func writeGRPCError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, st.Message())
 	case codes.FailedPrecondition:
 		writeError(w, http.StatusPreconditionFailed, st.Message())
+	case codes.Unavailable:
+		// Service unavailable - likely connection issue
+		writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable: "+st.Message())
 	default:
 		writeError(w, http.StatusInternalServerError, st.Message())
 	}

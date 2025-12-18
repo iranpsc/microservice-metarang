@@ -70,9 +70,9 @@ func convertKYCToProto(kyc *models.KYC) *pb.KYCResponse {
 		video = kyc.Video.String
 	}
 
-	errors := ""
+	errorStr := ""
 	if kyc.Errors.Valid {
-		errors = kyc.Errors.String
+		errorStr = kyc.Errors.String
 	}
 
 	gender := ""
@@ -90,7 +90,7 @@ func convertKYCToProto(kyc *models.KYC) *pb.KYCResponse {
 		Province:  kyc.Province,
 		Status:    kyc.Status,
 		Video:     video,
-		Errors:    errors,
+		Errors:    errorStr,
 		Gender:    gender,
 	}
 }
@@ -152,9 +152,9 @@ func mapServiceError(err error) error {
 
 // convertBankAccountToProto converts a BankAccount model to proto response
 func convertBankAccountToProto(bankAccount *models.BankAccount) *pb.BankAccountResponse {
-	errors := ""
+	errorStr := ""
 	if bankAccount.Errors.Valid {
-		errors = bankAccount.Errors.String
+		errorStr = bankAccount.Errors.String
 	}
 
 	return &pb.BankAccountResponse{
@@ -163,7 +163,7 @@ func convertBankAccountToProto(bankAccount *models.BankAccount) *pb.BankAccountR
 		ShabaNum: bankAccount.ShabaNum,
 		CardNum:  bankAccount.CardNum,
 		Status:   bankAccount.Status,
-		Errors:   errors,
+		Errors:   errorStr,
 	}
 }
 
