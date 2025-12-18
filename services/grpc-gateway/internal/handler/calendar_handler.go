@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -460,43 +458,4 @@ func (h *CalendarHandler) extractTokenFromHeader(r *http.Request) string {
 
 	// Also support token as direct value
 	return authHeader
-}
-
-// Helper functions
-
-// decodeJSONBody safely decodes JSON from request body, handling empty bodies
-func decodeJSONBody(r *http.Request, v interface{}) error {
-	if r.Body == nil {
-		return io.EOF
-	}
-
-	// Check if body is empty
-	if r.ContentLength == 0 {
-		return io.EOF
-	}
-
-	// Try to peek at the body to see if it's already consumed
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-	
-	// Restore body for potential subsequent reads
-	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-
-	if len(bodyBytes) == 0 {
-		return io.EOF
-	}
-
-	return json.Unmarshal(bodyBytes, v)
-}
-
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
 }

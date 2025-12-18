@@ -122,21 +122,15 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 // GetMe handles POST /api/auth/me
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Token string `json:"token"`
-	}
-
-	if err := decodeJSONBody(r, &req); err != nil {
-		if err == io.EOF {
-			writeError(w, http.StatusBadRequest, "request body is required")
-		} else {
-			writeError(w, http.StatusBadRequest, "invalid request body")
-		}
+	// Extract token from Authorization header
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
 		return
 	}
 
 	grpcReq := &pb.GetMeRequest{
-		Token: req.Token,
+		Token: token,
 	}
 
 	resp, err := h.authClient.GetMe(r.Context(), grpcReq)
@@ -149,7 +143,6 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		"id":                             resp.Id,
 		"name":                           resp.Name,
 		"token":                          resp.Token,
-		"access_token":                   resp.AccessToken,
 		"automatic_logout":               resp.AutomaticLogout,
 		"code":                           resp.Code,
 		"image":                          resp.Image,
@@ -175,21 +168,15 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 // Logout handles POST /api/auth/logout
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Token string `json:"token"`
-	}
-
-	if err := decodeJSONBody(r, &req); err != nil {
-		if err == io.EOF {
-			writeError(w, http.StatusBadRequest, "request body is required")
-		} else {
-			writeError(w, http.StatusBadRequest, "invalid request body")
-		}
+	// Extract token from Authorization header
+	token := extractTokenFromHeader(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
 		return
 	}
 
 	grpcReq := &pb.LogoutRequest{
-		Token: req.Token,
+		Token: token,
 	}
 
 	_, err := h.authClient.Logout(r.Context(), grpcReq)
@@ -980,7 +967,7 @@ func decodeJSONBody(r *http.Request, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Restore body for potential subsequent reads
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 

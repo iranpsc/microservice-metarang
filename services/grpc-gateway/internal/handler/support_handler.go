@@ -1,12 +1,9 @@
 package handler
 
 import (
-	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -964,88 +961,4 @@ func (h *SupportHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// Helper functions
-
-// decodeJSONBody safely decodes JSON from request body, handling empty bodies
-func decodeJSONBody(r *http.Request, v interface{}) error {
-	if r.Body == nil {
-		return io.EOF
-	}
-
-	// Check if body is empty
-	if r.ContentLength == 0 {
-		return io.EOF
-	}
-
-	// Try to peek at the body to see if it's already consumed
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-	
-	// Restore body for potential subsequent reads
-	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-
-	if len(bodyBytes) == 0 {
-		return io.EOF
-	}
-
-	return json.Unmarshal(bodyBytes, v)
-}
-
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
-}
-
-func writeGRPCError(w http.ResponseWriter, err error) {
-	st, ok := status.FromError(err)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-
-	switch st.Code() {
-	case codes.Unauthenticated:
-		writeError(w, http.StatusUnauthorized, st.Message())
-	case codes.NotFound:
-		writeError(w, http.StatusNotFound, st.Message())
-	case codes.InvalidArgument:
-		writeError(w, http.StatusBadRequest, st.Message())
-	case codes.PermissionDenied:
-		writeError(w, http.StatusForbidden, st.Message())
-	case codes.AlreadyExists:
-		writeError(w, http.StatusConflict, st.Message())
-	case codes.FailedPrecondition:
-		writeError(w, http.StatusPreconditionFailed, st.Message())
-	default:
-		writeError(w, http.StatusInternalServerError, st.Message())
-	}
-}
-
-func extractTokenFromHeader(r *http.Request) string {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		// Try cookie as fallback
-		cookie, err := r.Cookie("token")
-		if err == nil && cookie != nil {
-			return cookie.Value
-		}
-		return ""
-	}
-
-	// Check for Bearer token format
-	const bearerPrefix = "Bearer "
-	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		return authHeader
-	}
-
-	return authHeader[len(bearerPrefix):]
 }

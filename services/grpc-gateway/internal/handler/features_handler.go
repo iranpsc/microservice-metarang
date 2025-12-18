@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,8 +8,6 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	pb "metargb/shared/pb/auth"
 	featurespb "metargb/shared/pb/features"
@@ -1099,73 +1096,4 @@ func (h *FeaturesHandler) UpdateGracePeriod(w http.ResponseWriter, r *http.Reque
 
 	// Return empty JSON response (Laravel returns {})
 	writeJSON(w, http.StatusOK, map[string]interface{}{})
-}
-
-// Helper functions
-
-// decodeJSONBody safely decodes JSON from request body, handling empty bodies
-func decodeJSONBody(r *http.Request, v interface{}) error {
-	if r.Body == nil {
-		return io.EOF
-	}
-
-	// Check if body is empty
-	if r.ContentLength == 0 {
-		return io.EOF
-	}
-
-	// Try to peek at the body to see if it's already consumed
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-	
-	// Restore body for potential subsequent reads
-	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-
-	if len(bodyBytes) == 0 {
-		return io.EOF
-	}
-
-	return json.Unmarshal(bodyBytes, v)
-}
-
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-// writeValidationError writes a 422 Unprocessable Entity response with Laravel-compatible format
-func writeValidationError(w http.ResponseWriter, message string) {
-	response := map[string]interface{}{
-		"message": message,
-		"errors":  map[string][]string{},
-	}
-	writeJSON(w, http.StatusUnprocessableEntity, response)
-}
-
-func writeGRPCError(w http.ResponseWriter, err error) {
-	st, ok := status.FromError(err)
-	if !ok {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		return
-	}
-
-	switch st.Code() {
-	case codes.Unauthenticated:
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": st.Message()})
-	case codes.NotFound:
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": st.Message()})
-	case codes.InvalidArgument:
-		writeValidationError(w, st.Message())
-	case codes.PermissionDenied:
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": st.Message()})
-	case codes.AlreadyExists:
-		writeJSON(w, http.StatusConflict, map[string]string{"error": st.Message()})
-	case codes.FailedPrecondition:
-		writeJSON(w, http.StatusPreconditionFailed, map[string]string{"error": st.Message()})
-	default:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": st.Message()})
-	}
 }
