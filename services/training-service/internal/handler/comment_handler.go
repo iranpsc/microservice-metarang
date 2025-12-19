@@ -104,11 +104,18 @@ func (h *CommentHandler) AddCommentInteraction(ctx context.Context, req *trainin
 
 // ReportComment creates a report for a comment
 func (h *CommentHandler) ReportComment(ctx context.Context, req *trainingpb.ReportCommentRequest) (*commonpb.Empty, error) {
-	// We need video ID - for now, we'll need to get it from the comment
-	// This should be passed in the request or retrieved from comment
-	// For now, assume it's in the request context or we need to add it to proto
-	// TODO: Add video_id to ReportCommentRequest in proto
-	videoID := uint64(0) // This needs to be fixed - should come from request or comment lookup
+	// Get video ID from the comment (commentable_id)
+	// We need to get the comment first to extract the video ID
+	comment, err := h.service.GetCommentByID(ctx, req.CommentId)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "comment not found: %v", err)
+	}
+	if comment == nil {
+		return nil, status.Errorf(codes.NotFound, "comment not found")
+	}
+
+	// Get video ID from comment's commentable_id
+	videoID := comment.Comment.CommentableID
 
 	if err := h.service.ReportComment(ctx, videoID, req.CommentId, req.UserId, req.Content); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to report comment: %v", err)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"metargb/training-service/internal/client"
 )
 
 // UserRepositoryInterface defines the interface for user repository operations
@@ -13,15 +15,54 @@ type UserRepositoryInterface interface {
 }
 
 type UserRepository struct {
-	db *sql.DB
+	db         *sql.DB
+	authClient *client.AuthClient
 }
 
-func NewUserRepository(db *sql.DB) *UserRepository {
-	return &UserRepository{db: db}
+// NewUserRepository creates a new user repository with optional auth client
+// If authClient is nil, falls back to direct database queries
+func NewUserRepository(db *sql.DB, authClient *client.AuthClient) *UserRepository {
+	return &UserRepository{
+		db:         db,
+		authClient: authClient,
+	}
 }
 
 // GetUserBasicByCode retrieves basic user information by code
+// Uses auth-service gRPC client if available, otherwise falls back to direct DB query
 func (r *UserRepository) GetUserBasicByCode(ctx context.Context, code string) (*UserBasic, error) {
+	// Use auth-service client if available
+	if r.authClient != nil {
+		user, err := r.authClient.GetUserByCode(ctx, code)
+		if err != nil {
+			// If auth service fails, fall back to DB query
+			return r.getUserByCodeFromDB(ctx, code)
+		}
+
+		// Convert proto User to UserBasic
+		userBasic := &UserBasic{
+			ID:    user.Id,
+			Name:  user.Name,
+			Code:  user.Code,
+			Email: user.Email,
+		}
+
+		// Get profile photo from database (auth-service User doesn't include profile photo)
+		// TODO: Consider adding profile photo to auth-service GetUser response
+		photoURL := r.getProfilePhotoFromDB(ctx, user.Id)
+		if photoURL != "" {
+			userBasic.ProfilePhoto = photoURL
+		}
+
+		return userBasic, nil
+	}
+
+	// Fall back to direct DB query
+	return r.getUserByCodeFromDB(ctx, code)
+}
+
+// getUserByCodeFromDB retrieves user from database directly
+func (r *UserRepository) getUserByCodeFromDB(ctx context.Context, code string) (*UserBasic, error) {
 	query := `
 		SELECT id, name, code, email
 		FROM users
@@ -45,6 +86,13 @@ func (r *UserRepository) GetUserBasicByCode(ctx context.Context, code string) (*
 	}
 
 	// Get latest profile photo
+	user.ProfilePhoto = r.getProfilePhotoFromDB(ctx, user.ID)
+
+	return &user, nil
+}
+
+// getProfilePhotoFromDB retrieves the latest profile photo URL for a user
+func (r *UserRepository) getProfilePhotoFromDB(ctx context.Context, userID uint64) string {
 	photoQuery := `
 		SELECT url
 		FROM images
@@ -53,16 +101,48 @@ func (r *UserRepository) GetUserBasicByCode(ctx context.Context, code string) (*
 		LIMIT 1
 	`
 	var photoURL sql.NullString
-	r.db.QueryRowContext(ctx, photoQuery, user.ID).Scan(&photoURL)
+	r.db.QueryRowContext(ctx, photoQuery, userID).Scan(&photoURL)
 	if photoURL.Valid {
-		user.ProfilePhoto = photoURL.String
+		return photoURL.String
 	}
-
-	return &user, nil
+	return ""
 }
 
 // GetUserByID retrieves basic user information by ID
+// Uses auth-service gRPC client if available, otherwise falls back to direct DB query
 func (r *UserRepository) GetUserByID(ctx context.Context, userID uint64) (*UserBasic, error) {
+	// Use auth-service client if available
+	if r.authClient != nil {
+		user, err := r.authClient.GetUser(ctx, userID)
+		if err != nil {
+			// If auth service fails, fall back to DB query
+			return r.getUserByIDFromDB(ctx, userID)
+		}
+
+		// Convert proto User to UserBasic
+		userBasic := &UserBasic{
+			ID:    user.Id,
+			Name:  user.Name,
+			Code:  user.Code,
+			Email: user.Email,
+		}
+
+		// Get profile photo from database (auth-service User doesn't include profile photo)
+		// TODO: Consider adding profile photo to auth-service GetUser response
+		photoURL := r.getProfilePhotoFromDB(ctx, userID)
+		if photoURL != "" {
+			userBasic.ProfilePhoto = photoURL
+		}
+
+		return userBasic, nil
+	}
+
+	// Fall back to direct DB query
+	return r.getUserByIDFromDB(ctx, userID)
+}
+
+// getUserByIDFromDB retrieves user from database directly
+func (r *UserRepository) getUserByIDFromDB(ctx context.Context, userID uint64) (*UserBasic, error) {
 	query := `
 		SELECT id, name, code, email
 		FROM users
@@ -86,18 +166,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID uint64) (*UserB
 	}
 
 	// Get latest profile photo
-	photoQuery := `
-		SELECT url
-		FROM images
-		WHERE imageable_type = 'App\\Models\\User' AND imageable_id = ?
-		ORDER BY created_at DESC
-		LIMIT 1
-	`
-	var photoURL sql.NullString
-	r.db.QueryRowContext(ctx, photoQuery, user.ID).Scan(&photoURL)
-	if photoURL.Valid {
-		user.ProfilePhoto = photoURL.String
-	}
+	user.ProfilePhoto = r.getProfilePhotoFromDB(ctx, userID)
 
 	return &user, nil
 }

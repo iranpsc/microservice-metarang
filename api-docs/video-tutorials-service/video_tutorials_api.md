@@ -2,7 +2,7 @@
 
 The Video Tutorials API exposes read-only endpoints for discovering tutorial videos, categories, and subcategories, along with an authenticated interaction endpoint for recording likes and dislikes. A legacy helper endpoint exists in the v1 namespace for resolving modal content from a video URL fragment.
 
-- **Base path:** `/api/v2/tutorials`
+- **Base path:** `/api/tutorials`
 - **Primary controller:** `App\Http\Controllers\Api\V1\TutorialController`
 - **Middleware:** Grouped under `auth:sanctum`, `verified`, but most read endpoints explicitly opt out; see Policy Rules below.
 
@@ -40,7 +40,7 @@ return [
 
 Category routes use `App\Http\Resources\V2\VideoCategoryResource`, which expands nested subcategories and videos when they are eager loaded.
 
-```19:32:app/Http/Resources/V2/VideoCategoryResource.php
+```19:32:app/Http/Resources/VideoCategoryResource.php
 return [
     'id' => $this->id,
     'name' => $this->name,
@@ -56,7 +56,7 @@ return [
 
 Subcategory responses are serialized through `App\Http\Resources\V2\VideoSubCategoryResource`, including counts and optional parent category metadata.
 
-```18:37:app/Http/Resources/V2/VideoSubCategoryResource.php
+```18:37:app/Http/Resources/VideoSubCategoryResource.php
 return [
     'id' => $this->id,
     'name' => $this->name,
@@ -71,35 +71,35 @@ return [
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v2/tutorials` | Public | Paginated list of the latest tutorial videos. |
-| `GET` | `/api/v2/tutorials/{slug}` | Public | Returns a specific tutorial and increments its view counter. |
-| `POST` | `/api/v2/tutorials/search` | Public | Searches tutorials by title substring. |
-| `POST` | `/api/v2/tutorials/{video}/interactions` | `auth:sanctum`, `verified` | Records a like/dislike interaction for the authenticated user. |
-| `GET` | `/api/v2/tutorials/categories` | Public | Lists video categories with aggregate counters. |
-| `GET` | `/api/v2/tutorials/categories/{category:slug}` | Public | Shows a single category with its subcategories and counters. |
-| `GET` | `/api/v2/tutorials/categories/{category:slug}/videos` | Public | Returns paginated videos for the specified category. |
-| `GET` | `/api/v2/tutorials/categories/{category:slug}/{subCategory:slug}` | Public | Shows a subcategory with category reference and video listing. |
+| `GET` | `/api/tutorials` | Public | Paginated list of the latest tutorial videos. |
+| `GET` | `/api/tutorials/{slug}` | Public | Returns a specific tutorial and increments its view counter. |
+| `POST` | `/api/tutorials/search` | Public | Searches tutorials by title substring. |
+| `POST` | `/api/tutorials/{video}/interactions` | `auth:sanctum`, `verified` | Records a like/dislike interaction for the authenticated user. |
+| `GET` | `/api/tutorials/categories` | Public | Lists video categories with aggregate counters. |
+| `GET` | `/api/tutorials/categories/{category:slug}` | Public | Shows a single category with its subcategories and counters. |
+| `GET` | `/api/tutorials/categories/{category:slug}/videos` | Public | Returns paginated videos for the specified category. |
+| `GET` | `/api/tutorials/categories/{category:slug}/{subCategory:slug}` | Public | Shows a subcategory with category reference and video listing. |
 | `POST` | `/api/video-tutorials` | Public (v1) | Resolves modal metadata by matching a partial file name. |
 
 Each endpoint section below includes validation rules and notable side effects.
 
 ## Endpoints
 
-### GET `/api/v2/tutorials`
+### GET `/api/tutorials`
 
 - **Controller method:** `TutorialController@index`
 - **Pagination:** Standard Laravel pagination (`page` query parameter). Page size fixed at 18.
 - **Side effects:** None.
 - **Response:** `200 OK` with `VideoTutorialResource` collection. Videos load `subCategory.category`, `creator.profilePhotos` (limited to one), and their counters.
 
-### GET `/api/v2/tutorials/{video:slug}`
+### GET `/api/tutorials/{video:slug}`
 
 - **Controller method:** `TutorialController@show`
 - **Route binding:** Resolves a `Video` by slug.
 - **Side effects:** Calls `Video::incrementViews()`, which creates a morph `views` record with the requester’s IP (`request()->ip()`).
 - **Response:** `200 OK` with a single `VideoTutorialResource`.
 
-### POST `/api/v2/tutorials/search`
+### POST `/api/tutorials/search`
 
 - **Controller method:** `TutorialController@search`
 - **Validation:** `{ searchTerm: required|string }`
@@ -107,7 +107,7 @@ Each endpoint section below includes validation rules and notable side effects.
 - **Response:** `200 OK` with a simplified array (not the resource class) including core counters, category/slugs, and creator image URL.
 - **Errors:** `422 Unprocessable Entity` if `searchTerm` is missing or blank.
 
-### POST `/api/v2/tutorials/{video}/interactions`
+### POST `/api/tutorials/{video}/interactions`
 
 - **Controller method:** `TutorialController@interactions`
 - **Middleware:** Requires authenticated, verified user.
@@ -117,27 +117,27 @@ Each endpoint section below includes validation rules and notable side effects.
 - **Response:** `200 OK` with an empty JSON body.
 - **Errors:** `422` for invalid boolean payloads, `401/403` when unauthenticated/unverified.
 
-### GET `/api/v2/tutorials/categories`
+### GET `/api/tutorials/categories`
 
 - **Controller method:** `TutorialController@getCategories`
 - **Validation:** No explicit validation; supports optional `count` query parameter to override the page size (default 30).
 - **Behaviour:** Loads `VideoCategory` models with counts for videos, views, likes, and dislikes, ordering descending by `likes_count`.
 - **Response:** `200 OK` with a paginated `VideoCategoryResource` collection.
 
-### GET `/api/v2/tutorials/categories/{category:slug}`
+### GET `/api/tutorials/categories/{category:slug}`
 
 - **Controller method:** `TutorialController@showCategory`
 - **Behaviour:** Eager loads subcategories with their video/interaction counts (`withCount`) and attaches overall category counts.
 - **Response:** `200 OK` with `VideoCategoryResource` (includes nested subcategories).
 
-### GET `/api/v2/tutorials/categories/{category:slug}/videos`
+### GET `/api/tutorials/categories/{category:slug}/videos`
 
 - **Controller method:** `TutorialController@showCategoryVideos`
 - **Validation:** Optional `per_page` query parameter controls pagination size (default 18).
 - **Behaviour:** Fetches the category’s videos ordered by recency, with creator info, subcategory, and count aggregations.
 - **Response:** `200 OK` with `VideoTutorialResource` collection.
 
-### GET `/api/v2/tutorials/categories/{category:slug}/{subCategory:slug}`
+### GET `/api/tutorials/categories/{category:slug}/{subCategory:slug}`
 
 - **Controller method:** `TutorialController@showSubCategory`
 - **Behaviour:** Loads the subcategory’s videos (with creators and profile photos), parent category, and aggregate counts via `loadCount`.

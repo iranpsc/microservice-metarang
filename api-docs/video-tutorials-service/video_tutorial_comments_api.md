@@ -7,8 +7,8 @@
 - Responses return `VideoCommentResource` payloads, exposing comment metadata, interaction counts, reply status, and Jalali-formatted timestamps.
 
 ## Authentication & Authorization
-- The route group is registered inside `routes/api_v2.php` and inherits the `/api/v2` prefix applied to all v2 endpoints.
-- `GET /api/v2/tutorials/{video}/comments` removes both `auth:sanctum` and `verified`; any caller can read the first-level comments for a video.
+- The route group is registered inside `routes/api_v2.php` and inherits the `/api` prefix applied to all v2 endpoints.
+- `GET /api/tutorials/{video}/comments` removes both `auth:sanctum` and `verified`; any caller can read the first-level comments for a video.
 - All other routes run behind `auth:sanctum` and `verified`, so callers must present a valid Sanctum token and pass email verification.
 - Policy hooks enforced by `VideoCommentsController`:
   - `update` and `destroy` require ownership of the comment (`CommentPolicy@update` / `@delete`).
@@ -41,12 +41,12 @@ public function report(User $user, Comment $comment)
 ## Route Registry
 | Method | Path | Middleware | Controller action | Notes |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v2/tutorials/{video}/comments` | none | `index` | Publicly lists top-level comments with like/dislike/reply counts. |
-| POST | `/api/v2/tutorials/{video}/comments` | `auth:sanctum`, `verified` | `store` | Authenticated users post new parent comments. |
-| PUT | `/api/v2/tutorials/{video}/comments/{comment}` | `auth:sanctum`, `verified` | `update` | Comment owners update their content. |
-| DELETE | `/api/v2/tutorials/{video}/comments/{comment}` | `auth:sanctum`, `verified` | `destroy` | Comment owners delete their comment; related interactions are purged. |
-| POST | `/api/v2/tutorials/{video}/comments/{comment}/report` | `auth:sanctum`, `verified` | `report` | Non-owners submit a report payload tied to the video. |
-| POST | `/api/v2/tutorials/{video}/comments/{comment}/interactions` | `auth:sanctum`, `verified` | `interactions` | Non-owners like or dislike a comment (toggle stored per user). |
+| GET | `/api/tutorials/{video}/comments` | none | `index` | Publicly lists top-level comments with like/dislike/reply counts. |
+| POST | `/api/tutorials/{video}/comments` | `auth:sanctum`, `verified` | `store` | Authenticated users post new parent comments. |
+| PUT | `/api/tutorials/{video}/comments/{comment}` | `auth:sanctum`, `verified` | `update` | Comment owners update their content. |
+| DELETE | `/api/tutorials/{video}/comments/{comment}` | `auth:sanctum`, `verified` | `destroy` | Comment owners delete their comment; related interactions are purged. |
+| POST | `/api/tutorials/{video}/comments/{comment}/report` | `auth:sanctum`, `verified` | `report` | Non-owners submit a report payload tied to the video. |
+| POST | `/api/tutorials/{video}/comments/{comment}/interactions` | `auth:sanctum`, `verified` | `interactions` | Non-owners like or dislike a comment (toggle stored per user). |
 
 ## Response Shape
 - Both list and single-item responses wrap results with `VideoCommentResource`. Fields include identifiers, user snapshot, interaction counters, reply state, and Jalali-formatted creation date.
@@ -81,12 +81,12 @@ return [
 ```
 
 ## Endpoint Details
-### GET `/api/v2/tutorials/{video}/comments`
+### GET `/api/tutorials/{video}/comments`
 - **Purpose:** Retrieve the most-liked parent comments for the given video.
 - **Behavior:** Orders by `likes_count` descending, loads the commenting user’s profile photo, counts likes/dislikes/replies, filters out replies (`parent_id` null), paginates in pages of 10.
 - **Response:** `200 OK` with a `data` array of comments and pagination scaffolding.
 
-### POST `/api/v2/tutorials/{video}/comments`
+### POST `/api/tutorials/{video}/comments`
 - **Purpose:** Create a new top-level comment tied to the video.
 - **Authorization:** Caller must be authenticated and verified; policy allows any authenticated user to create.
 - **Validation:** `content` is required, string, max 2000 characters.
@@ -101,7 +101,7 @@ $comment = $video->comments()->create([
 ]);
 ```
 
-### PUT `/api/v2/tutorials/{video}/comments/{comment}`
+### PUT `/api/tutorials/{video}/comments/{comment}`
 - **Purpose:** Update comment text.
 - **Authorization:** Requires ownership; enforced via `authorize('update', $comment)`.
 - **Validation:** Same as creation (`content` required string ≤ 2000 characters).
@@ -116,7 +116,7 @@ $comment->update([
 ]);
 ```
 
-### DELETE `/api/v2/tutorials/{video}/comments/{comment}`
+### DELETE `/api/tutorials/{video}/comments/{comment}`
 - **Purpose:** Remove a comment authored by the caller.
 - **Authorization:** Ownership enforced via `authorize('update', $comment)` (same rule as edit).
 - **Behavior:** Deletes the comment record and any related interaction entries; responds with empty JSON and `200 OK`.
@@ -128,7 +128,7 @@ $comment->interactions()->delete();
 return new JsonResponse([], 200);
 ```
 
-### POST `/api/v2/tutorials/{video}/comments/{comment}/interactions`
+### POST `/api/tutorials/{video}/comments/{comment}/interactions`
 - **Purpose:** Record a like or dislike from the caller.
 - **Authorization:** Users cannot react to their own comments (`CommentPolicy@like`/`@dislike`).
 - **Validation:** `liked` must be present and boolean (`true` for like, `false` for dislike).
@@ -142,7 +142,7 @@ $comment->interactions()->updateOrCreate(
 );
 ```
 
-### POST `/api/v2/tutorials/{video}/comments/{comment}/report`
+### POST `/api/tutorials/{video}/comments/{comment}/report`
 - **Purpose:** File a report against another user’s comment on the video.
 - **Authorization:** `CommentPolicy@report` disallows reporting self-authored comments.
 - **Validation:** `content` required, string, max 2000 characters.
@@ -162,10 +162,10 @@ $video->reports()->create([
 
 | Endpoint | Field | Rules | Notes |
 | --- | --- | --- | --- |
-| `POST /api/v2/tutorials/{video}/comments` | `content` | required, string, max:2000 | Enforces non-empty comment body within 2k characters. |
-| `PUT /api/v2/tutorials/{video}/comments/{comment}` | `content` | required, string, max:2000 | Same constraint as creation; update fails if empty. |
-| `POST /api/v2/tutorials/{video}/comments/{comment}/interactions` | `liked` | required, boolean | Accepts `true` (like) or `false` (dislike). |
-| `POST /api/v2/tutorials/{video}/comments/{comment}/report` | `content` | required, string, max:2000 | Requires detailed report message; duplicates allowed. |
+| `POST /api/tutorials/{video}/comments` | `content` | required, string, max:2000 | Enforces non-empty comment body within 2k characters. |
+| `PUT /api/tutorials/{video}/comments/{comment}` | `content` | required, string, max:2000 | Same constraint as creation; update fails if empty. |
+| `POST /api/tutorials/{video}/comments/{comment}/interactions` | `liked` | required, boolean | Accepts `true` (like) or `false` (dislike). |
+| `POST /api/tutorials/{video}/comments/{comment}/report` | `content` | required, string, max:2000 | Requires detailed report message; duplicates allowed. |
 
 ## Error Handling
 - Validation errors produce standard Laravel `422 Unprocessable Entity` payloads with field-specific messages.
@@ -173,6 +173,6 @@ $video->reports()->create([
 - Model binding returns `404 Not Found` when the `{video}` or `{comment}` identifiers do not resolve.
 
 ## Related Features
-- Comment replies are managed by `CommentReplyController` under `/api/v2/comments/{comment}/...`. See dedicated documentation when working with nested conversations.
+- Comment replies are managed by `CommentReplyController` under `/api/comments/{comment}/...`. See dedicated documentation when working with nested conversations.
 
 

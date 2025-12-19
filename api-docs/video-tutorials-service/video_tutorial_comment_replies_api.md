@@ -1,12 +1,12 @@
 # Video Tutorial Comment Replies API
 
-Comprehensive reference for the comment–reply endpoints exposed under `api/v2/comments/*`. These endpoints let clients browse, create, update, delete, and react to replies on tutorial video comments.
+Comprehensive reference for the comment–reply endpoints exposed under `api/comments/*`. These endpoints let clients browse, create, update, delete, and react to replies on tutorial video comments.
 
 ---
 
 ## Overview
 
-- **Base URL:** `/api/v2/comments`
+- **Base URL:** `/api/comments`
 - **Content Type:** `application/json`
 - **Authentication:** Laravel Sanctum tokens with the `verified` middleware unless otherwise noted.
 - **Resource shape:** Responses use `VideoCommentResource`, returning reply metadata, author profile snapshot, reaction counts, and creation date.
@@ -58,17 +58,17 @@ Comprehensive reference for the comment–reply endpoints exposed under `api/v2/
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/api/v2/comments/{comment}/replies` | Optional | List replies for a comment (public). |
-| POST | `/api/v2/comments/{comment}/reply` | Required | Create a new reply beneath the parent comment. |
-| PUT | `/api/v2/comments/{comment}/replies/{reply}` | Required | Update an existing reply authored by the caller. |
-| DELETE | `/api/v2/comments/{comment}/replies/{reply}` | Required | Delete an existing reply authored by the caller. |
-| POST | `/api/v2/comments/{comment}/replies/{reply}/interactions` | Required | Like or dislike a reply. |
+| GET | `/api/comments/{comment}/replies` | Optional | List replies for a comment (public). |
+| POST | `/api/comments/{comment}/reply` | Required | Create a new reply beneath the parent comment. |
+| PUT | `/api/comments/{comment}/replies/{reply}` | Required | Update an existing reply authored by the caller. |
+| DELETE | `/api/comments/{comment}/replies/{reply}` | Required | Delete an existing reply authored by the caller. |
+| POST | `/api/comments/{comment}/replies/{reply}/interactions` | Required | Like or dislike a reply. |
 
 > **Route bindings:** `{comment}` and `{reply}` resolve to `App\Models\Comment`. The `{reply}` must belong to the `{comment}`; otherwise Laravel returns `404`.
 
 ---
 
-### GET `/api/v2/comments/{comment}/replies`
+### GET `/api/comments/{comment}/replies`
 
 - **Access:** Public; middleware exclusions remove `auth:sanctum` and `verified`.
 - **Pagination:** Simple pagination (`simplePaginate(10)`) with `page` query parameter.
@@ -117,7 +117,7 @@ Comprehensive reference for the comment–reply endpoints exposed under `api/v2/
 
 ---
 
-### POST `/api/v2/comments/{comment}/reply`
+### POST `/api/comments/{comment}/reply`
 
 - **Access:** Authenticated & verified users only.
 - **Authorization:** `CommentPolicy::reply` — callers cannot reply to their own comment.
@@ -145,7 +145,7 @@ Comprehensive reference for the comment–reply endpoints exposed under `api/v2/
 
 ---
 
-### PUT `/api/v2/comments/{comment}/replies/{reply}`
+### PUT `/api/comments/{comment}/replies/{reply}`
 
 - **Access:** Authenticated & verified users only.
 - **Authorization:** `CommentPolicy::update` — only the reply author may update.
@@ -164,7 +164,7 @@ Comprehensive reference for the comment–reply endpoints exposed under `api/v2/
 
 ---
 
-### DELETE `/api/v2/comments/{comment}/replies/{reply}`
+### DELETE `/api/comments/{comment}/replies/{reply}`
 
 - **Access:** Authenticated & verified users only.
 - **Authorization:** `CommentPolicy::update` — only the reply author may delete.
@@ -180,7 +180,7 @@ Comprehensive reference for the comment–reply endpoints exposed under `api/v2/
 
 ---
 
-### POST `/api/v2/comments/{comment}/replies/{reply}/interactions`
+### POST `/api/comments/{comment}/replies/{reply}/interactions`
 
 - **Access:** Authenticated & verified users only.
 - **Authorization:** `CommentPolicy::like` / `CommentPolicy::dislike` — users cannot react to their own replies.
@@ -227,6 +227,6 @@ Comprehensive reference for the comment–reply endpoints exposed under `api/v2/
 
 ## Changelog
 
-- **v2** (current): Introduced dedicated reply endpoints under `/api/v2/comments`. Previous versions handled replies alongside top-level comments.
+- **v2** (current): Introduced dedicated reply endpoints under `/api/comments`. Previous versions handled replies alongside top-level comments.
 
 

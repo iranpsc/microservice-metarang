@@ -18,4 +18,4 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 )
 
-replace metargb/shared => /workspace/metargb/shared
+replace metargb/shared => ../../shared

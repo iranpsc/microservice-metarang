@@ -137,6 +137,19 @@ func (s *CommentService) ReportComment(ctx context.Context, videoID, commentID, 
 	return s.commentRepo.ReportComment(ctx, videoID, commentID, userID, content)
 }
 
+// GetCommentByID retrieves a comment by ID with details
+func (s *CommentService) GetCommentByID(ctx context.Context, commentID uint64) (*CommentDetails, error) {
+	comment, err := s.commentRepo.GetCommentByID(ctx, commentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comment: %w", err)
+	}
+	if comment == nil {
+		return nil, fmt.Errorf("comment not found")
+	}
+
+	return s.getCommentDetails(ctx, comment)
+}
+
 // getCommentDetails enriches a comment with user info and stats
 func (s *CommentService) getCommentDetails(ctx context.Context, comment *models.Comment) (*CommentDetails, error) {
 	details := &CommentDetails{
