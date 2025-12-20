@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -108,7 +107,7 @@ func (h *TrainingHandler) SearchVideos(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -175,9 +174,13 @@ func (h *TrainingHandler) AddInteraction(w http.ResponseWriter, r *http.Request)
 	if likedStr != "" {
 		req.Liked = likedStr == "1" || likedStr == "true"
 	} else {
-		// Try JSON body
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+		// Try request body (JSON or form-data)
+		if err := decodeRequestBody(r, &req); err != nil {
+			if err == io.EOF {
+				writeError(w, http.StatusBadRequest, "request body is required")
+			} else {
+				writeError(w, http.StatusBadRequest, "invalid request body")
+			}
 			return
 		}
 	}
@@ -211,7 +214,7 @@ func (h *TrainingHandler) GetVideoByFileName(w http.ResponseWriter, r *http.Requ
 		URL string `json:"url"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -431,7 +434,7 @@ func (h *TrainingHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -490,7 +493,7 @@ func (h *TrainingHandler) UpdateComment(w http.ResponseWriter, r *http.Request) 
 		Content string `json:"content"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -587,7 +590,7 @@ func (h *TrainingHandler) AddCommentInteraction(w http.ResponseWriter, r *http.R
 		Liked bool `json:"liked"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -645,7 +648,7 @@ func (h *TrainingHandler) ReportComment(w http.ResponseWriter, r *http.Request) 
 		Content string `json:"content"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -737,7 +740,7 @@ func (h *TrainingHandler) AddReply(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -796,7 +799,7 @@ func (h *TrainingHandler) UpdateReply(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -893,7 +896,7 @@ func (h *TrainingHandler) AddReplyInteraction(w http.ResponseWriter, r *http.Req
 		Liked bool `json:"liked"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {

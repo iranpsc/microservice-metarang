@@ -289,7 +289,7 @@ func (h *SocialHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		AnswerID   uint64 `json:"answer_id"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {

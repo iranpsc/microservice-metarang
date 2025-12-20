@@ -333,7 +333,7 @@ func (h *FeaturesHandler) UpdateMyFeature(w http.ResponseWriter, r *http.Request
 		MinimumPricePercentage int32 `json:"minimum_price_percentage"`
 	}
 
-	if err := decodeJSONBody(r, &reqBody); err != nil {
+	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {

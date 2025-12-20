@@ -43,7 +43,7 @@ RUN cd /workspace/metargb/notifications-service && CGO_ENABLED=0 GOOS=linux go b
 # Final stage
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk update && apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 

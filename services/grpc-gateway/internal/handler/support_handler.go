@@ -185,7 +185,7 @@ func (h *SupportHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		Department string  `json:"department"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -364,7 +364,7 @@ func (h *SupportHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		Attachment string `json:"attachment"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -439,7 +439,7 @@ func (h *SupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Reques
 		Attachment string `json:"attachment"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -628,7 +628,7 @@ func (h *SupportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		Attachments []string `json:"attachments"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -770,7 +770,7 @@ func (h *SupportHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		Attachment string `json:"attachment"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -887,7 +887,7 @@ func (h *SupportHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		Attachment string `json:"attachment"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {

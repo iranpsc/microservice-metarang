@@ -40,24 +40,29 @@ func (h *FeaturesHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse query parameters
-	pointsParam := r.URL.Query().Get("points")
-	if pointsParam == "" {
-		writeValidationError(w, "points parameter is required")
-		return
-	}
-
-	// Parse points array (comma-separated or JSON array)
+	// Parse query parameters - handle both points[] (array notation) and points
+	query := r.URL.Query()
 	var points []string
-	if strings.HasPrefix(pointsParam, "[") {
-		// JSON array format
-		if err := json.Unmarshal([]byte(pointsParam), &points); err != nil {
-			writeValidationError(w, "invalid points format: expected array of 'x,y' strings")
-			return
+
+	// Check for array notation first (points[]=...)
+	if pointsArray, ok := query["points[]"]; ok && len(pointsArray) > 0 {
+		// Handle multiple points[] values
+		points = pointsArray
+	} else if pointsParam := query.Get("points"); pointsParam != "" {
+		// Handle single points parameter (backward compatibility)
+		if strings.HasPrefix(pointsParam, "[") {
+			// JSON array format
+			if err := json.Unmarshal([]byte(pointsParam), &points); err != nil {
+				writeValidationError(w, "invalid points format: expected array of 'x,y' strings")
+				return
+			}
+		} else {
+			// Comma-separated format
+			points = strings.Split(pointsParam, ",")
 		}
 	} else {
-		// Comma-separated format
-		points = strings.Split(pointsParam, ",")
+		writeValidationError(w, "points parameter is required")
+		return
 	}
 
 	// Validate points (min:4 per documentation)
@@ -403,7 +408,7 @@ func (h *FeaturesHandler) GetBuildPackage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v2/features/"), "/")
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/features/"), "/")
 	if len(pathParts) == 0 {
 		writeError(w, http.StatusBadRequest, "feature ID is required")
 		return
@@ -499,7 +504,7 @@ func (h *FeaturesHandler) BuildFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var reqBody map[string]interface{}
-	if err := decodeJSONBody(r, &reqBody); err != nil {
+	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
 			writeValidationError(w, "request body is required")
 		} else {
@@ -567,7 +572,7 @@ func (h *FeaturesHandler) GetBuildings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v2/features/"), "/")
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/features/"), "/")
 	if len(pathParts) == 0 {
 		writeError(w, http.StatusBadRequest, "feature ID is required")
 		return
@@ -644,7 +649,7 @@ func (h *FeaturesHandler) UpdateBuilding(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v2/features/"), "/")
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/features/"), "/")
 	if len(pathParts) < 4 {
 		writeError(w, http.StatusBadRequest, "feature ID and building model ID are required")
 		return
@@ -661,7 +666,7 @@ func (h *FeaturesHandler) UpdateBuilding(w http.ResponseWriter, r *http.Request)
 	}
 
 	var reqBody map[string]interface{}
-	if err := decodeJSONBody(r, &reqBody); err != nil {
+	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
 			writeValidationError(w, "request body is required")
 		} else {
@@ -742,7 +747,7 @@ func (h *FeaturesHandler) DestroyBuilding(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v2/features/"), "/")
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/features/"), "/")
 	if len(pathParts) < 4 {
 		writeError(w, http.StatusBadRequest, "feature ID and building model ID are required")
 		return
@@ -888,7 +893,7 @@ func (h *FeaturesHandler) CreateSellRequest(w http.ResponseWriter, r *http.Reque
 
 	// Parse request body
 	var reqBody map[string]interface{}
-	if err := decodeJSONBody(r, &reqBody); err != nil {
+	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
 			writeValidationError(w, "request body is required")
 		} else {
@@ -1054,7 +1059,7 @@ func (h *FeaturesHandler) UpdateGracePeriod(w http.ResponseWriter, r *http.Reque
 
 	// Parse request body
 	var reqBody map[string]interface{}
-	if err := decodeJSONBody(r, &reqBody); err != nil {
+	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
 			writeValidationError(w, "request body is required")
 		} else {

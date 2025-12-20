@@ -301,7 +301,7 @@ func (h *DynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request)
 		Permissions  map[string]bool `json:"permissions,omitempty"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -578,7 +578,7 @@ func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.R
 		Status     bool   `json:"status"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -657,7 +657,7 @@ func (h *DynastyHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -698,7 +698,7 @@ func (h *DynastyHandler) GetDefaultPermissions(w http.ResponseWriter, r *http.Re
 		Relationship string `json:"relationship"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {

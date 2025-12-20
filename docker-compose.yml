@@ -307,6 +307,37 @@ services:
       timeout: 3s
       retries: 3
 
+  # Financial Service - Payment Processing & Transactions
+  financial-service:
+    build:
+      context: .
+      dockerfile: ./services/financial-service/Dockerfile
+    container_name: metargb-financial-service
+    ports:
+      - "50057:50057"
+    environment:
+      GRPC_PORT: 50057
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: metargb_db
+      DB_USER: metargb_user
+      DB_PASSWORD: metargb_password
+      PARSIAN_MERCHANT_ID: ${PARSIAN_MERCHANT_ID:-}
+      PARSIAN_LOAN_ACCOUNT_MERCHANT_ID: ${PARSIAN_LOAN_ACCOUNT_MERCHANT_ID:-}
+      PARSIAN_CALLBACK_URL: ${PARSIAN_CALLBACK_URL:-https://rgb.irpsc.com/api/parsian/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-https://rgb.irpsc.com}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - metargb-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50057"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
   # Storage Service - File Upload & Management
   storage-service:
     build:
@@ -426,6 +457,8 @@ services:
       notifications-service:
         condition: service_started
       storage-service:
+        condition: service_started
+      financial-service:
         condition: service_started
     networks:
       - metargb-network

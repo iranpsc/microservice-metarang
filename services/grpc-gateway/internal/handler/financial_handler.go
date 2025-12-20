@@ -54,7 +54,7 @@ func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		Asset  string `json:"asset"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -175,7 +175,7 @@ func (h *FinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Reque
 		Codes []string `json:"codes"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {

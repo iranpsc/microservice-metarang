@@ -3,8 +3,10 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -50,7 +52,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		Referral string `json:"referral"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -196,7 +198,7 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 		Token string `json:"token"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -249,7 +251,7 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 		Phone string `json:"phone,omitempty"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -300,7 +302,7 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 		Code string `json:"code"` // 6-digit OTP code
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -366,7 +368,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		Phone  string `json:"phone"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -762,7 +764,7 @@ func (h *AuthHandler) CreateBankAccount(w http.ResponseWriter, r *http.Request) 
 		CardNum  string `json:"card_num"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -872,7 +874,7 @@ func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) 
 		CardNum  string `json:"card_num"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -953,6 +955,195 @@ func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) 
 
 // Helper functions
 
+// decodeRequest decodes request data from query parameters, JSON body, or form-data
+// It tries query parameters first, then falls back to body (JSON or form-data)
+// This allows handlers to accept data from multiple sources
+func decodeRequest(r *http.Request, v interface{}) error {
+	// First, try to populate from query parameters
+	queryErr := decodeQueryParams(r, v)
+	
+	// Check if body exists and has content
+	hasBody := r.Body != nil && r.ContentLength > 0
+	if !hasBody {
+		// If no body, return query params result (even if empty, that's OK)
+		return queryErr
+	}
+	
+	// If we have a body, try to decode it
+	contentType := r.Header.Get("Content-Type")
+	var bodyErr error
+	
+	// Handle JSON requests
+	if strings.HasPrefix(contentType, "application/json") {
+		bodyErr = decodeJSONBody(r, v)
+	} else if strings.HasPrefix(contentType, "multipart/form-data") || strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+		// Handle form-data requests
+		bodyErr = decodeFormData(r, v)
+	} else {
+		// Default to JSON if content type is not specified or unknown
+		bodyErr = decodeJSONBody(r, v)
+	}
+	
+	// If body decoding succeeded, use it (body takes precedence over query params for same fields)
+	// If body decoding failed but query params succeeded, use query params
+	if bodyErr == nil {
+		return nil
+	}
+	
+	// If body decoding failed but query params succeeded, return query params result
+	if queryErr == nil {
+		return nil
+	}
+	
+	// Both failed, return body error (more specific)
+	return bodyErr
+}
+
+// decodeRequestBody decodes request body from JSON or form-data (multipart/form-data or application/x-www-form-urlencoded)
+// It automatically detects the content type and handles both formats
+// If the body is empty, it will also check query string parameters
+func decodeRequestBody(r *http.Request, v interface{}) error {
+	hasBody := r.Body != nil && r.ContentLength > 0
+	
+	// If no body, try query parameters
+	if !hasBody {
+		return decodeQueryParams(r, v)
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	var bodyErr error
+	
+	// Handle JSON requests
+	if strings.HasPrefix(contentType, "application/json") {
+		bodyErr = decodeJSONBody(r, v)
+	} else if strings.HasPrefix(contentType, "multipart/form-data") || strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+		// Handle form-data requests
+		bodyErr = decodeFormData(r, v)
+	} else {
+		// Default to JSON if content type is not specified or unknown
+		// This maintains backward compatibility
+		bodyErr = decodeJSONBody(r, v)
+	}
+	
+	// If body decoding succeeded, also merge query parameters (query params can supplement body data)
+	if bodyErr == nil {
+		// Try to merge query parameters (non-destructive - only sets fields that are zero values)
+		mergeQueryParams(r, v)
+		return nil
+	}
+	
+	// If body decoding failed, try query parameters as fallback
+	if queryErr := decodeQueryParams(r, v); queryErr == nil {
+		return nil
+	}
+	
+	// Both failed, return body error
+	return bodyErr
+}
+
+// mergeQueryParams merges query parameters into a struct, only setting fields that are zero values
+// This allows query params to supplement body data without overwriting existing values
+func mergeQueryParams(r *http.Request, v interface{}) {
+	queryValues := r.URL.Query()
+	if len(queryValues) == 0 {
+		return
+	}
+	
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
+		return
+	}
+	
+	rv = rv.Elem()
+	rt := rv.Type()
+	
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		fieldValue := rv.Field(i)
+		
+		if !fieldValue.CanSet() {
+			continue
+		}
+		
+		// Only set if field is zero value (empty)
+		if !isZeroValue(fieldValue) {
+			continue
+		}
+		
+		// Get the JSON tag name, or use the field name as fallback
+		fieldName := field.Name
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+			parts := strings.Split(jsonTag, ",")
+			if parts[0] != "" {
+				fieldName = parts[0]
+			}
+		}
+		
+		// Check for "query" tag as well
+		if queryTag := field.Tag.Get("query"); queryTag != "" && queryTag != "-" {
+			parts := strings.Split(queryTag, ",")
+			if parts[0] != "" {
+				fieldName = parts[0]
+			}
+		}
+		
+		// Convert field name to lowercase for matching
+		fieldNameLower := strings.ToLower(fieldName)
+		
+		// Try to find the query value
+		var values []string
+		var found bool
+		if vals, ok := queryValues[fieldName]; ok && len(vals) > 0 {
+			values = vals
+			found = true
+		} else if vals, ok := queryValues[fieldNameLower]; ok && len(vals) > 0 {
+			values = vals
+			found = true
+		}
+		
+		if !found || len(values) == 0 {
+			continue
+		}
+		
+		// Get the first value and set it
+		value := values[0]
+		setFieldValue(fieldValue, value) // Ignore errors for merge
+	}
+}
+
+// isZeroValue checks if a reflect.Value is the zero value for its type
+func isZeroValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.String:
+		return v.String() == ""
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return v.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == 0
+	case reflect.Bool:
+		return !v.Bool()
+	case reflect.Slice, reflect.Map, reflect.Interface, reflect.Ptr:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+// decodeQueryParams decodes query string parameters into a struct
+func decodeQueryParams(r *http.Request, v interface{}) error {
+	queryValues := r.URL.Query()
+	
+	// If no query parameters, return nil (not an error, just empty)
+	if len(queryValues) == 0 {
+		return nil
+	}
+	
+	// Use reflection to populate the struct
+	return populateStructFromQuery(queryValues, v)
+}
+
 // decodeJSONBody safely decodes JSON from request body, handling empty bodies
 func decodeJSONBody(r *http.Request, v interface{}) error {
 	if r.Body == nil {
@@ -978,6 +1169,236 @@ func decodeJSONBody(r *http.Request, v interface{}) error {
 	}
 
 	return json.Unmarshal(bodyBytes, v)
+}
+
+// decodeFormData decodes form-data (multipart/form-data or application/x-www-form-urlencoded) into a struct
+func decodeFormData(r *http.Request, v interface{}) error {
+	contentType := r.Header.Get("Content-Type")
+	
+	var formValues map[string][]string
+	
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		// Parse multipart form
+		err := r.ParseMultipartForm(32 << 20) // 32MB max memory
+		if err != nil {
+			return fmt.Errorf("failed to parse multipart form: %w", err)
+		}
+		formValues = r.MultipartForm.Value
+	} else {
+		// Parse URL-encoded form
+		err := r.ParseForm()
+		if err != nil {
+			return fmt.Errorf("failed to parse form: %w", err)
+		}
+		formValues = r.PostForm
+	}
+	
+	// Use reflection to populate the struct
+	return populateStructFromForm(formValues, v)
+}
+
+// populateStructFromQuery populates a struct from query parameter values using reflection
+// It uses JSON struct tags to map query parameter names to struct fields
+func populateStructFromQuery(queryValues map[string][]string, v interface{}) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("v must be a pointer to a struct")
+	}
+	
+	rv = rv.Elem()
+	rt := rv.Type()
+	
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		fieldValue := rv.Field(i)
+		
+		if !fieldValue.CanSet() {
+			continue
+		}
+		
+		// Get the JSON tag name, or use the field name as fallback
+		fieldName := field.Name
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+			// Remove options like "omitempty" from the tag
+			parts := strings.Split(jsonTag, ",")
+			if parts[0] != "" {
+				fieldName = parts[0]
+			}
+		}
+		
+		// Check for "query" tag as well
+		if queryTag := field.Tag.Get("query"); queryTag != "" && queryTag != "-" {
+			parts := strings.Split(queryTag, ",")
+			if parts[0] != "" {
+				fieldName = parts[0]
+			}
+		}
+		
+		// Convert field name to lowercase for matching (common in query parameters)
+		fieldNameLower := strings.ToLower(fieldName)
+		
+		// Handle array notation: try fieldName[] first, then fieldName
+		var values []string
+		var found bool
+		
+		// Try array notation first (e.g., points[])
+		arrayNotation := fieldName + "[]"
+		if vals, ok := queryValues[arrayNotation]; ok && len(vals) > 0 {
+			values = vals
+			found = true
+		} else if vals, ok := queryValues[strings.ToLower(arrayNotation)]; ok && len(vals) > 0 {
+			values = vals
+			found = true
+		} else if vals, ok := queryValues[fieldName]; ok && len(vals) > 0 {
+			// Try exact field name
+			values = vals
+			found = true
+		} else if vals, ok := queryValues[fieldNameLower]; ok && len(vals) > 0 {
+			// Try lowercase field name
+			values = vals
+			found = true
+		}
+		
+		if !found || len(values) == 0 {
+			continue
+		}
+		
+		// Handle slice/array fields specially - use all values
+		if fieldValue.Kind() == reflect.Slice {
+			// Create a new slice with the appropriate type
+			sliceType := fieldValue.Type().Elem()
+			slice := reflect.MakeSlice(fieldValue.Type(), len(values), len(values))
+			
+			for i, val := range values {
+				elemValue := reflect.New(sliceType).Elem()
+				if err := setFieldValue(elemValue, val); err != nil {
+					return fmt.Errorf("failed to set slice element %s[%d]: %w", fieldName, i, err)
+				}
+				slice.Index(i).Set(elemValue)
+			}
+			
+			fieldValue.Set(slice)
+		} else {
+			// For non-slice fields, get the first value
+			value := values[0]
+			if err := setFieldValue(fieldValue, value); err != nil {
+				return fmt.Errorf("failed to set field %s: %w", fieldName, err)
+			}
+		}
+	}
+	
+	return nil
+}
+
+// populateStructFromForm populates a struct from form values using reflection
+// It uses JSON struct tags to map form field names to struct fields
+func populateStructFromForm(formValues map[string][]string, v interface{}) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("v must be a pointer to a struct")
+	}
+	
+	rv = rv.Elem()
+	rt := rv.Type()
+	
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		fieldValue := rv.Field(i)
+		
+		if !fieldValue.CanSet() {
+			continue
+		}
+		
+		// Get the JSON tag name, or use the field name as fallback
+		fieldName := field.Name
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+			// Remove options like "omitempty" from the tag
+			parts := strings.Split(jsonTag, ",")
+			if parts[0] != "" {
+				fieldName = parts[0]
+			}
+		}
+		
+		// Convert field name to lowercase for matching (common in form submissions)
+		fieldNameLower := strings.ToLower(fieldName)
+		
+		// Try to find the form value by exact name first, then by lowercase
+		var values []string
+		var found bool
+		if vals, ok := formValues[fieldName]; ok && len(vals) > 0 {
+			values = vals
+			found = true
+		} else if vals, ok := formValues[fieldNameLower]; ok && len(vals) > 0 {
+			values = vals
+			found = true
+		} else if vals, ok := formValues[field.Tag.Get("form")]; ok && len(vals) > 0 {
+			// Also check for "form" tag
+			values = vals
+			found = true
+		}
+		
+		if !found || len(values) == 0 {
+			continue
+		}
+		
+		// Get the first value (form fields can have multiple values, we take the first)
+		value := values[0]
+		
+		// Set the field value based on its type
+		if err := setFieldValue(fieldValue, value); err != nil {
+			return fmt.Errorf("failed to set field %s: %w", fieldName, err)
+		}
+	}
+	
+	return nil
+}
+
+// setFieldValue sets a reflect.Value from a string form value
+func setFieldValue(fieldValue reflect.Value, value string) error {
+	if !fieldValue.CanSet() {
+		return fmt.Errorf("field is not settable")
+	}
+	
+	switch fieldValue.Kind() {
+	case reflect.String:
+		fieldValue.SetString(value)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		intVal, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid integer value: %w", err)
+		}
+		fieldValue.SetInt(intVal)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		uintVal, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid unsigned integer value: %w", err)
+		}
+		fieldValue.SetUint(uintVal)
+	case reflect.Float32, reflect.Float64:
+		floatVal, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("invalid float value: %w", err)
+		}
+		fieldValue.SetFloat(floatVal)
+	case reflect.Bool:
+		boolVal, err := strconv.ParseBool(value)
+		if err != nil {
+			// Also accept "1", "true", "yes", "on" as true, and "0", "false", "no", "off" as false
+			lowerValue := strings.ToLower(value)
+			if lowerValue == "1" || lowerValue == "true" || lowerValue == "yes" || lowerValue == "on" {
+				boolVal = true
+			} else if lowerValue == "0" || lowerValue == "false" || lowerValue == "no" || lowerValue == "off" {
+				boolVal = false
+			} else {
+				return fmt.Errorf("invalid boolean value: %w", err)
+			}
+		}
+		fieldValue.SetBool(boolVal)
+	default:
+		return fmt.Errorf("unsupported field type: %s", fieldValue.Kind())
+	}
+	
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
@@ -1318,7 +1739,7 @@ func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request)
 		Passions       map[string]bool `json:"passions"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -1383,7 +1804,7 @@ func (h *AuthHandler) CreateProfileLimitation(w http.ResponseWriter, r *http.Req
 		Note string `json:"note,omitempty"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -1477,7 +1898,7 @@ func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Req
 		Note string `json:"note,omitempty"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -1842,7 +2263,7 @@ func (h *AuthHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		Status            bool   `json:"status"`  // boolean value
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -1983,7 +2404,7 @@ func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Reque
 		TradesEmail            bool `json:"trades_email"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -2087,7 +2508,7 @@ func (h *AuthHandler) UpdatePrivacySettings(w http.ResponseWriter, r *http.Reque
 		Value interface{} `json:"value"` // Accepts boolean or numeric (0/1)
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -2263,7 +2684,7 @@ func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
 		EventDescription  string `json:"event_description"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -2322,7 +2743,7 @@ func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request)
 		Response string `json:"response"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -2397,7 +2818,7 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -2445,7 +2866,7 @@ func (h *AuthHandler) SearchFeatures(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {
@@ -2502,7 +2923,7 @@ func (h *AuthHandler) SearchIsicCodes(w http.ResponseWriter, r *http.Request) {
 		SearchTerm string `json:"searchTerm"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeError(w, http.StatusBadRequest, "request body is required")
 		} else {

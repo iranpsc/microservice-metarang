@@ -116,7 +116,7 @@ func (h *ProfitHandler) GetProfitsByApplication(w http.ResponseWriter, r *http.R
 		Karbari string `json:"karbari"`
 	}
 
-	if err := decodeJSONBody(r, &req); err != nil {
+	if err := decodeRequestBody(r, &req); err != nil {
 		if err == io.EOF {
 			writeValidationError(w, "request body is required")
 		} else {

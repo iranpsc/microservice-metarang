@@ -9,7 +9,12 @@ DOCKER_REGISTRY=metargb
 VERSION?=latest
 
 # Docker Compose compatibility - auto-detect docker-compose or docker compose plugin
+# Windows PowerShell doesn't support 'command -v', so default to 'docker compose' (modern Docker Desktop)
+ifeq ($(OS),Windows_NT)
+DOCKER_COMPOSE := docker compose
+else
 DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null || echo "docker compose")
+endif
 
 help:
 	@echo "Available targets:"
