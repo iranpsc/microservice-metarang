@@ -8,6 +8,9 @@ PROTO_OUT_DIR=shared/pb
 DOCKER_REGISTRY=metargb
 VERSION?=latest
 
+# Docker Compose compatibility - auto-detect docker-compose or docker compose plugin
+DOCKER_COMPOSE := $(shell command -v docker-compose 2> /dev/null || echo "docker compose")
+
 help:
 	@echo "Available targets:"
 	@echo ""
@@ -513,7 +516,7 @@ phase6-cleanup:
 
 up:
 	@echo "🚀 Starting all microservices..."
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo "✅ All services started!"
 	@echo ""
 	@echo "Services available at:"
@@ -526,21 +529,21 @@ up:
 
 down:
 	@echo "🛑 Stopping all microservices..."
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 	@echo "✅ All services stopped"
 
 restart:
 	@echo "🔄 Restarting all microservices..."
-	docker-compose restart
+	$(DOCKER_COMPOSE) restart
 	@echo "✅ All services restarted"
 
 logs:
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 ps:
 	@echo "📊 Service Status:"
 	@echo ""
-	docker-compose ps
+	$(DOCKER_COMPOSE) ps
 	@echo ""
 	@echo "Healthy services:"
 	@docker ps --filter "health=healthy" --format "  ✅ {{.Names}}"
@@ -550,7 +553,7 @@ ps:
 
 build:
 	@echo "🔨 Building all services..."
-	docker-compose build
+	$(DOCKER_COMPOSE) build
 	@echo "✅ Build complete"
 
 build-service:
@@ -560,12 +563,12 @@ build-service:
 		exit 1; \
 	fi
 	@echo "🔨 Building $(SERVICE)..."
-	docker-compose build $(SERVICE)
+	$(DOCKER_COMPOSE) build $(SERVICE)
 	@echo "✅ $(SERVICE) built successfully"
 
 clean:
 	@echo "🧹 Cleaning up Docker resources..."
-	docker-compose down -v
+	$(DOCKER_COMPOSE) down -v
 	docker system prune -f
 	@echo "✅ Cleanup complete"
 
@@ -613,7 +616,7 @@ dev:
 		exit 1; \
 	fi
 	@echo "Starting MySQL and Redis..."
-	docker-compose up -d mysql redis
+	$(DOCKER_COMPOSE) up -d mysql redis
 	@echo "Waiting for database to be ready..."
 	@sleep 10
 	@echo "Checking if schema needs to be imported..."
@@ -626,7 +629,7 @@ dev:
 	fi
 	@echo ""
 	@echo "Starting all services..."
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "✅ Development environment ready!"
 	@make ps
@@ -636,21 +639,21 @@ stop-service:
 		echo "❌ Please specify SERVICE=service-name"; \
 		exit 1; \
 	fi
-	docker-compose stop $(SERVICE)
+	$(DOCKER_COMPOSE) stop $(SERVICE)
 
 start-service:
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Please specify SERVICE=service-name"; \
 		exit 1; \
 	fi
-	docker-compose start $(SERVICE)
+	$(DOCKER_COMPOSE) start $(SERVICE)
 
 logs-service:
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Please specify SERVICE=service-name"; \
 		exit 1; \
 	fi
-	docker-compose logs -f $(SERVICE)
+	$(DOCKER_COMPOSE) logs -f $(SERVICE)
 
 # =============================================================================
 # Development with Hot Reloading
@@ -658,7 +661,7 @@ logs-service:
 
 dev-up:
 	@echo "🚀 Starting development environment with hot reloading..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d
 	@echo "✅ Development services started with hot reloading!"
 	@echo ""
 	@echo "Services available at:"
@@ -674,27 +677,27 @@ dev-up:
 
 dev-down:
 	@echo "🛑 Stopping development services..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml down
 	@echo "✅ Development services stopped"
 
 dev-build:
 	@echo "🔨 Building development images with hot reloading support..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml build
 	@echo "✅ Development images built successfully"
 
 dev-logs:
 	@echo "📝 Following development service logs (Ctrl+C to stop)..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml logs -f
 
 dev-restart:
 	@echo "🔄 Restarting development services..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml restart
 	@echo "✅ Development services restarted"
 
 dev-ps:
 	@echo "📊 Development Service Status:"
 	@echo ""
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml ps
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml ps
 	@echo ""
 	@echo "Healthy services:"
 	@docker ps --filter "health=healthy" --format "  ✅ {{.Names}}"
