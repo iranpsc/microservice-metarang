@@ -111,6 +111,10 @@ func mapKYCServiceError(err error) error {
 		errors.Is(err, service.ErrInvalidProvince),
 		errors.Is(err, service.ErrInvalidGender),
 		errors.Is(err, service.ErrMelliCodeNotUnique):
+		locale := "en" // TODO: Get locale from config or context
+		if fields, ok := mapServiceErrorToValidationFields(err, locale); ok {
+			return returnValidationError(fields)
+		}
 		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	default:
 		return status.Errorf(codes.Internal, "operation failed: %v", err)
@@ -144,6 +148,10 @@ func mapServiceError(err error) error {
 		errors.Is(err, service.ErrInvalidCardNum),
 		errors.Is(err, service.ErrShabaNumNotUnique),
 		errors.Is(err, service.ErrCardNumNotUnique):
+		locale := "en" // TODO: Get locale from config or context
+		if fields, ok := mapServiceErrorToValidationFields(err, locale); ok {
+			return returnValidationError(fields)
+		}
 		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	default:
 		return status.Errorf(codes.Internal, "operation failed: %v", err)

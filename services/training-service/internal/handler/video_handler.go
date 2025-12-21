@@ -118,8 +118,10 @@ func (h *VideoHandler) GetVideoByFileName(ctx context.Context, req *trainingpb.G
 
 // SearchVideos searches videos by title
 func (h *VideoHandler) SearchVideos(ctx context.Context, req *trainingpb.SearchVideosRequest) (*trainingpb.VideosResponse, error) {
-	if req.Query == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "search term is required")
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := validateRequired("query", req.Query, locale)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	page := int32(1)

@@ -11,6 +11,7 @@ import (
 
 	"metargb/auth-service/internal/service"
 	pb "metargb/shared/pb/auth"
+	"metargb/shared/pkg/helpers"
 )
 
 type citizenHandler struct {
@@ -27,7 +28,12 @@ func RegisterCitizenHandler(grpcServer *grpc.Server, citizenService service.Citi
 // GetCitizenProfile returns the public profile for a citizen identified by code
 func (h *citizenHandler) GetCitizenProfile(ctx context.Context, req *pb.GetCitizenProfileRequest) (*pb.CitizenProfileResponse, error) {
 	if req.Code == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "code is required")
+		locale := "en" // TODO: Get locale from config or context
+		t := helpers.GetLocaleTranslations(locale)
+		validationErrors := map[string]string{
+			"code": fmt.Sprintf(t.Required, "code"),
+		}
+		return nil, returnValidationError(validationErrors)
 	}
 
 	profile, err := h.citizenService.GetCitizenProfile(ctx, req.Code)
@@ -148,7 +154,12 @@ func (h *citizenHandler) GetCitizenProfile(ctx context.Context, req *pb.GetCitiz
 // GetCitizenReferrals lists referrals for a citizen with pagination
 func (h *citizenHandler) GetCitizenReferrals(ctx context.Context, req *pb.GetCitizenReferralsRequest) (*pb.CitizenReferralsResponse, error) {
 	if req.Code == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "code is required")
+		locale := "en" // TODO: Get locale from config or context
+		t := helpers.GetLocaleTranslations(locale)
+		validationErrors := map[string]string{
+			"code": fmt.Sprintf(t.Required, "code"),
+		}
+		return nil, returnValidationError(validationErrors)
 	}
 
 	page := req.Page
@@ -208,7 +219,12 @@ func (h *citizenHandler) GetCitizenReferrals(ctx context.Context, req *pb.GetCit
 // GetCitizenReferralChart provides aggregated referral analytics
 func (h *citizenHandler) GetCitizenReferralChart(ctx context.Context, req *pb.GetCitizenReferralChartRequest) (*pb.CitizenReferralChartResponse, error) {
 	if req.Code == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "code is required")
+		locale := "en" // TODO: Get locale from config or context
+		t := helpers.GetLocaleTranslations(locale)
+		validationErrors := map[string]string{
+			"code": fmt.Sprintf(t.Required, "code"),
+		}
+		return nil, returnValidationError(validationErrors)
 	}
 
 	rangeType := req.Range

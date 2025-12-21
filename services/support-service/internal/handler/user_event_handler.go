@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 	pbCommon "metargb/shared/pb/common"
 	pb "metargb/shared/pb/support"
+	"metargb/shared/pkg/helpers"
 )
 
 type UserEventHandler struct {
@@ -30,11 +31,13 @@ func RegisterUserEventHandler(grpcServer *grpc.Server, userEventService service.
 }
 
 func (h *UserEventHandler) CreateUserEvent(ctx context.Context, req *pb.CreateUserEventRequest) (*pb.UserEventResponse, error) {
-	if req.UserId == 0 {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
-	if req.Title == "" {
-		return nil, status.Error(codes.InvalidArgument, "title is required")
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := mergeValidationErrors(
+		validateRequired("user_id", req.UserId, locale),
+		validateRequired("title", req.Title, locale),
+	)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	event, err := h.userEventService.CreateUserEvent(ctx, req.UserId, req.Title, req.Description, req.EventDate)
@@ -46,8 +49,10 @@ func (h *UserEventHandler) CreateUserEvent(ctx context.Context, req *pb.CreateUs
 }
 
 func (h *UserEventHandler) GetUserEvents(ctx context.Context, req *pb.GetUserEventsRequest) (*pb.UserEventsResponse, error) {
-	if req.UserId == 0 {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := validateRequired("user_id", req.UserId, locale)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	page := int32(1)
@@ -84,8 +89,10 @@ func (h *UserEventHandler) GetUserEvents(ctx context.Context, req *pb.GetUserEve
 }
 
 func (h *UserEventHandler) GetUserEvent(ctx context.Context, req *pb.GetUserEventRequest) (*pb.UserEventResponse, error) {
-	if req.EventId == 0 {
-		return nil, status.Error(codes.InvalidArgument, "event_id is required")
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := validateRequired("event_id", req.EventId, locale)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	event, err := h.userEventService.GetUserEvent(ctx, req.EventId)
@@ -101,11 +108,13 @@ func (h *UserEventHandler) GetUserEvent(ctx context.Context, req *pb.GetUserEven
 }
 
 func (h *UserEventHandler) ReportUserEvent(ctx context.Context, req *pb.ReportUserEventRequest) (*pb.UserEventReportResponse, error) {
-	if req.EventId == 0 {
-		return nil, status.Error(codes.InvalidArgument, "event_id is required")
-	}
-	if req.EventDescription == "" {
-		return nil, status.Error(codes.InvalidArgument, "event_description is required")
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := mergeValidationErrors(
+		validateRequired("event_id", req.EventId, locale),
+		validateRequired("event_description", req.EventDescription, locale),
+	)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	report, err := h.userEventService.ReportUserEvent(ctx, req.EventId, req.SuspiciousCitizen, req.EventDescription)
@@ -117,11 +126,13 @@ func (h *UserEventHandler) ReportUserEvent(ctx context.Context, req *pb.ReportUs
 }
 
 func (h *UserEventHandler) SendEventReportResponse(ctx context.Context, req *pb.SendEventReportResponseRequest) (*pbCommon.Empty, error) {
-	if req.ReportId == 0 {
-		return nil, status.Error(codes.InvalidArgument, "report_id is required")
-	}
-	if req.Response == "" {
-		return nil, status.Error(codes.InvalidArgument, "response is required")
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := mergeValidationErrors(
+		validateRequired("report_id", req.ReportId, locale),
+		validateRequired("response", req.Response, locale),
+	)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	// Get responder name (should query user service in production)

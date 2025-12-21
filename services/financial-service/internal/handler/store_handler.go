@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -10,6 +11,7 @@ import (
 
 	"metargb/financial-service/internal/service"
 	pb "metargb/shared/pb/financial"
+	"metargb/shared/pkg/helpers"
 )
 
 type StoreHandler struct {
@@ -29,15 +31,22 @@ func RegisterStoreHandler(grpcServer *grpc.Server, storeService service.StoreSer
 }
 
 func (h *StoreHandler) GetStorePackages(ctx context.Context, req *pb.GetStorePackagesRequest) (*pb.GetStorePackagesResponse, error) {
-	// Validation
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := make(map[string]string)
+	t := helpers.GetLocaleTranslations(locale)
+
 	if len(req.Codes) < 2 {
-		return nil, status.Errorf(codes.InvalidArgument, "codes must contain at least 2 items")
+		validationErrors["codes"] = fmt.Sprintf(t.Min, "codes", "2")
 	}
 
-	for _, code := range req.Codes {
+	for i, code := range req.Codes {
 		if len(code) < 2 {
-			return nil, status.Errorf(codes.InvalidArgument, "each code must be at least 2 characters")
+			validationErrors[fmt.Sprintf("codes.%d", i)] = fmt.Sprintf(t.Min, fmt.Sprintf("codes.%d", i), "2")
 		}
+	}
+
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	// Call service

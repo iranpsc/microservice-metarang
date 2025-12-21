@@ -17,6 +17,7 @@ import (
 
 	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
+	"metargb/shared/pkg/helpers"
 )
 
 type AuthHandler struct {
@@ -30,9 +31,10 @@ type AuthHandler struct {
 	settingsClient          pb.SettingsServiceClient
 	userEventsClient        pb.UserEventsServiceClient
 	searchClient            pb.SearchServiceClient
+	locale                  string
 }
 
-func NewAuthHandler(conn *grpc.ClientConn) *AuthHandler {
+func NewAuthHandler(conn *grpc.ClientConn, locale string) *AuthHandler {
 	return &AuthHandler{
 		authClient:              pb.NewAuthServiceClient(conn),
 		userClient:              pb.NewUserServiceClient(conn),
@@ -44,7 +46,13 @@ func NewAuthHandler(conn *grpc.ClientConn) *AuthHandler {
 		settingsClient:          pb.NewSettingsServiceClient(conn),
 		userEventsClient:        pb.NewUserEventsServiceClient(conn),
 		searchClient:            pb.NewSearchServiceClient(conn),
+		locale:                  locale,
 	}
+}
+
+// writeGRPCErrorLocale writes gRPC errors using the handler's locale
+func (h *AuthHandler) writeGRPCErrorLocale(w http.ResponseWriter, err error) {
+	writeGRPCErrorWithLocale(w, err, h.locale)
 }
 
 // Register handles POST /api/auth/register
@@ -70,7 +78,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.authClient.Register(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -89,7 +97,7 @@ func (h *AuthHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.authClient.Redirect(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -108,7 +116,7 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.authClient.Callback(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -139,7 +147,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.authClient.GetMe(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -187,7 +195,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.authClient.Logout(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -215,7 +223,7 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.authClient.ValidateToken(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -258,7 +266,7 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 
 	_, err = h.authClient.RequestAccountSecurity(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -291,6 +299,8 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Validation is now handled in the auth-service
+
 	// Extract IP and UserAgent from request
 	ip := getClientIP(r)
 	userAgent := r.UserAgent()
@@ -304,7 +314,7 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 
 	_, err = h.authClient.VerifyAccountSecurity(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -334,7 +344,7 @@ func (h *AuthHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userClient.GetUser(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -368,7 +378,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userClient.UpdateProfile(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -423,7 +433,7 @@ func (h *AuthHandler) GetProfileLimitations(w http.ResponseWriter, r *http.Reque
 
 	resp, err := h.userClient.GetProfileLimitations(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -478,7 +488,7 @@ func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userClient.ListUsers(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -545,12 +555,26 @@ func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // GetUserLevels handles GET /api/users/{user}/levels
 func (h *AuthHandler) GetUserLevels(w http.ResponseWriter, r *http.Request) {
-	userIDStr := extractIDFromPath(r.URL.Path, "/api/users/")
-	if userIDStr == "" {
-		writeError(w, http.StatusBadRequest, "user_id is required")
+	// Extract user ID from path: /api/users/{user}/levels
+	pathStr := strings.TrimPrefix(r.URL.Path, "/api/users/")
+	// Remove query params if any
+	if idx := strings.Index(pathStr, "?"); idx != -1 {
+		pathStr = pathStr[:idx]
+	}
+	pathParts := strings.Split(strings.Trim(pathStr, "/"), "/")
+	// Filter out empty parts
+	var cleanParts []string
+	for _, part := range pathParts {
+		if part != "" {
+			cleanParts = append(cleanParts, part)
+		}
+	}
+	if len(cleanParts) < 2 || cleanParts[0] == "" || cleanParts[1] != "levels" {
+		writeError(w, http.StatusBadRequest, "invalid path format: expected /api/users/{user}/levels")
 		return
 	}
 
+	userIDStr := cleanParts[0]
 	userID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid user_id")
@@ -563,7 +587,7 @@ func (h *AuthHandler) GetUserLevels(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userClient.GetUserLevels(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -606,12 +630,26 @@ func (h *AuthHandler) GetUserLevels(w http.ResponseWriter, r *http.Request) {
 
 // GetUserProfile handles GET /api/users/{user}/profile
 func (h *AuthHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
-	userIDStr := extractIDFromPath(r.URL.Path, "/api/users/")
-	if userIDStr == "" {
-		writeError(w, http.StatusBadRequest, "user_id is required")
+	// Extract user ID from path: /api/users/{user}/profile
+	pathStr := strings.TrimPrefix(r.URL.Path, "/api/users/")
+	// Remove query params if any
+	if idx := strings.Index(pathStr, "?"); idx != -1 {
+		pathStr = pathStr[:idx]
+	}
+	pathParts := strings.Split(strings.Trim(pathStr, "/"), "/")
+	// Filter out empty parts
+	var cleanParts []string
+	for _, part := range pathParts {
+		if part != "" {
+			cleanParts = append(cleanParts, part)
+		}
+	}
+	if len(cleanParts) < 2 || cleanParts[0] == "" || cleanParts[1] != "profile" {
+		writeError(w, http.StatusBadRequest, "invalid path format: expected /api/users/{user}/profile")
 		return
 	}
 
+	userIDStr := cleanParts[0]
 	userID, err := strconv.ParseUint(userIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid user_id")
@@ -632,7 +670,7 @@ func (h *AuthHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userClient.GetUserProfile(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -660,6 +698,59 @@ func (h *AuthHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
 }
 
+// GetUserWallet handles GET /api/users/{user}/wallet
+func (h *AuthHandler) GetUserWallet(w http.ResponseWriter, r *http.Request) {
+	// Extract user ID from path: /api/users/{user}/wallet
+	pathStr := strings.TrimPrefix(r.URL.Path, "/api/users/")
+	// Remove query params if any
+	if idx := strings.Index(pathStr, "?"); idx != -1 {
+		pathStr = pathStr[:idx]
+	}
+	pathParts := strings.Split(strings.Trim(pathStr, "/"), "/")
+	// Filter out empty parts
+	var cleanParts []string
+	for _, part := range pathParts {
+		if part != "" {
+			cleanParts = append(cleanParts, part)
+		}
+	}
+	if len(cleanParts) < 2 || cleanParts[0] == "" || cleanParts[1] != "wallet" {
+		writeError(w, http.StatusBadRequest, "invalid path format: expected /api/users/{user}/wallet")
+		return
+	}
+
+	userIDStr := cleanParts[0]
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user_id")
+		return
+	}
+
+	grpcReq := &pb.GetUserWalletRequest{
+		UserId: userID,
+	}
+
+	resp, err := h.userClient.GetUserWallet(r.Context(), grpcReq)
+	if err != nil {
+		h.writeGRPCErrorLocale(w, err)
+		return
+	}
+
+	// Format response according to Laravel WalletResource spec
+	// Documentation specifies: psc, irr, red, blue, yellow, satisfaction, effect
+	data := map[string]interface{}{
+		"psc":          resp.Psc,
+		"irr":          resp.Irr,
+		"red":          resp.Red,
+		"blue":         resp.Blue,
+		"yellow":       resp.Yellow,
+		"satisfaction": resp.Satisfaction,
+		"effect":       resp.Effect,
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
+}
+
 // GetUserFeaturesCount handles GET /api/users/{user}/features/count
 func (h *AuthHandler) GetUserFeaturesCount(w http.ResponseWriter, r *http.Request) {
 	// Extract user ID from path: /api/users/{user}/features/count
@@ -682,7 +773,7 @@ func (h *AuthHandler) GetUserFeaturesCount(w http.ResponseWriter, r *http.Reques
 
 	resp, err := h.userClient.GetUserFeaturesCount(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -716,7 +807,7 @@ func (h *AuthHandler) ListBankAccounts(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.kycClient.ListBankAccounts(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -753,7 +844,7 @@ func (h *AuthHandler) CreateBankAccount(w http.ResponseWriter, r *http.Request) 
 
 	resp, err := h.kycClient.CreateBankAccount(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -805,7 +896,7 @@ func (h *AuthHandler) GetBankAccount(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.kycClient.GetBankAccount(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -864,7 +955,7 @@ func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) 
 
 	resp, err := h.kycClient.UpdateBankAccount(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -916,7 +1007,7 @@ func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) 
 
 	_, err = h.kycClient.DeleteBankAccount(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1382,18 +1473,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
-// writeValidationError writes a 422 Unprocessable Entity response with Laravel-compatible format
-func writeValidationError(w http.ResponseWriter, message string) {
-	// Try to parse the error message as JSON (if it contains structured validation errors)
-	// Otherwise, return a simple validation error format
-	response := map[string]interface{}{
-		"message": message,
-		"errors":  map[string][]string{},
-	}
-	writeJSON(w, http.StatusUnprocessableEntity, response)
+func writeGRPCError(w http.ResponseWriter, err error) {
+	writeGRPCErrorWithLocale(w, err, "en")
 }
 
-func writeGRPCError(w http.ResponseWriter, err error) {
+func writeGRPCErrorWithLocale(w http.ResponseWriter, err error, locale string) {
 	st, ok := status.FromError(err)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -1406,8 +1490,20 @@ func writeGRPCError(w http.ResponseWriter, err error) {
 	case codes.NotFound:
 		writeError(w, http.StatusNotFound, st.Message())
 	case codes.InvalidArgument:
-		// Validation errors should return 422 Unprocessable Entity per Laravel API spec
-		writeValidationError(w, st.Message())
+		// Try to decode structured validation errors from service
+		errorMsg := st.Message()
+		if fields, decoded := helpers.DecodeValidationError(errorMsg); decoded {
+			// Use decoded field errors
+			helpers.WriteValidationErrorResponseFromMap(w, fields, locale)
+		} else {
+			// Fallback: try to map error message to fields
+			if fields, mapped := helpers.DecodeValidationError(errorMsg); mapped {
+				helpers.WriteValidationErrorResponseFromMap(w, fields, locale)
+			} else {
+				// Last resort: return as generic validation error
+				helpers.WriteValidationErrorResponseFromString(w, errorMsg, locale)
+			}
+		}
 	case codes.PermissionDenied:
 		writeError(w, http.StatusForbidden, st.Message())
 	case codes.AlreadyExists:
@@ -1484,6 +1580,87 @@ func extractIDFromPath(path, prefix string) string {
 	return id
 }
 
+// HandleUsersRoutes handles all /api/users/{user}/... routes
+func (h *AuthHandler) HandleUsersRoutes(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	// Path format: /api/users/{user}/levels, /api/users/{user}/profile, etc.
+
+	// Remove prefix to get the dynamic part
+	userPath := strings.TrimPrefix(path, "/api/users/")
+	// Clean up the path - remove leading/trailing slashes and query params
+	userPath = strings.Trim(userPath, "/")
+	if idx := strings.Index(userPath, "?"); idx != -1 {
+		userPath = userPath[:idx]
+	}
+
+	if userPath == "" {
+		// This should not happen as /api/users is handled above, but handle it anyway
+		http.NotFound(w, r)
+		return
+	}
+
+	pathParts := strings.Split(userPath, "/")
+	// Filter out empty parts
+	var cleanParts []string
+	for _, part := range pathParts {
+		if part != "" {
+			cleanParts = append(cleanParts, part)
+		}
+	}
+
+	if len(cleanParts) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	// First part is the user ID, rest is the endpoint
+	endpoint := ""
+	if len(cleanParts) > 1 {
+		endpoint = cleanParts[1]
+	}
+
+	// Route to appropriate handler based on endpoint
+	switch endpoint {
+	case "levels":
+		if r.Method == http.MethodGet {
+			h.GetUserLevels(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	case "profile":
+		if r.Method == http.MethodGet {
+			h.GetUserProfile(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	case "wallet":
+		if r.Method == http.MethodGet {
+			h.GetUserWallet(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	case "features":
+		if len(cleanParts) >= 3 && cleanParts[2] == "count" {
+			if r.Method == http.MethodGet {
+				h.GetUserFeaturesCount(w, r)
+			} else {
+				http.NotFound(w, r)
+			}
+		} else {
+			http.NotFound(w, r)
+		}
+	case "profile-limitations":
+		if r.Method == http.MethodGet {
+			h.GetProfileLimitations(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	default:
+		// If no endpoint specified, treat as invalid
+		http.NotFound(w, r)
+	}
+}
+
 // ============================================================================
 // Citizen Service Handlers (Public endpoints - no auth required)
 // ============================================================================
@@ -1529,7 +1706,7 @@ func (h *AuthHandler) GetCitizenProfile(w http.ResponseWriter, r *http.Request, 
 
 	resp, err := h.citizenClient.GetCitizenProfile(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1555,7 +1732,7 @@ func (h *AuthHandler) GetCitizenReferrals(w http.ResponseWriter, r *http.Request
 
 	resp, err := h.citizenClient.GetCitizenReferrals(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1576,7 +1753,7 @@ func (h *AuthHandler) GetCitizenReferralChart(w http.ResponseWriter, r *http.Req
 
 	resp, err := h.citizenClient.GetCitizenReferralChart(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1602,7 +1779,7 @@ func (h *AuthHandler) GetPersonalInfo(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.personalInfoClient.GetPersonalInfo(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1721,7 +1898,7 @@ func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request)
 
 	_, err = h.personalInfoClient.UpdatePersonalInfo(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1780,7 +1957,7 @@ func (h *AuthHandler) CreateProfileLimitation(w http.ResponseWriter, r *http.Req
 
 	resp, err := h.profileLimitationClient.CreateProfileLimitation(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1866,7 +2043,7 @@ func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Req
 
 	resp, err := h.profileLimitationClient.UpdateProfileLimitation(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1923,7 +2100,7 @@ func (h *AuthHandler) DeleteProfileLimitation(w http.ResponseWriter, r *http.Req
 
 	_, err = h.profileLimitationClient.DeleteProfileLimitation(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1950,7 +2127,7 @@ func (h *AuthHandler) GetProfileLimitation(w http.ResponseWriter, r *http.Reques
 
 	resp, err := h.profileLimitationClient.GetProfileLimitation(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -1997,7 +2174,7 @@ func (h *AuthHandler) ListProfilePhotos(w http.ResponseWriter, r *http.Request) 
 
 	resp, err := h.profilePhotoClient.ListProfilePhotos(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2045,7 +2222,7 @@ func (h *AuthHandler) UploadProfilePhoto(w http.ResponseWriter, r *http.Request)
 
 	resp, err := h.profilePhotoClient.UploadProfilePhoto(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2073,7 +2250,7 @@ func (h *AuthHandler) GetProfilePhoto(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.profilePhotoClient.GetProfilePhoto(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2109,7 +2286,7 @@ func (h *AuthHandler) DeleteProfilePhoto(w http.ResponseWriter, r *http.Request)
 
 	_, err = h.profilePhotoClient.DeleteProfilePhoto(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2135,7 +2312,7 @@ func (h *AuthHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.settingsClient.GetSettings(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2212,7 +2389,7 @@ func (h *AuthHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.settingsClient.UpdateSettings(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2235,7 +2412,7 @@ func (h *AuthHandler) GetGeneralSettings(w http.ResponseWriter, r *http.Request)
 
 	resp, err := h.settingsClient.GetGeneralSettings(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2319,7 +2496,7 @@ func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Reque
 
 	resp, err := h.settingsClient.UpdateGeneralSettings(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2355,7 +2532,7 @@ func (h *AuthHandler) GetPrivacySettings(w http.ResponseWriter, r *http.Request)
 
 	resp, err := h.settingsClient.GetPrivacySettings(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2418,7 +2595,7 @@ func (h *AuthHandler) UpdatePrivacySettings(w http.ResponseWriter, r *http.Reque
 
 	_, err = h.settingsClient.UpdatePrivacySettings(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2455,7 +2632,7 @@ func (h *AuthHandler) ListUserEvents(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userEventsClient.ListUserEvents(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2501,7 +2678,7 @@ func (h *AuthHandler) GetUserEvent(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userEventsClient.GetUserEvent(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2554,7 +2731,7 @@ func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.userEventsClient.ReportUserEvent(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2605,7 +2782,7 @@ func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request)
 
 	resp, err := h.userEventsClient.SendReportResponse(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2642,7 +2819,7 @@ func (h *AuthHandler) CloseEventReport(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.userEventsClient.CloseEventReport(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2671,7 +2848,7 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.searchClient.SearchUsers(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2719,7 +2896,7 @@ func (h *AuthHandler) SearchFeatures(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.searchClient.SearchFeatures(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 
@@ -2776,7 +2953,7 @@ func (h *AuthHandler) SearchIsicCodes(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.searchClient.SearchIsicCodes(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		h.writeGRPCErrorLocale(w, err)
 		return
 	}
 

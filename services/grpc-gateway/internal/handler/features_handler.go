@@ -21,15 +21,17 @@ type FeaturesHandler struct {
 	profitClient      featurespb.FeatureProfitServiceClient
 	buildingClient    featurespb.BuildingServiceClient
 	authClient        pb.AuthServiceClient
+	locale            string
 }
 
-func NewFeaturesHandler(featuresConn, authConn *grpc.ClientConn) *FeaturesHandler {
+func NewFeaturesHandler(featuresConn, authConn *grpc.ClientConn, locale string) *FeaturesHandler {
 	return &FeaturesHandler{
 		featureClient:     featurespb.NewFeatureServiceClient(featuresConn),
 		marketplaceClient: featurespb.NewFeatureMarketplaceServiceClient(featuresConn),
 		profitClient:      featurespb.NewFeatureProfitServiceClient(featuresConn),
 		buildingClient:    featurespb.NewBuildingServiceClient(featuresConn),
 		authClient:        pb.NewAuthServiceClient(authConn),
+		locale:            locale,
 	}
 }
 
@@ -55,7 +57,7 @@ func (h *FeaturesHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(pointsParam, "[") {
 			// JSON array format
 			if err := json.Unmarshal([]byte(pointsParam), &points); err != nil {
-				writeValidationError(w, "invalid points format: expected array of 'x,y' strings")
+				writeValidationErrorWithLocale(w, "invalid points format: expected array of 'x,y' strings", h.locale)
 				return
 			}
 		} else {
@@ -63,13 +65,13 @@ func (h *FeaturesHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 			points = strings.Split(pointsParam, ",")
 		}
 	} else {
-		writeValidationError(w, "points parameter is required")
+		writeValidationErrorWithLocale(w, "points parameter is required", h.locale)
 		return
 	}
 
 	// Validate points (min:4 per documentation)
 	if len(points) < 4 {
-		writeValidationError(w, "points array must have at least 4 elements")
+		writeValidationErrorWithLocale(w, "points array must have at least 4 elements", h.locale)
 		return
 	}
 
@@ -489,9 +491,9 @@ func (h *FeaturesHandler) BuildFeature(w http.ResponseWriter, r *http.Request) {
 	var reqBody map[string]interface{}
 	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
-			writeValidationError(w, "request body is required")
+			writeValidationErrorWithLocale(w, "request body is required", h.locale)
 		} else {
-			writeValidationError(w, "invalid request body")
+			writeValidationErrorWithLocale(w, "invalid request body", h.locale)
 		}
 		return
 	}
@@ -645,9 +647,9 @@ func (h *FeaturesHandler) UpdateBuilding(w http.ResponseWriter, r *http.Request)
 	var reqBody map[string]interface{}
 	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
-			writeValidationError(w, "request body is required")
+			writeValidationErrorWithLocale(w, "request body is required", h.locale)
 		} else {
-			writeValidationError(w, "invalid request body")
+			writeValidationErrorWithLocale(w, "invalid request body", h.locale)
 		}
 		return
 	}
@@ -854,9 +856,9 @@ func (h *FeaturesHandler) CreateSellRequest(w http.ResponseWriter, r *http.Reque
 	var reqBody map[string]interface{}
 	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
-			writeValidationError(w, "request body is required")
+			writeValidationErrorWithLocale(w, "request body is required", h.locale)
 		} else {
-			writeValidationError(w, "invalid request body")
+			writeValidationErrorWithLocale(w, "invalid request body", h.locale)
 		}
 		return
 	}
@@ -1008,9 +1010,9 @@ func (h *FeaturesHandler) UpdateGracePeriod(w http.ResponseWriter, r *http.Reque
 	var reqBody map[string]interface{}
 	if err := decodeRequestBody(r, &reqBody); err != nil {
 		if err == io.EOF {
-			writeValidationError(w, "request body is required")
+			writeValidationErrorWithLocale(w, "request body is required", h.locale)
 		} else {
-			writeValidationError(w, "invalid request body")
+			writeValidationErrorWithLocale(w, "invalid request body", h.locale)
 		}
 		return
 	}
@@ -1022,13 +1024,13 @@ func (h *FeaturesHandler) UpdateGracePeriod(w http.ResponseWriter, r *http.Reque
 	} else if gp, ok := reqBody["grace_period"].(int); ok {
 		gracePeriodDays = int32(gp)
 	} else {
-		writeValidationError(w, "grace_period is required and must be an integer")
+		writeValidationErrorWithLocale(w, "grace_period is required and must be an integer", h.locale)
 		return
 	}
 
 	// Validate grace period range (1-30)
 	if gracePeriodDays < 1 || gracePeriodDays > 30 {
-		writeValidationError(w, "grace_period must be between 1 and 30")
+		writeValidationErrorWithLocale(w, "grace_period must be between 1 and 30", h.locale)
 		return
 	}
 

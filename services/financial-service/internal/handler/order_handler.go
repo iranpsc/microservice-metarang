@@ -29,13 +29,13 @@ func RegisterOrderHandler(grpcServer *grpc.Server, orderService service.OrderSer
 }
 
 func (h *OrderHandler) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (*pb.CreateOrderResponse, error) {
-	// Validation
-	if req.Amount < 1 {
-		return nil, status.Errorf(codes.InvalidArgument, "amount must be at least 1")
-	}
-
-	if req.Asset == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "asset is required")
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := mergeValidationErrors(
+		validateMin("amount", int64(req.Amount), 1, locale),
+		validateRequired("asset", req.Asset, locale),
+	)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
 	}
 
 	// Call service

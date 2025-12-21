@@ -493,8 +493,10 @@ func (h *DynastyHandler) SetChildPermissions(ctx context.Context, req *dynastypb
 	// API spec: POST /api/dynasty/children/{user} with {permission: "BFR", status: true}
 	// Updates a single permission flag
 	// The grpc-gateway sends a ChildPermissions object with only one permission set
+	locale := "en" // TODO: Get locale from config or context
 	if req.Permissions == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "permissions required")
+		validationErrors := validateRequired("permissions", nil, locale)
+		return nil, returnValidationError(validationErrors)
 	}
 
 	// Determine which permission is being set and its status
@@ -547,7 +549,10 @@ func (h *DynastyHandler) SetChildPermissions(ctx context.Context, req *dynastypb
 	}
 
 	if !found {
-		return nil, status.Errorf(codes.InvalidArgument, "must specify a permission to update")
+		validationErrors := make(map[string]string)
+		t := helpers.GetLocaleTranslations(locale)
+		validationErrors["permissions"] = fmt.Sprintf(t.Required, "permissions")
+		return nil, returnValidationError(validationErrors)
 	}
 
 	err := h.permissionService.UpdateChildPermission(ctx, req.ParentUserId, req.ChildUserId, permission, statusVal)

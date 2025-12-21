@@ -11,19 +11,22 @@ import (
 	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	financialpb "metargb/shared/pb/financial"
+	"metargb/shared/pkg/helpers"
 )
 
 type FinancialHandler struct {
 	orderClient financialpb.OrderServiceClient
 	storeClient financialpb.StoreServiceClient
 	authClient  pb.AuthServiceClient
+	locale      string
 }
 
-func NewFinancialHandler(financialConn, authConn *grpc.ClientConn) *FinancialHandler {
+func NewFinancialHandler(financialConn, authConn *grpc.ClientConn, locale string) *FinancialHandler {
 	return &FinancialHandler{
 		orderClient: financialpb.NewOrderServiceClient(financialConn),
 		storeClient: financialpb.NewStoreServiceClient(financialConn),
 		authClient:  pb.NewAuthServiceClient(authConn),
+		locale:      locale,
 	}
 }
 
@@ -58,18 +61,18 @@ func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	// Validate amount
 	if req.Amount < 1 {
-		writeValidationErrorWithErrors(w, "The amount field must be at least 1", map[string][]string{
-			"amount": {"The amount field must be at least 1"},
-		})
+		helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
+			"amount": "The amount field must be at least 1",
+		}, h.locale)
 		return
 	}
 
 	// Validate asset
 	validAssets := map[string]bool{"psc": true, "irr": true, "red": true, "blue": true, "yellow": true}
 	if !validAssets[req.Asset] {
-		writeValidationErrorWithErrors(w, "The selected asset is invalid", map[string][]string{
-			"asset": {"The selected asset is invalid"},
-		})
+		helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
+			"asset": "The selected asset is invalid",
+		}, h.locale)
 		return
 	}
 
@@ -179,18 +182,18 @@ func (h *FinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Reque
 
 	// Validation: at least 2 codes required
 	if len(req.Codes) < 2 {
-		writeValidationErrorWithErrors(w, "The codes field must contain at least 2 items", map[string][]string{
-			"codes": {"The codes field must contain at least 2 items"},
-		})
+		helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
+			"codes": "The codes field must contain at least 2 items",
+		}, h.locale)
 		return
 	}
 
 	// Validate each code
 	for i, code := range req.Codes {
 		if len(code) < 2 {
-			writeValidationErrorWithErrors(w, "The codes field must contain valid codes", map[string][]string{
-				"codes": {fmt.Sprintf("The codes.%d field must be at least 2 characters", i)},
-			})
+			helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
+				"codes": fmt.Sprintf("The codes.%d field must be at least 2 characters", i),
+			}, h.locale)
 			return
 		}
 	}
@@ -226,11 +229,15 @@ func (h *FinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, packages)
 }
 
-// Helper function (different signature - takes errors map)
+// Helper function (deprecated - use helpers.WriteValidationErrorResponseFromMap instead)
+// This function is kept for backward compatibility but should not be used in new code
 func writeValidationErrorWithErrors(w http.ResponseWriter, message string, errors map[string][]string) {
-	response := map[string]interface{}{
-		"message": message,
-		"errors":  errors,
+	// Convert map[string][]string to map[string]string (take first error for each field)
+	errorsMap := make(map[string]string)
+	for field, errs := range errors {
+		if len(errs) > 0 {
+			errorsMap[field] = errs[0]
+		}
 	}
-	writeJSON(w, http.StatusUnprocessableEntity, response)
+	helpers.WriteValidationErrorResponseFromMap(w, errorsMap, "en")
 }

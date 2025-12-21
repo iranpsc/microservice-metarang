@@ -16,9 +16,11 @@ type Config struct {
 	TrainingServiceAddr     string
 	SupportServiceAddr      string
 	NotificationServiceAddr string
+	Locale                  string
 }
 
 func Load() *Config {
+	locale := getEnv("LOCALE", "en")
 	return &Config{
 		HTTPPort:                getEnv("HTTP_PORT", "8080"),
 		AuthServiceAddr:         getEnv("AUTH_SERVICE_ADDR", "auth-service:50051"),
@@ -31,6 +33,7 @@ func Load() *Config {
 		TrainingServiceAddr:     getEnv("TRAINING_SERVICE_ADDR", "training-service:50057"),
 		SupportServiceAddr:      getEnv("SUPPORT_SERVICE_ADDR", "support-service:50056"),
 		NotificationServiceAddr: getEnv("NOTIFICATION_SERVICE_ADDR", "notifications-service:50058"),
+		Locale:                  locale,
 	}
 }
 

@@ -34,6 +34,7 @@ type ParsianConfig struct {
 type ServerConfig struct {
 	GRPCPort string
 	HTTPPort string
+	Locale   string
 }
 
 // LoadConfig loads configuration from environment variables
@@ -56,6 +57,7 @@ func LoadConfig() *Config {
 		Server: ServerConfig{
 			GRPCPort: getEnv("GRPC_PORT", "50051"),
 			HTTPPort: getEnv("HTTP_PORT", "8080"),
+			Locale:   getEnv("LOCALE", "en"),
 		},
 	}
 }
