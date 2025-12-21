@@ -263,7 +263,9 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Return 204 No Content per API specification
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message": "OTP sent successfully",
+	})
 }
 
 // VerifyAccountSecurity handles POST /api/account/security/verify
@@ -307,7 +309,9 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Return 204 No Content per API specification
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message": "OTP verified successfully",
+	})
 }
 
 // GetUser handles GET /api/user
