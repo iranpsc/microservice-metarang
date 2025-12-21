@@ -13,7 +13,7 @@ require (
 	metargb/shared v0.0.0
 )
 
-replace metargb/shared => /workspace/metargb/shared
+replace metargb/shared => ../../shared
 
 require (
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect

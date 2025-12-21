@@ -41,4 +41,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace metargb/shared => /workspace/metargb/shared
+replace metargb/shared => ../../shared
