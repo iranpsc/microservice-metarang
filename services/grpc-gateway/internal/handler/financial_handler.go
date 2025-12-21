@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	financialpb "metargb/shared/pb/financial"
 )
@@ -33,21 +34,13 @@ func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract token to get user_id
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	userID := validateResp.UserId
+	userID := userCtx.UserID
 
 	var req struct {
 		Amount int32  `json:"amount"`

@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	commonpb "metargb/shared/pb/common"
 	dynastypb "metargb/shared/pb/dynasty"
@@ -33,22 +34,15 @@ func NewDynastyHandler(dynastyConn, authConn *grpc.ClientConn) *DynastyHandler {
 
 // GetDynasty handles GET /api/dynasty
 func (h *DynastyHandler) GetDynasty(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
 	grpcReq := &dynastypb.GetUserDynastyRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.dynastyClient.GetUserDynasty(r.Context(), grpcReq)
@@ -62,16 +56,10 @@ func (h *DynastyHandler) GetDynasty(w http.ResponseWriter, r *http.Request) {
 
 // CreateDynasty handles POST /api/dynasty/create/{feature}
 func (h *DynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -89,7 +77,7 @@ func (h *DynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &dynastypb.CreateDynastyRequest{
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		FeatureId: featureID,
 	}
 
@@ -104,16 +92,10 @@ func (h *DynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
 
 // UpdateDynastyFeature handles POST /api/dynasty/{dynasty}/update/{feature}
 func (h *DynastyHandler) UpdateDynastyFeature(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -140,7 +122,7 @@ func (h *DynastyHandler) UpdateDynastyFeature(w http.ResponseWriter, r *http.Req
 	grpcReq := &dynastypb.UpdateDynastyFeatureRequest{
 		DynastyId: dynastyID,
 		FeatureId: featureID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 	}
 
 	resp, err := h.dynastyClient.UpdateDynastyFeature(r.Context(), grpcReq)
@@ -203,16 +185,10 @@ func (h *DynastyHandler) GetFamily(w http.ResponseWriter, r *http.Request) {
 
 // GetSentRequests handles GET /api/dynasty/requests/sent
 func (h *DynastyHandler) GetSentRequests(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -224,7 +200,7 @@ func (h *DynastyHandler) GetSentRequests(w http.ResponseWriter, r *http.Request)
 	}
 
 	grpcReq := &dynastypb.GetSentRequestsRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 		Pagination: &commonpb.PaginationRequest{
 			Page:    page,
 			PerPage: 10,
@@ -242,16 +218,10 @@ func (h *DynastyHandler) GetSentRequests(w http.ResponseWriter, r *http.Request)
 
 // GetReceivedRequests handles GET /api/dynasty/requests/recieved
 func (h *DynastyHandler) GetReceivedRequests(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -263,7 +233,7 @@ func (h *DynastyHandler) GetReceivedRequests(w http.ResponseWriter, r *http.Requ
 	}
 
 	grpcReq := &dynastypb.GetReceivedRequestsRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 		Pagination: &commonpb.PaginationRequest{
 			Page:    page,
 			PerPage: 10,
@@ -281,16 +251,10 @@ func (h *DynastyHandler) GetReceivedRequests(w http.ResponseWriter, r *http.Requ
 
 // SendJoinRequest handles POST /api/dynasty/add/member
 func (h *DynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -327,7 +291,7 @@ func (h *DynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	grpcReq := &dynastypb.SendJoinRequestRequest{
-		FromUserId:   validateResp.UserId,
+		FromUserId:   userCtx.UserID,
 		ToUserId:     req.User,
 		Relationship: req.Relationship,
 		Message:      req.Message,
@@ -345,16 +309,10 @@ func (h *DynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request)
 
 // AcceptJoinRequest handles POST /api/dynasty/requests/recieved/{joinRequest}
 func (h *DynastyHandler) AcceptJoinRequest(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -372,7 +330,7 @@ func (h *DynastyHandler) AcceptJoinRequest(w http.ResponseWriter, r *http.Reques
 
 	grpcReq := &dynastypb.AcceptJoinRequestRequest{
 		RequestId: requestID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 	}
 
 	_, err = h.joinRequestClient.AcceptJoinRequest(r.Context(), grpcReq)
@@ -386,16 +344,10 @@ func (h *DynastyHandler) AcceptJoinRequest(w http.ResponseWriter, r *http.Reques
 
 // RejectJoinRequest handles DELETE /api/dynasty/requests/recieved/{joinRequest}
 func (h *DynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -413,7 +365,7 @@ func (h *DynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Reques
 
 	grpcReq := &dynastypb.RejectJoinRequestRequest{
 		RequestId: requestID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 	}
 
 	_, err = h.joinRequestClient.RejectJoinRequest(r.Context(), grpcReq)
@@ -427,16 +379,10 @@ func (h *DynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Reques
 
 // DeleteJoinRequest handles DELETE /api/dynasty/requests/sent/{joinRequest}
 func (h *DynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -454,7 +400,7 @@ func (h *DynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Reques
 
 	grpcReq := &dynastypb.DeleteJoinRequestRequest{
 		RequestId: requestID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 	}
 
 	_, err = h.joinRequestClient.DeleteJoinRequest(r.Context(), grpcReq)
@@ -468,16 +414,10 @@ func (h *DynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Reques
 
 // GetPrizes handles GET /api/dynasty/prizes
 func (h *DynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -489,7 +429,7 @@ func (h *DynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &dynastypb.GetPrizesRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 		Pagination: &commonpb.PaginationRequest{
 			Page:    page,
 			PerPage: 10,
@@ -507,16 +447,10 @@ func (h *DynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
 
 // ClaimPrize handles POST /api/dynasty/prizes/{recievedPrize}
 func (h *DynastyHandler) ClaimPrize(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -534,7 +468,7 @@ func (h *DynastyHandler) ClaimPrize(w http.ResponseWriter, r *http.Request) {
 
 	grpcReq := &dynastypb.ClaimPrizeRequest{
 		PrizeId: prizeID,
-		UserId:  validateResp.UserId,
+		UserId:  userCtx.UserID,
 	}
 
 	_, err = h.prizeClient.ClaimPrize(r.Context(), grpcReq)
@@ -548,16 +482,10 @@ func (h *DynastyHandler) ClaimPrize(w http.ResponseWriter, r *http.Request) {
 
 // UpdateChildPermissions handles POST /api/dynasty/children/{user}
 func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -624,7 +552,7 @@ func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.R
 
 	grpcReq := &dynastypb.SetChildPermissionsRequest{
 		ChildUserId:  childUserID,
-		ParentUserId: validateResp.UserId,
+		ParentUserId: userCtx.UserID,
 		Permissions:  permissions,
 	}
 

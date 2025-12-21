@@ -6,9 +6,8 @@ import (
 	"strconv"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pbAuth "metargb/shared/pb/auth"
 	pbCommon "metargb/shared/pb/common"
 	pbSupport "metargb/shared/pb/support"
@@ -32,20 +31,13 @@ func NewSupportHandler(supportConn, authConn *grpc.ClientConn) *SupportHandler {
 	}
 }
 
-// Helper function to get authenticated user ID
+// Helper function to get authenticated user ID from context (set by auth middleware)
 func (h *SupportHandler) getAuthUserID(r *http.Request) (uint64, error) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		return 0, status.Error(codes.Unauthenticated, "authentication required")
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		return 0, err
 	}
-
-	validateReq := &pbAuth.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		return 0, status.Error(codes.Unauthenticated, "invalid or expired token")
-	}
-
-	return validateResp.UserId, nil
+	return userCtx.UserID, nil
 }
 
 // ============================================================================

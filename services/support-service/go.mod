@@ -9,7 +9,7 @@ require (
 	metargb/shared v0.0.0
 )
 
-replace metargb/shared => ../../shared
+replace metargb/shared => /workspace/metargb/shared
 
 require (
 	golang.org/x/net v0.46.0 // indirect

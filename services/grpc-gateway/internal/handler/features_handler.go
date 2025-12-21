@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	featurespb "metargb/shared/pb/features"
 )
@@ -83,14 +85,11 @@ func (h *FeaturesHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 		userFeaturesLocation = true
 	}
 
-	// Extract authenticated user ID from token (optional)
+	// Extract authenticated user ID from context (optional - set by optionalAuthMiddleware)
 	var authUserID uint64
-	token := extractTokenFromHeader(r)
-	if token != "" {
-		validateReq := &pb.ValidateTokenRequest{Token: token}
-		if validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq); err == nil && validateResp.Valid {
-			authUserID = validateResp.UserId
-		}
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err == nil {
+		authUserID = userCtx.UserID
 	}
 
 	// Build gRPC request
@@ -273,8 +272,12 @@ func (h *FeaturesHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 			// Determine construction status
 			status := "completed"
 			if building.ConstructionEndDate != "" {
-				// Could check if end_date is in the future for "in progress"
-				// For now, default to completed
+				// Check if end_date is in the future for "in progress"
+				if endDate, err := time.Parse(time.RFC3339, building.ConstructionEndDate); err == nil {
+					if endDate.After(time.Now()) {
+						status = "in_progress"
+					}
+				}
 			}
 
 			buildingMap := map[string]interface{}{
@@ -305,21 +308,13 @@ func (h *FeaturesHandler) BuyFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract token (required)
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	// Validate token to get user ID
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	buyerID := validateResp.UserId
+	buyerID := userCtx.UserID
 
 	// Extract feature ID from path
 	path := strings.TrimPrefix(r.URL.Path, "/api/features/buy/")
@@ -395,16 +390,10 @@ func (h *FeaturesHandler) GetBuildPackage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware) - authentication required but user ID not used
+	_, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -474,16 +463,10 @@ func (h *FeaturesHandler) BuildFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	_, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	// Get user from context (set by auth middleware)
+	_, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
@@ -636,16 +619,10 @@ func (h *FeaturesHandler) UpdateBuilding(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	_, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	// Get user from context (set by auth middleware)
+	_, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
@@ -734,16 +711,10 @@ func (h *FeaturesHandler) DestroyBuilding(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	_, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	// Get user from context (set by auth middleware)
+	_, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
@@ -785,19 +756,13 @@ func (h *FeaturesHandler) ListSellRequests(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	sellerID := validateResp.UserId
+	sellerID := userCtx.UserID
 
 	grpcReq := &featurespb.ListSellRequestsRequest{
 		SellerId: sellerID,
@@ -868,19 +833,13 @@ func (h *FeaturesHandler) CreateSellRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	sellerID := validateResp.UserId
+	sellerID := userCtx.UserID
 
 	// Extract feature ID from path
 	path := strings.TrimPrefix(r.URL.Path, "/api/sell-requests/store/")
@@ -988,19 +947,13 @@ func (h *FeaturesHandler) DeleteSellRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	sellerID := validateResp.UserId
+	sellerID := userCtx.UserID
 
 	// Extract sell request ID from path
 	path := strings.TrimPrefix(r.URL.Path, "/api/sell-requests/")
@@ -1034,19 +987,13 @@ func (h *FeaturesHandler) UpdateGracePeriod(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	sellerID := validateResp.UserId
+	sellerID := userCtx.UserID
 
 	// Extract buy request ID from path
 	path := strings.TrimPrefix(r.URL.Path, "/api/buy-requests/add-grace-period/")

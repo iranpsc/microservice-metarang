@@ -1,0 +1,20 @@
+go 1.25.5
+
+use (
+	./services/auth-service
+	./services/calendar-service
+	./services/commercial-service
+	./services/dynasty-service
+	./services/features-service
+	./services/financial-service
+	./services/grpc-gateway
+	./services/health-check-service
+	./services/levels-service
+	./services/notifications-service
+	./services/social-service
+	./services/storage-service
+	./services/support-service
+	./services/training-service
+)
+
+replace metargb/shared => ./shared

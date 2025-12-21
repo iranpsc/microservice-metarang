@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	featurespb "metargb/shared/pb/features"
 )
@@ -17,16 +18,10 @@ func (h *FeaturesHandler) ListMyFeatures(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -38,7 +33,7 @@ func (h *FeaturesHandler) ListMyFeatures(w http.ResponseWriter, r *http.Request)
 	}
 
 	grpcReq := &featurespb.ListMyFeaturesRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 		Page:   page,
 	}
 

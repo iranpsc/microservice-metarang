@@ -7,9 +7,8 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	socialpb "metargb/shared/pb/social"
 )
@@ -42,20 +41,13 @@ func (h *SocialHandler) extractTokenFromHeader(r *http.Request) string {
 	return authHeader
 }
 
-// getUserIdFromToken extracts user ID from token
-func (h *SocialHandler) getUserIdFromToken(r *http.Request) (uint64, error) {
-	token := h.extractTokenFromHeader(r)
-	if token == "" {
-		return 0, status.Error(codes.Unauthenticated, "authentication required")
+// getUserIDFromToken extracts user ID from context (set by auth middleware)
+func (h *SocialHandler) getUserIDFromToken(r *http.Request) (uint64, error) {
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		return 0, err
 	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		return 0, status.Error(codes.Unauthenticated, "invalid or expired token")
-	}
-
-	return validateResp.UserId, nil
+	return userCtx.UserID, nil
 }
 
 // GetFollowers handles GET /api/followers
@@ -65,7 +57,7 @@ func (h *SocialHandler) GetFollowers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -88,7 +80,7 @@ func (h *SocialHandler) GetFollowing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -111,7 +103,7 @@ func (h *SocialHandler) Follow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -150,7 +142,7 @@ func (h *SocialHandler) Unfollow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -189,7 +181,7 @@ func (h *SocialHandler) Remove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -228,7 +220,7 @@ func (h *SocialHandler) GetTimings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -255,7 +247,7 @@ func (h *SocialHandler) GetQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -278,7 +270,7 @@ func (h *SocialHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.getUserIdFromToken(r)
+	userID, err := h.getUserIDFromToken(r)
 	if err != nil {
 		writeGRPCError(w, err)
 		return

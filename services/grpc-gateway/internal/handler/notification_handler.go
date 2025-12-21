@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	commonpb "metargb/shared/pb/common"
 	notificationpb "metargb/shared/pb/notifications"
@@ -250,20 +251,9 @@ func (h *NotificationHandler) transformNotification(notif *notificationpb.Notifi
 // Helper methods from other handlers
 
 func (h *NotificationHandler) extractUserID(r *http.Request) (uint64, error) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		return 0, http.ErrMissingFile // Use as sentinel error
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		return 0, err
 	}
-
-	if !validateResp.Valid {
-		return 0, http.ErrMissingFile // Use as sentinel error
-	}
-
-	return validateResp.UserId, nil
+	return userCtx.UserID, nil
 }

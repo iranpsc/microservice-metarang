@@ -1,3 +1,4 @@
+// Package handler provides HTTP handlers for the gRPC gateway service.
 package handler
 
 import (
@@ -14,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 )
 
@@ -124,15 +126,15 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 // GetMe handles POST /api/auth/me
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	// Extract token from Authorization header
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
 	grpcReq := &pb.GetMeRequest{
-		Token: token,
+		Token: userCtx.Token,
 	}
 
 	resp, err := h.authClient.GetMe(r.Context(), grpcReq)
@@ -172,18 +174,18 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 // Logout handles POST /api/auth/logout
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	// Extract token from Authorization header
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
 	grpcReq := &pb.LogoutRequest{
-		Token: token,
+		Token: userCtx.Token,
 	}
 
-	_, err := h.authClient.Logout(r.Context(), grpcReq)
+	_, err = h.authClient.Logout(r.Context(), grpcReq)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -226,22 +228,10 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 
 // RequestAccountSecurity handles POST /api/account/security
 func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Request) {
-	// Extract token from Authorization header
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	if !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
@@ -261,7 +251,7 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 	}
 
 	grpcReq := &pb.RequestAccountSecurityRequest{
-		UserId:      validateResp.UserId,
+		UserId:      userCtx.UserID,
 		TimeMinutes: req.Time,
 		Phone:       req.Phone,
 	}
@@ -278,22 +268,10 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 
 // VerifyAccountSecurity handles POST /api/account/security/verify
 func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Request) {
-	// Extract token from Authorization header
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "missing or invalid authorization token")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	if !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
@@ -316,7 +294,7 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 	userAgent := r.UserAgent()
 
 	grpcReq := &pb.VerifyAccountSecurityRequest{
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		Code:      req.Code,
 		Ip:        ip,
 		UserAgent: userAgent,
@@ -395,22 +373,14 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 // GetProfileLimitations handles GET /api/user/profile-limitations or GET /api/users/{user}/profile-limitations
 func (h *AuthHandler) GetProfileLimitations(w http.ResponseWriter, r *http.Request) {
-	// Extract token to get caller user ID
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Validate token to get caller user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
-	callerUserID := validateResp.UserId
+	callerUserID := userCtx.UserID
 
 	// Try to extract target user ID from path first (/api/users/{user}/profile-limitations)
 	targetUserIDStr := ""
@@ -646,12 +616,9 @@ func (h *AuthHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Get viewer user ID from token if authenticated
 	var viewerUserID uint64
-	token := extractTokenFromHeader(r)
-	if token != "" {
-		validateReq := &pb.ValidateTokenRequest{Token: token}
-		if validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq); err == nil && validateResp.Valid {
-			viewerUserID = validateResp.UserId
-		}
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err == nil {
+		viewerUserID = userCtx.UserID
 	}
 
 	grpcReq := &pb.GetUserProfileRequest{
@@ -961,18 +928,18 @@ func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) 
 func decodeRequest(r *http.Request, v interface{}) error {
 	// First, try to populate from query parameters
 	queryErr := decodeQueryParams(r, v)
-	
+
 	// Check if body exists and has content
 	hasBody := r.Body != nil && r.ContentLength > 0
 	if !hasBody {
 		// If no body, return query params result (even if empty, that's OK)
 		return queryErr
 	}
-	
+
 	// If we have a body, try to decode it
 	contentType := r.Header.Get("Content-Type")
 	var bodyErr error
-	
+
 	// Handle JSON requests
 	if strings.HasPrefix(contentType, "application/json") {
 		bodyErr = decodeJSONBody(r, v)
@@ -983,18 +950,18 @@ func decodeRequest(r *http.Request, v interface{}) error {
 		// Default to JSON if content type is not specified or unknown
 		bodyErr = decodeJSONBody(r, v)
 	}
-	
+
 	// If body decoding succeeded, use it (body takes precedence over query params for same fields)
 	// If body decoding failed but query params succeeded, use query params
 	if bodyErr == nil {
 		return nil
 	}
-	
+
 	// If body decoding failed but query params succeeded, return query params result
 	if queryErr == nil {
 		return nil
 	}
-	
+
 	// Both failed, return body error (more specific)
 	return bodyErr
 }
@@ -1004,7 +971,7 @@ func decodeRequest(r *http.Request, v interface{}) error {
 // If the body is empty, it will also check query string parameters
 func decodeRequestBody(r *http.Request, v interface{}) error {
 	hasBody := r.Body != nil && r.ContentLength > 0
-	
+
 	// If no body, try query parameters
 	if !hasBody {
 		return decodeQueryParams(r, v)
@@ -1012,7 +979,7 @@ func decodeRequestBody(r *http.Request, v interface{}) error {
 
 	contentType := r.Header.Get("Content-Type")
 	var bodyErr error
-	
+
 	// Handle JSON requests
 	if strings.HasPrefix(contentType, "application/json") {
 		bodyErr = decodeJSONBody(r, v)
@@ -1024,19 +991,19 @@ func decodeRequestBody(r *http.Request, v interface{}) error {
 		// This maintains backward compatibility
 		bodyErr = decodeJSONBody(r, v)
 	}
-	
+
 	// If body decoding succeeded, also merge query parameters (query params can supplement body data)
 	if bodyErr == nil {
 		// Try to merge query parameters (non-destructive - only sets fields that are zero values)
 		mergeQueryParams(r, v)
 		return nil
 	}
-	
+
 	// If body decoding failed, try query parameters as fallback
 	if queryErr := decodeQueryParams(r, v); queryErr == nil {
 		return nil
 	}
-	
+
 	// Both failed, return body error
 	return bodyErr
 }
@@ -1048,28 +1015,28 @@ func mergeQueryParams(r *http.Request, v interface{}) {
 	if len(queryValues) == 0 {
 		return
 	}
-	
+
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
 		return
 	}
-	
+
 	rv = rv.Elem()
 	rt := rv.Type()
-	
+
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
 		fieldValue := rv.Field(i)
-		
+
 		if !fieldValue.CanSet() {
 			continue
 		}
-		
+
 		// Only set if field is zero value (empty)
 		if !isZeroValue(fieldValue) {
 			continue
 		}
-		
+
 		// Get the JSON tag name, or use the field name as fallback
 		fieldName := field.Name
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
@@ -1078,7 +1045,7 @@ func mergeQueryParams(r *http.Request, v interface{}) {
 				fieldName = parts[0]
 			}
 		}
-		
+
 		// Check for "query" tag as well
 		if queryTag := field.Tag.Get("query"); queryTag != "" && queryTag != "-" {
 			parts := strings.Split(queryTag, ",")
@@ -1086,10 +1053,10 @@ func mergeQueryParams(r *http.Request, v interface{}) {
 				fieldName = parts[0]
 			}
 		}
-		
+
 		// Convert field name to lowercase for matching
 		fieldNameLower := strings.ToLower(fieldName)
-		
+
 		// Try to find the query value
 		var values []string
 		var found bool
@@ -1100,11 +1067,11 @@ func mergeQueryParams(r *http.Request, v interface{}) {
 			values = vals
 			found = true
 		}
-		
+
 		if !found || len(values) == 0 {
 			continue
 		}
-		
+
 		// Get the first value and set it
 		value := values[0]
 		setFieldValue(fieldValue, value) // Ignore errors for merge
@@ -1134,12 +1101,12 @@ func isZeroValue(v reflect.Value) bool {
 // decodeQueryParams decodes query string parameters into a struct
 func decodeQueryParams(r *http.Request, v interface{}) error {
 	queryValues := r.URL.Query()
-	
+
 	// If no query parameters, return nil (not an error, just empty)
 	if len(queryValues) == 0 {
 		return nil
 	}
-	
+
 	// Use reflection to populate the struct
 	return populateStructFromQuery(queryValues, v)
 }
@@ -1174,9 +1141,9 @@ func decodeJSONBody(r *http.Request, v interface{}) error {
 // decodeFormData decodes form-data (multipart/form-data or application/x-www-form-urlencoded) into a struct
 func decodeFormData(r *http.Request, v interface{}) error {
 	contentType := r.Header.Get("Content-Type")
-	
+
 	var formValues map[string][]string
-	
+
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		// Parse multipart form
 		err := r.ParseMultipartForm(32 << 20) // 32MB max memory
@@ -1192,7 +1159,7 @@ func decodeFormData(r *http.Request, v interface{}) error {
 		}
 		formValues = r.PostForm
 	}
-	
+
 	// Use reflection to populate the struct
 	return populateStructFromForm(formValues, v)
 }
@@ -1204,18 +1171,18 @@ func populateStructFromQuery(queryValues map[string][]string, v interface{}) err
 	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf("v must be a pointer to a struct")
 	}
-	
+
 	rv = rv.Elem()
 	rt := rv.Type()
-	
+
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
 		fieldValue := rv.Field(i)
-		
+
 		if !fieldValue.CanSet() {
 			continue
 		}
-		
+
 		// Get the JSON tag name, or use the field name as fallback
 		fieldName := field.Name
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
@@ -1225,7 +1192,7 @@ func populateStructFromQuery(queryValues map[string][]string, v interface{}) err
 				fieldName = parts[0]
 			}
 		}
-		
+
 		// Check for "query" tag as well
 		if queryTag := field.Tag.Get("query"); queryTag != "" && queryTag != "-" {
 			parts := strings.Split(queryTag, ",")
@@ -1233,14 +1200,14 @@ func populateStructFromQuery(queryValues map[string][]string, v interface{}) err
 				fieldName = parts[0]
 			}
 		}
-		
+
 		// Convert field name to lowercase for matching (common in query parameters)
 		fieldNameLower := strings.ToLower(fieldName)
-		
+
 		// Handle array notation: try fieldName[] first, then fieldName
 		var values []string
 		var found bool
-		
+
 		// Try array notation first (e.g., points[])
 		arrayNotation := fieldName + "[]"
 		if vals, ok := queryValues[arrayNotation]; ok && len(vals) > 0 {
@@ -1258,17 +1225,17 @@ func populateStructFromQuery(queryValues map[string][]string, v interface{}) err
 			values = vals
 			found = true
 		}
-		
+
 		if !found || len(values) == 0 {
 			continue
 		}
-		
+
 		// Handle slice/array fields specially - use all values
 		if fieldValue.Kind() == reflect.Slice {
 			// Create a new slice with the appropriate type
 			sliceType := fieldValue.Type().Elem()
 			slice := reflect.MakeSlice(fieldValue.Type(), len(values), len(values))
-			
+
 			for i, val := range values {
 				elemValue := reflect.New(sliceType).Elem()
 				if err := setFieldValue(elemValue, val); err != nil {
@@ -1276,7 +1243,7 @@ func populateStructFromQuery(queryValues map[string][]string, v interface{}) err
 				}
 				slice.Index(i).Set(elemValue)
 			}
-			
+
 			fieldValue.Set(slice)
 		} else {
 			// For non-slice fields, get the first value
@@ -1286,7 +1253,7 @@ func populateStructFromQuery(queryValues map[string][]string, v interface{}) err
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -1297,18 +1264,18 @@ func populateStructFromForm(formValues map[string][]string, v interface{}) error
 	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf("v must be a pointer to a struct")
 	}
-	
+
 	rv = rv.Elem()
 	rt := rv.Type()
-	
+
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
 		fieldValue := rv.Field(i)
-		
+
 		if !fieldValue.CanSet() {
 			continue
 		}
-		
+
 		// Get the JSON tag name, or use the field name as fallback
 		fieldName := field.Name
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
@@ -1318,10 +1285,10 @@ func populateStructFromForm(formValues map[string][]string, v interface{}) error
 				fieldName = parts[0]
 			}
 		}
-		
+
 		// Convert field name to lowercase for matching (common in form submissions)
 		fieldNameLower := strings.ToLower(fieldName)
-		
+
 		// Try to find the form value by exact name first, then by lowercase
 		var values []string
 		var found bool
@@ -1336,20 +1303,20 @@ func populateStructFromForm(formValues map[string][]string, v interface{}) error
 			values = vals
 			found = true
 		}
-		
+
 		if !found || len(values) == 0 {
 			continue
 		}
-		
+
 		// Get the first value (form fields can have multiple values, we take the first)
 		value := values[0]
-		
+
 		// Set the field value based on its type
 		if err := setFieldValue(fieldValue, value); err != nil {
 			return fmt.Errorf("failed to set field %s: %w", fieldName, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -1358,7 +1325,7 @@ func setFieldValue(fieldValue reflect.Value, value string) error {
 	if !fieldValue.CanSet() {
 		return fmt.Errorf("field is not settable")
 	}
-	
+
 	switch fieldValue.Kind() {
 	case reflect.String:
 		fieldValue.SetString(value)
@@ -1397,7 +1364,7 @@ func setFieldValue(fieldValue reflect.Value, value string) error {
 	default:
 		return fmt.Errorf("unsupported field type: %s", fieldValue.Kind())
 	}
-	
+
 	return nil
 }
 
@@ -1618,22 +1585,15 @@ func (h *AuthHandler) GetCitizenReferralChart(w http.ResponseWriter, r *http.Req
 
 // GetPersonalInfo handles GET /api/personal-info
 func (h *AuthHandler) GetPersonalInfo(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
 	grpcReq := &pb.GetPersonalInfoRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.personalInfoClient.GetPersonalInfo(r.Context(), grpcReq)
@@ -1680,7 +1640,7 @@ func (h *AuthHandler) GetPersonalInfo(w http.ResponseWriter, r *http.Request) {
 	if resp.Data.About != "" {
 		data["about"] = resp.Data.About
 	}
-	if resp.Data.Passions != nil && len(resp.Data.Passions) > 0 {
+	if len(resp.Data.Passions) > 0 {
 		data["passions"] = resp.Data.Passions
 	}
 
@@ -1712,17 +1672,10 @@ func hasPersonalInfoData(data *pb.PersonalInfoData) bool {
 
 // UpdatePersonalInfo handles PUT/PATCH /api/personal-info
 func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -1749,7 +1702,7 @@ func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request)
 	}
 
 	grpcReq := &pb.UpdatePersonalInfoRequest{
-		UserId:         validateResp.UserId,
+		UserId:         userCtx.UserID,
 		Occupation:     req.Occupation,
 		Education:      req.Education,
 		Memory:         req.Memory,
@@ -1777,17 +1730,10 @@ func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request)
 
 // CreateProfileLimitation handles POST /api/profile-limitations
 func (h *AuthHandler) CreateProfileLimitation(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -1815,7 +1761,7 @@ func (h *AuthHandler) CreateProfileLimitation(w http.ResponseWriter, r *http.Req
 
 	// Validate that all six options are provided
 	grpcReq := &pb.CreateProfileLimitationRequest{
-		LimiterUserId: validateResp.UserId,
+		LimiterUserId: userCtx.UserID,
 		LimitedUserId: req.LimitedUserID,
 		Options: &pb.ProfileLimitationOptions{
 			Follow:                req.Options.Follow,
@@ -1860,17 +1806,10 @@ func (h *AuthHandler) CreateProfileLimitation(w http.ResponseWriter, r *http.Req
 
 // UpdateProfileLimitation handles PUT/PATCH /api/profile-limitations/{limitation_id}
 func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -1909,7 +1848,7 @@ func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Req
 
 	grpcReq := &pb.UpdateProfileLimitationRequest{
 		LimitationId:  limitationID,
-		LimiterUserId: validateResp.UserId,
+		LimiterUserId: userCtx.UserID,
 		Options: &pb.ProfileLimitationOptions{
 			Follow:                req.Options.Follow,
 			SendMessage:           req.Options.SendMessage,
@@ -1945,7 +1884,7 @@ func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Req
 	}
 
 	// Only include note if caller is the limiter
-	if resp.Data.Note != "" && validateResp.UserId == resp.Data.LimiterUserId {
+	if resp.Data.Note != "" && userCtx.UserID == resp.Data.LimiterUserId {
 		data["note"] = resp.Data.Note
 	}
 
@@ -1954,17 +1893,10 @@ func (h *AuthHandler) UpdateProfileLimitation(w http.ResponseWriter, r *http.Req
 
 // DeleteProfileLimitation handles DELETE /api/profile-limitations/{limitation_id}
 func (h *AuthHandler) DeleteProfileLimitation(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -1982,7 +1914,7 @@ func (h *AuthHandler) DeleteProfileLimitation(w http.ResponseWriter, r *http.Req
 
 	grpcReq := &pb.DeleteProfileLimitationRequest{
 		LimitationId:  limitationID,
-		LimiterUserId: validateResp.UserId,
+		LimiterUserId: userCtx.UserID,
 	}
 
 	_, err = h.profileLimitationClient.DeleteProfileLimitation(r.Context(), grpcReq)
@@ -2048,22 +1980,15 @@ func (h *AuthHandler) GetProfileLimitation(w http.ResponseWriter, r *http.Reques
 
 // ListProfilePhotos handles GET /api/profilePhotos
 func (h *AuthHandler) ListProfilePhotos(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
 	grpcReq := &pb.ListProfilePhotosRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.profilePhotoClient.ListProfilePhotos(r.Context(), grpcReq)
@@ -2080,17 +2005,10 @@ func (h *AuthHandler) ListProfilePhotos(w http.ResponseWriter, r *http.Request) 
 
 // UploadProfilePhoto handles POST /api/profilePhotos
 func (h *AuthHandler) UploadProfilePhoto(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2115,7 +2033,7 @@ func (h *AuthHandler) UploadProfilePhoto(w http.ResponseWriter, r *http.Request)
 	}
 
 	grpcReq := &pb.UploadProfilePhotoRequest{
-		UserId:      validateResp.UserId,
+		UserId:      userCtx.UserID,
 		ImageData:   imageData,
 		Filename:    header.Filename,
 		ContentType: header.Header.Get("Content-Type"),
@@ -2161,17 +2079,10 @@ func (h *AuthHandler) GetProfilePhoto(w http.ResponseWriter, r *http.Request) {
 
 // DeleteProfilePhoto handles DELETE /api/profilePhotos/{profilePhoto}
 func (h *AuthHandler) DeleteProfilePhoto(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2188,7 +2099,7 @@ func (h *AuthHandler) DeleteProfilePhoto(w http.ResponseWriter, r *http.Request)
 	}
 
 	grpcReq := &pb.DeleteProfilePhotoRequest{
-		UserId:         validateResp.UserId,
+		UserId:         userCtx.UserID,
 		ProfilePhotoId: profilePhotoID,
 	}
 
@@ -2207,22 +2118,15 @@ func (h *AuthHandler) DeleteProfilePhoto(w http.ResponseWriter, r *http.Request)
 
 // GetSettings handles GET /api/settings
 func (h *AuthHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
 	grpcReq := &pb.GetSettingsRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.settingsClient.GetSettings(r.Context(), grpcReq)
@@ -2242,17 +2146,10 @@ func (h *AuthHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 
 // UpdateSettings handles POST /api/settings
 func (h *AuthHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2290,7 +2187,7 @@ func (h *AuthHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &pb.UpdateSettingsRequest{
-		UserId:            validateResp.UserId,
+		UserId:            userCtx.UserID,
 		CheckoutDaysCount: 0, // Will be set properly by handler logic
 		AutomaticLogout:   0, // Will be set properly by handler logic
 		Setting:           "",
@@ -2321,22 +2218,15 @@ func (h *AuthHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 // GetGeneralSettings handles GET /api/general-settings
 func (h *AuthHandler) GetGeneralSettings(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
 	grpcReq := &pb.GetGeneralSettingsRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.settingsClient.GetGeneralSettings(r.Context(), grpcReq)
@@ -2364,17 +2254,10 @@ func (h *AuthHandler) GetGeneralSettings(w http.ResponseWriter, r *http.Request)
 
 // UpdateGeneralSettings handles PUT /api/general-settings/{setting}
 func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2414,7 +2297,7 @@ func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Reque
 	}
 
 	grpcReq := &pb.UpdateGeneralSettingsRequest{
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		SettingId: settingID,
 		Notifications: &pb.NotificationSettingsData{
 			AnnouncementsSms:       req.AnnouncementsSMS,
@@ -2455,22 +2338,15 @@ func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Reque
 
 // GetPrivacySettings handles GET /api/privacy
 func (h *AuthHandler) GetPrivacySettings(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
 	grpcReq := &pb.GetPrivacySettingsRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.settingsClient.GetPrivacySettings(r.Context(), grpcReq)
@@ -2489,17 +2365,10 @@ func (h *AuthHandler) GetPrivacySettings(w http.ResponseWriter, r *http.Request)
 
 // UpdatePrivacySettings handles POST /api/privacy
 func (h *AuthHandler) UpdatePrivacySettings(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2538,7 +2407,7 @@ func (h *AuthHandler) UpdatePrivacySettings(w http.ResponseWriter, r *http.Reque
 	}
 
 	grpcReq := &pb.UpdatePrivacySettingsRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 		Key:    req.Key,
 		Value:  value,
 	}
@@ -2559,17 +2428,10 @@ func (h *AuthHandler) UpdatePrivacySettings(w http.ResponseWriter, r *http.Reque
 
 // ListUserEvents handles GET /api/events
 func (h *AuthHandler) ListUserEvents(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2583,7 +2445,7 @@ func (h *AuthHandler) ListUserEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &pb.ListUserEventsRequest{
-		UserId: validateResp.UserId,
+		UserId: userCtx.UserID,
 		Page:   page,
 	}
 
@@ -2608,17 +2470,10 @@ func (h *AuthHandler) ListUserEvents(w http.ResponseWriter, r *http.Request) {
 
 // GetUserEvent handles GET /api/events/{userEvent}
 func (h *AuthHandler) GetUserEvent(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2636,7 +2491,7 @@ func (h *AuthHandler) GetUserEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &pb.GetUserEventRequest{
-		UserId:  validateResp.UserId,
+		UserId:  userCtx.UserID,
 		EventId: eventID,
 	}
 
@@ -2652,17 +2507,10 @@ func (h *AuthHandler) GetUserEvent(w http.ResponseWriter, r *http.Request) {
 
 // ReportUserEvent handles POST /api/events/report/{userEvent}
 func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2694,7 +2542,7 @@ func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &pb.ReportUserEventRequest{
-		UserId:            validateResp.UserId,
+		UserId:            userCtx.UserID,
 		EventId:           eventID,
 		SuspeciousCitizen: req.SuspeciousCitizen,
 		EventDescription:  req.EventDescription,
@@ -2712,17 +2560,10 @@ func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
 
 // SendReportResponse handles POST /api/events/report/response/{userEvent}
 func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2753,7 +2594,7 @@ func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request)
 	}
 
 	grpcReq := &pb.SendReportResponseRequest{
-		UserId:   validateResp.UserId,
+		UserId:   userCtx.UserID,
 		EventId:  eventID,
 		Response: req.Response,
 	}
@@ -2770,17 +2611,10 @@ func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request)
 
 // CloseEventReport handles POST /api/events/report/close/{userEvent}
 func (h *AuthHandler) CloseEventReport(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	// Validate token to get user_id
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -2798,7 +2632,7 @@ func (h *AuthHandler) CloseEventReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &pb.CloseEventReportRequest{
-		UserId:  validateResp.UserId,
+		UserId:  userCtx.UserID,
 		EventId: eventID,
 	}
 

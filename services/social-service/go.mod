@@ -5,13 +5,11 @@ go 1.24.0
 toolchain go1.24.3
 
 require (
-	github.com/go-sql-driver/mysql v1.7.1
-	github.com/joho/godotenv v1.5.1
 	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.10
 )
 
-require metargb/shared v0.0.0-00010101000000-000000000000
+require metargb/shared v0.0.0
 
 require (
 	golang.org/x/net v0.46.0 // indirect

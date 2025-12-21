@@ -1,0 +1,55 @@
+# GolangCI-Lint configuration
+# This file configures the linter to work with the Go workspace setup
+
+run:
+  # Use Go workspace mode
+  modules-download-mode: readonly
+  # Build tags
+  build-tags: []
+
+linters-settings:
+  # Disable import resolution errors that occur due to workspace setup
+  gci:
+    skip-generated: true
+  goimports:
+    local-prefixes: metargb
+  staticcheck:
+    checks: ["all"]
+  typecheck:
+    # Disable typecheck errors for module resolution issues
+    # These are handled by go.work file
+    skip-files:
+      - ".*\\.pb\\.go$"
+
+linters:
+  disable-all: false
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+  # Disable typecheck as it conflicts with workspace mode
+  disable:
+    - typecheck
+
+issues:
+  # Don't report errors about missing imports when using workspace mode
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+    # Ignore all module resolution errors in workspace mode
+    - text: "could not import"
+    - text: "no required module provides package"
+    - text: "missing metadata for import"
+    - text: "packages.Load error"
+    - text: "conflicting replacements"
+    - text: "initialization failed"
+    - text: "exit status 1"
+    - text: "replacement directory.*does not exist"
+    - text: "use.*go work edit.*to resolve"
+

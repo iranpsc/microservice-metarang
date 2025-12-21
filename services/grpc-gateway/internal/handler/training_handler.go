@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	commonpb "metargb/shared/pb/common"
 	trainingpb "metargb/shared/pb/training"
@@ -72,11 +73,10 @@ func (h *TrainingHandler) GetVideo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userID uint64
-	token := extractTokenFromHeader(r)
-	if token != "" {
-		if validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token}); err == nil && validateResp.Valid {
-			userID = validateResp.UserId
-		}
+	// Get user from context (optional - set by optionalAuthMiddleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err == nil {
+		userID = userCtx.UserID
 	}
 
 	ipAddress := getIPAddress(r)
@@ -147,15 +147,10 @@ func (h *TrainingHandler) AddInteraction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -189,7 +184,7 @@ func (h *TrainingHandler) AddInteraction(w http.ResponseWriter, r *http.Request)
 
 	grpcReq := &trainingpb.AddInteractionRequest{
 		VideoId:   videoID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		Liked:     req.Liked,
 		IpAddress: ipAddress,
 	}
@@ -412,15 +407,10 @@ func (h *TrainingHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -450,7 +440,7 @@ func (h *TrainingHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 
 	grpcReq := &trainingpb.AddCommentRequest{
 		VideoId: videoID,
-		UserId:  validateResp.UserId,
+		UserId:  userCtx.UserID,
 		Content: req.Content,
 	}
 
@@ -470,15 +460,10 @@ func (h *TrainingHandler) UpdateComment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -509,7 +494,7 @@ func (h *TrainingHandler) UpdateComment(w http.ResponseWriter, r *http.Request) 
 
 	grpcReq := &trainingpb.UpdateCommentRequest{
 		CommentId: commentID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		Content:   req.Content,
 	}
 
@@ -529,15 +514,10 @@ func (h *TrainingHandler) DeleteComment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -549,7 +529,7 @@ func (h *TrainingHandler) DeleteComment(w http.ResponseWriter, r *http.Request) 
 
 	grpcReq := &trainingpb.DeleteCommentRequest{
 		CommentId: commentID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 	}
 
 	_, err = h.commentClient.DeleteComment(r.Context(), grpcReq)
@@ -568,15 +548,10 @@ func (h *TrainingHandler) AddCommentInteraction(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -603,7 +578,7 @@ func (h *TrainingHandler) AddCommentInteraction(w http.ResponseWriter, r *http.R
 
 	grpcReq := &trainingpb.AddCommentInteractionRequest{
 		CommentId: commentID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		Liked:     req.Liked,
 		IpAddress: ipAddress,
 	}
@@ -624,15 +599,10 @@ func (h *TrainingHandler) ReportComment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -664,7 +634,7 @@ func (h *TrainingHandler) ReportComment(w http.ResponseWriter, r *http.Request) 
 
 	grpcReq := &trainingpb.ReportCommentRequest{
 		CommentId: commentID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		Content:   req.Content,
 	}
 
@@ -717,15 +687,10 @@ func (h *TrainingHandler) AddReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -756,7 +721,7 @@ func (h *TrainingHandler) AddReply(w http.ResponseWriter, r *http.Request) {
 
 	grpcReq := &trainingpb.AddReplyRequest{
 		ParentCommentId: commentID,
-		UserId:          validateResp.UserId,
+		UserId:          userCtx.UserID,
 		Content:         req.Content,
 	}
 
@@ -776,15 +741,10 @@ func (h *TrainingHandler) UpdateReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -815,7 +775,7 @@ func (h *TrainingHandler) UpdateReply(w http.ResponseWriter, r *http.Request) {
 
 	grpcReq := &trainingpb.UpdateReplyRequest{
 		ReplyId: replyID,
-		UserId:  validateResp.UserId,
+		UserId:  userCtx.UserID,
 		Content: req.Content,
 	}
 
@@ -835,15 +795,10 @@ func (h *TrainingHandler) DeleteReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -855,7 +810,7 @@ func (h *TrainingHandler) DeleteReply(w http.ResponseWriter, r *http.Request) {
 
 	grpcReq := &trainingpb.DeleteReplyRequest{
 		ReplyId: replyID,
-		UserId:  validateResp.UserId,
+		UserId:  userCtx.UserID,
 	}
 
 	_, err = h.replyClient.DeleteReply(r.Context(), grpcReq)
@@ -874,15 +829,10 @@ func (h *TrainingHandler) AddReplyInteraction(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	token := extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateResp, err := h.authClient.ValidateToken(r.Context(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -909,7 +859,7 @@ func (h *TrainingHandler) AddReplyInteraction(w http.ResponseWriter, r *http.Req
 
 	grpcReq := &trainingpb.AddReplyInteractionRequest{
 		ReplyId:   replyID,
-		UserId:    validateResp.UserId,
+		UserId:    userCtx.UserID,
 		Liked:     req.Liked,
 		IpAddress: ipAddress,
 	}

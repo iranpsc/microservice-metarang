@@ -7,9 +7,8 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	featurespb "metargb/shared/pb/features"
 )
@@ -205,22 +204,11 @@ func (h *ProfitHandler) GetSingleProfit(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"data": profitMap})
 }
 
-// getAuthenticatedUserID extracts and validates user ID from JWT token
+// getAuthenticatedUserID extracts user ID from context (set by auth middleware)
 func (h *ProfitHandler) getAuthenticatedUserID(r *http.Request) (uint64, error) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		return 0, http.ErrNoCookie
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
+	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		return 0, err
 	}
-
-	if !validateResp.Valid {
-		return 0, status.Error(codes.Unauthenticated, "invalid token")
-	}
-
-	return validateResp.UserId, nil
+	return userCtx.UserID, nil
 }

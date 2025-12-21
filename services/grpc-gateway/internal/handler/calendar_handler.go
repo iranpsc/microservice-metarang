@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"metargb/grpc-gateway/internal/middleware"
 	pb "metargb/shared/pb/auth"
 	calendarpb "metargb/shared/pb/calendar"
 	commonpb "metargb/shared/pb/common"
@@ -56,15 +57,11 @@ func (h *CalendarHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Extract user ID from token if authenticated (optional - calendar is public)
+	// Extract user ID from context if authenticated (optional - calendar is public)
 	var userID uint64
-	token := h.extractTokenFromHeader(r)
-	if token != "" {
-		// Try to validate token to get user ID (optional - calendar is public)
-		validateReq := &pb.ValidateTokenRequest{Token: token}
-		if validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq); err == nil && validateResp.Valid {
-			userID = validateResp.UserId
-		}
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err == nil {
+		userID = userCtx.UserID
 	}
 
 	// Build gRPC request
@@ -165,11 +162,11 @@ func (h *CalendarHandler) GetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract user ID from token if authenticated
+	// Extract user ID from context if authenticated (optional - calendar is public)
 	var userID uint64
-	token := extractTokenFromHeader(r)
-	if token != "" {
-		// Try to validate token to get user ID (optional - calendar is public)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err == nil {
+		userID = userCtx.UserID
 	}
 
 	// Build gRPC request
@@ -307,9 +304,9 @@ func (h *CalendarHandler) AddInteraction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Extract token from Authorization header (required for this endpoint)
-	token := h.extractTokenFromHeader(r)
-	if token == "" {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
@@ -343,14 +340,7 @@ func (h *CalendarHandler) AddInteraction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Validate token to get user ID
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	validateResp, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil || !validateResp.Valid {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-	userID := validateResp.UserId
+	userID := userCtx.UserID
 
 	// Build gRPC request
 	grpcReq := &calendarpb.AddInteractionRequest{

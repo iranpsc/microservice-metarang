@@ -1,0 +1,8 @@
+{
+  "build.usePlaceholders": true,
+  "build.env": {
+    "GOWORK": "${workspaceFolder}/go.work"
+  },
+  "ui.diagnostic.workspaceDiagnostics": false
+}
+
