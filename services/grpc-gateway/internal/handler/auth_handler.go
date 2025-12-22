@@ -2445,7 +2445,7 @@ func (h *AuthHandler) UpdateGeneralSettings(w http.ResponseWriter, r *http.Reque
 	// Extract setting ID from path: /api/general-settings/{setting}
 	settingIDStr := extractIDFromPath(r.URL.Path, "/api/general-settings/")
 	if settingIDStr == "" {
-		writeError(w, http.StatusBadRequest, "setting ID is required in path")
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("setting ID is required in path. Received path: %s", r.URL.Path))
 		return
 	}
 
