@@ -62,7 +62,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "expr": "100 - (avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
           "legendFormat": "CPU Usage %",
           "refId": "A"
         }
@@ -180,7 +180,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "avg(service_health_status)",
+          "expr": "avg(service_health_status) * 100",
           "legendFormat": "Overall Service Health",
           "refId": "A"
         }
@@ -236,7 +236,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "(service_health_unhealthy / service_health_total) * 100",
+          "expr": "rate(service_health_total{status=\"unhealthy\"}[5m]) / rate(service_health_total[5m]) * 100",
           "legendFormat": "Error Rate %",
           "refId": "A"
         }
@@ -317,7 +317,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "expr": "100 - (avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
           "legendFormat": "CPU Usage",
           "refId": "A"
         },
@@ -385,7 +385,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "service_health_status",
+          "expr": "service_health_status{service!=\"health-check-service\"}",
           "legendFormat": "{{service}}",
           "refId": "A"
         }
@@ -466,7 +466,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "service_uptime_percentage",
+          "expr": "service_uptime_percentage{service!=\"health-check-service\"}",
           "legendFormat": "{{service}}",
           "refId": "A"
         }
@@ -547,12 +547,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "cache_hit_rate",
+          "expr": "cache_hit_rate * 100",
           "legendFormat": "Cache Hit Rate",
           "refId": "A"
         },
         {
-          "expr": "cache_miss_rate",
+          "expr": "cache_miss_rate * 100",
           "legendFormat": "Cache Miss Rate",
           "refId": "B"
         }
@@ -633,17 +633,17 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "db_connection_pool_open",
+          "expr": "db_connection_pool_open{service!=\"health-check-service\"}",
           "legendFormat": "{{service}} - Open",
           "refId": "A"
         },
         {
-          "expr": "db_connection_pool_in_use",
+          "expr": "db_connection_pool_in_use{service!=\"health-check-service\"}",
           "legendFormat": "{{service}} - In Use",
           "refId": "B"
         },
         {
-          "expr": "db_connection_pool_idle",
+          "expr": "db_connection_pool_idle{service!=\"health-check-service\"}",
           "legendFormat": "{{service}} - Idle",
           "refId": "C"
         }
@@ -724,12 +724,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "node_network_receive_bytes_total",
+          "expr": "rate(node_network_receive_bytes_total{device!~\"lo|docker.*|veth.*\"}[5m])",
           "legendFormat": "Network In",
           "refId": "A"
         },
         {
-          "expr": "node_network_transmit_bytes_total",
+          "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*\"}[5m])",
           "legendFormat": "Network Out",
           "refId": "B"
         }
@@ -810,12 +810,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "node_disk_read_bytes_total",
+          "expr": "rate(node_disk_read_bytes_total[5m])",
           "legendFormat": "Disk Read",
           "refId": "A"
         },
         {
-          "expr": "node_disk_written_bytes_total",
+          "expr": "rate(node_disk_written_bytes_total[5m])",
           "legendFormat": "Disk Write",
           "refId": "B"
         }
@@ -896,7 +896,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "cache_memory_usage_bytes",
+          "expr": "cache_memory_usage_bytes / 1024 / 1024",
           "legendFormat": "Redis Memory Usage",
           "refId": "A"
         }

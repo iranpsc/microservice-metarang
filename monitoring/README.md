@@ -56,6 +56,41 @@ Prometheus is configured to scrape metrics from:
 Pre-configured dashboards:
 - **Golden Signals - Critical Metrics**: Focused dashboard showing the four SRE Golden Signals (Latency, Traffic, Errors, Saturation) plus critical infrastructure metrics
 - **MetaRGB Microservices Overview**: Main dashboard showing service health, request rates, latency, and errors
+- **MetaRGB API Traffic Dashboard**: Comprehensive dashboard showing detailed incoming API requests and outgoing responses with Kong metrics
+
+#### API Traffic Dashboard Features
+
+The **MetaRGB API Traffic Dashboard** provides detailed visibility into your API gateway traffic:
+
+**Incoming Requests Analysis:**
+- Request rate by HTTP method (GET, POST, PUT, DELETE)
+- Response status code distribution (2xx, 3xx, 4xx, 5xx)
+- API error rates with configurable thresholds
+- Request/response bandwidth metrics
+- Top API routes by traffic volume
+
+**Response Details:**
+- Response time percentiles (P50, P95, P99)
+- Request/response size analysis
+- Rate limiting status and events
+- Upstream service response times
+
+**Error Analysis:**
+- Routes sorted by error rate
+- Detailed error breakdown by endpoint
+- Real-time error rate monitoring
+
+**Upstream Service Health:**
+- Upstream target health status
+- Response status distribution per upstream service
+- Load balancing metrics across service instances
+
+**Key Metrics Monitored:**
+- `kong_http_requests_total` - Total HTTP requests with labels for method, status, route, service
+- `kong_http_requests_duration_bucket` - Request duration histograms
+- `kong_bandwidth_bytes` - Request/response bandwidth by direction
+- `kong_upstream_target_response_time_bucket` - Upstream response times
+- `kong_rate_limiting_limited` - Rate limiting events
 
 ### Alerting Rules
 

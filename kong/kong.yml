@@ -33,6 +33,8 @@ routes:
     regex_priority: 0
 
 plugins:
+  - name: prometheus
+    config: {}
   - name: cors
     config:
       origins:
