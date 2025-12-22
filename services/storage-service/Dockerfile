@@ -58,6 +58,10 @@ RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser && \
     chown -R appuser:appuser /app
 
+# Create uploads directory with proper permissions
+RUN mkdir -p /app/uploads && \
+    chown -R appuser:appuser /app/uploads
+
 USER appuser
 
 # Expose gRPC port

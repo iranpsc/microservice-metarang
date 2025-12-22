@@ -71,9 +71,16 @@ func main() {
 	// Initialize repositories
 	imageRepo := repository.NewImageRepository(db)
 
+	// Ensure uploads directory exists
+	uploadsDir := "uploads"
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Fatalf("Failed to create uploads directory: %v", err)
+	}
+	log.Printf("✅ Uploads directory initialized: %s", uploadsDir)
+
 	// Initialize services
-	storageBase := getEnv("STORAGE_BASE", "storage/app")
-	storageService := service.NewStorageService(ftpClient, chunkManager, storageBase)
+	// Storage base is no longer used - files are stored in uploads/ directory at service root
+	storageService := service.NewStorageService(ftpClient, chunkManager, "")
 	imageService := service.NewImageService(imageRepo, ftpClient)
 
 	// Create gRPC server

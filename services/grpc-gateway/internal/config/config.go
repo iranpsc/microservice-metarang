@@ -16,6 +16,7 @@ type Config struct {
 	TrainingServiceAddr     string
 	SupportServiceAddr      string
 	NotificationServiceAddr string
+	StorageServiceAddr      string
 	Locale                  string
 }
 
@@ -33,6 +34,7 @@ func Load() *Config {
 		TrainingServiceAddr:     getEnv("TRAINING_SERVICE_ADDR", "training-service:50057"),
 		SupportServiceAddr:      getEnv("SUPPORT_SERVICE_ADDR", "support-service:50056"),
 		NotificationServiceAddr: getEnv("NOTIFICATION_SERVICE_ADDR", "notifications-service:50058"),
+		StorageServiceAddr:      getEnv("STORAGE_SERVICE_ADDR", "storage-service:8059"),
 		Locale:                  locale,
 	}
 }

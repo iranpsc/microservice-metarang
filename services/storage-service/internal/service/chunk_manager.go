@@ -3,7 +3,6 @@ package service
 import (
 	"crypto/md5"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -130,32 +129,10 @@ func (cm *ChunkManager) IsComplete(session *ChunkSession) bool {
 }
 
 // AssembleFile assembles all chunks into a single file
-// Returns: assembledData, relativePath (like "upload/mime/date/filename"), finalFilename, error
+// Returns: assembledData, relativePath (like "uploads/{mime}/{YYYY-MM-DD}/{filename}"), finalFilename, error
 func (cm *ChunkManager) AssembleFile(session *ChunkSession) ([]byte, string, string, error) {
 	session.mu.RLock()
 	defer session.mu.RUnlock()
-
-	// Create unique filename with timestamp hash (like Laravel controller)
-	uniqueFilename := cm.createUniqueFilename(session.Filename)
-
-	// Determine final path with mime type and date organization
-	// Format: upload/{mime}/{YYYY-MM-DD}/{filename}
-	// MIME type should be normalized (e.g., "image/jpeg" -> "image-jpeg" or just use the main type)
-	mime := session.ContentType
-	// Remove charset and other parameters from content type
-	mime = strings.Split(mime, ";")[0]
-	mime = strings.TrimSpace(mime)
-	// Replace "/" with "-" for directory name (e.g., "image/jpeg" -> "image-jpeg")
-	mimeDir := strings.ReplaceAll(mime, "/", "-")
-	dateFolder := time.Now().Format("2006-01-02")
-
-	var relativePath string
-	if session.UploadPath != "" {
-		relativePath = filepath.Join(session.UploadPath, uniqueFilename)
-	} else {
-		// Format: upload/{mime}/{YYYY-MM-DD}/{filename}
-		relativePath = filepath.Join("upload", mimeDir, dateFolder, uniqueFilename)
-	}
 
 	// Open a buffer to assemble the file
 	var assembledData []byte
@@ -170,6 +147,28 @@ func (cm *ChunkManager) AssembleFile(session *ChunkSession) ([]byte, string, str
 		}
 
 		assembledData = append(assembledData, chunkData...)
+	}
+
+	// Create unique filename with content-based hash
+	uniqueFilename := cm.createUniqueFilename(session.Filename, assembledData)
+
+	// Determine final path with mime type and date organization
+	// Format: uploads/{mime}/{YYYY-MM-DD}/{filename}
+	// MIME type should be normalized (e.g., "image/jpeg" -> "image-jpeg" or just use the main type)
+	mime := session.ContentType
+	// Remove charset and other parameters from content type
+	mime = strings.Split(mime, ";")[0]
+	mime = strings.TrimSpace(mime)
+	// Replace "/" with "-" for directory name (e.g., "image/jpeg" -> "image-jpeg")
+	mimeDir := strings.ReplaceAll(mime, "/", "-")
+	dateFolder := time.Now().Format("2006-01-02")
+
+	var relativePath string
+	if session.UploadPath != "" {
+		relativePath = filepath.Join(session.UploadPath, uniqueFilename)
+	} else {
+		// Format: uploads/{mime}/{YYYY-MM-DD}/{filename}
+		relativePath = filepath.Join("uploads", mimeDir, dateFolder, uniqueFilename)
 	}
 
 	return assembledData, relativePath, uniqueFilename, nil
@@ -194,17 +193,25 @@ func (cm *ChunkManager) CleanupSession(uploadID string) error {
 	return nil
 }
 
-// createUniqueFilename creates a unique filename with MD5 hash (like Laravel controller)
-func (cm *ChunkManager) createUniqueFilename(originalFilename string) string {
+// createUniqueFilename creates a unique filename with MD5 hash based on file content
+// Format: {hash}.{ext} (e.g., "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6.jpg")
+func (cm *ChunkManager) createUniqueFilename(originalFilename string, fileData []byte) string {
 	ext := filepath.Ext(originalFilename)
-	nameWithoutExt := strings.TrimSuffix(originalFilename, ext)
-
-	// Create MD5 hash of current timestamp
+	
+	// Create MD5 hash of file content for unique identification
 	hash := md5.New()
-	io.WriteString(hash, fmt.Sprintf("%d", time.Now().UnixNano()))
-	timestamp := fmt.Sprintf("%x", hash.Sum(nil))
-
-	return fmt.Sprintf("%s_%s%s", nameWithoutExt, timestamp, ext)
+	hash.Write(fileData)
+	hashSum := hash.Sum(nil)
+	
+	// Use first 16 characters of hash (32 hex characters = 16 bytes)
+	hashStr := fmt.Sprintf("%x", hashSum)
+	
+	// If no extension, use empty string
+	if ext == "" {
+		return hashStr
+	}
+	
+	return fmt.Sprintf("%s%s", hashStr, ext)
 }
 
 // cleanupExpiredSessions removes sessions older than 24 hours

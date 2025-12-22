@@ -123,7 +123,7 @@ func (h *HTTPHandler) HandleChunkUpload(w http.ResponseWriter, r *http.Request) 
 	uploadPath := r.FormValue("upload_path")
 
 	// Handle chunk upload
-	// Returns: isFinished, progress, filePath (relative path like "upload/mime/date/"), finalFilename, mimeType, error
+	// Returns: isFinished, progress, filePath (relative path like "uploads/mime/date/"), finalFilename, mimeType, error
 	isFinished, progress, filePath, finalFilename, mimeType, err := h.storageService.HandleChunkUpload(
 		uploadID,
 		filename,
@@ -144,10 +144,10 @@ func (h *HTTPHandler) HandleChunkUpload(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 
 	if isFinished {
-		// Completed upload: { "path": "upload/<mime>/<date>/", "name": "<original>_<hash>.<ext>", "mime_type": "<mime>" }
+		// Completed upload: { "path": "uploads/<mime>/<date>/", "name": "<hash>.<ext>", "mime_type": "<mime>" }
 		response := map[string]interface{}{
-			"path":      filePath,      // e.g., "upload/image-jpeg/2024-01-15/"
-			"name":      finalFilename, // e.g., "photo_abc123.jpg"
+			"path":      filePath,      // e.g., "uploads/image-jpeg/2024-01-15/"
+			"name":      finalFilename, // e.g., "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6.jpg"
 			"mime_type": mimeType,      // e.g., "image/jpeg"
 		}
 		json.NewEncoder(w).Encode(response)
