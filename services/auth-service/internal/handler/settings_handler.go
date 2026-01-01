@@ -88,7 +88,6 @@ func (h *settingsHandler) GetGeneralSettings(ctx context.Context, req *pb.GetGen
 
 	return &pb.GetGeneralSettingsResponse{
 		Data: &pb.NotificationSettingsData{
-			Id:                      notifications["id"],
 			AnnouncementsSms:       notifications["announcements_sms"],
 			AnnouncementsEmail:     notifications["announcements_email"],
 			ReportsSms:             notifications["reports_sms"],
@@ -135,7 +134,6 @@ func (h *settingsHandler) UpdateGeneralSettings(ctx context.Context, req *pb.Upd
 
 	return &pb.UpdateGeneralSettingsResponse{
 		Data: &pb.NotificationSettingsData{
-			Id:                      updated["id"],
 			AnnouncementsSms:       updated["announcements_sms"],
 			AnnouncementsEmail:     updated["announcements_email"],
 			ReportsSms:             updated["reports_sms"],

@@ -23,8 +23,7 @@ func (r *GeometryRepository) GetByFeatureID(ctx context.Context, featureID uint6
 	query := `
 		SELECT g.id, g.type, g.created_at, g.updated_at
 		FROM geometries g
-		INNER JOIN features f ON f.geometry_id = g.id
-		WHERE f.id = ?
+		WHERE g.feature_id = ?
 	`
 
 	err := r.db.QueryRowContext(ctx, query, featureID).Scan(
@@ -43,8 +42,8 @@ func (r *GeometryRepository) GetCoordinatesByFeatureID(ctx context.Context, feat
 	query := `
 		SELECT c.x, c.y
 		FROM coordinates c
-		INNER JOIN features f ON f.geometry_id = c.geometry_id
-		WHERE f.id = ?
+		INNER JOIN geometries g ON g.id = c.geometry_id
+		WHERE g.feature_id = ?
 		ORDER BY c.id
 	`
 
@@ -76,8 +75,8 @@ func (r *GeometryRepository) GetCoordinatesWithIDs(ctx context.Context, featureI
 	query := `
 		SELECT c.id, c.geometry_id, c.x, c.y
 		FROM coordinates c
-		INNER JOIN features f ON f.geometry_id = c.geometry_id
-		WHERE f.id = ?
+		INNER JOIN geometries g ON g.id = c.geometry_id
+		WHERE g.feature_id = ?
 		ORDER BY c.id
 	`
 

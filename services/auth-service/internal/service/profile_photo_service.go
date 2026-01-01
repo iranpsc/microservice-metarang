@@ -36,13 +36,36 @@ type ProfilePhotoService interface {
 type profilePhotoService struct {
 	repo          repository.ProfilePhotoRepository
 	storageClient StorageClient
+	apiGatewayURL string
 }
 
-func NewProfilePhotoService(repo repository.ProfilePhotoRepository, storageClient StorageClient) ProfilePhotoService {
+func NewProfilePhotoService(repo repository.ProfilePhotoRepository, storageClient StorageClient, apiGatewayURL string) ProfilePhotoService {
 	return &profilePhotoService{
 		repo:          repo,
 		storageClient: storageClient,
+		apiGatewayURL: apiGatewayURL,
 	}
+}
+
+// prependGatewayURL prepends the API gateway URL to the image URL if it's not already a full URL
+func (s *profilePhotoService) prependGatewayURL(url string) string {
+	if url == "" {
+		return url
+	}
+	// If URL already starts with http:// or https://, return as is
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+		return url
+	}
+	// If API gateway URL is not set, return the original URL
+	if s.apiGatewayURL == "" {
+		return url
+	}
+	// Remove leading slash from URL if present
+	url = strings.TrimPrefix(url, "/")
+	// Remove trailing slash from gateway URL if present
+	gatewayURL := strings.TrimSuffix(s.apiGatewayURL, "/")
+	// Prepend gateway URL
+	return gatewayURL + "/" + url
 }
 
 // ListProfilePhotos returns all profile photos for a user
@@ -93,8 +116,11 @@ func (s *profilePhotoService) UploadProfilePhoto(ctx context.Context, userID uin
 		url = fmt.Sprintf("/uploads/profile/%s", filename)
 	}
 
-	// Create image record in database
-	image, err := s.repo.Create(ctx, userID, url)
+	// Prepend gateway URL to make it a full URL before storing in database
+	fullURL := s.prependGatewayURL(url)
+
+	// Create image record in database with full URL
+	image, err := s.repo.Create(ctx, userID, fullURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create profile photo record: %w", err)
 	}

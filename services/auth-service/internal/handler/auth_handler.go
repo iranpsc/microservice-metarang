@@ -95,7 +95,6 @@ func (h *authHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User
 		response.Level = &pb.Level{
 			Id:          userDetails.Level.ID,
 			Title:       userDetails.Level.Title,
-			Description: userDetails.Level.Description,
 			Score:       userDetails.Level.Score,
 		}
 	}
@@ -150,7 +149,7 @@ func (h *authHandler) RequestAccountSecurity(ctx context.Context, req *pb.Reques
 	// If validation errors exist, return them with field information
 	if len(validationErrors) > 0 {
 		encodedError := helpers.EncodeValidationError(validationErrors)
-		return nil, status.Errorf(codes.InvalidArgument, encodedError)
+		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
 	
 	if err := h.authService.RequestAccountSecurity(ctx, req.UserId, req.TimeMinutes, req.Phone); err != nil {
@@ -188,7 +187,7 @@ func (h *authHandler) VerifyAccountSecurity(ctx context.Context, req *pb.VerifyA
 	// If validation errors exist, return them with field information
 	if len(validationErrors) > 0 {
 		encodedError := helpers.EncodeValidationError(validationErrors)
-		return nil, status.Errorf(codes.InvalidArgument, encodedError)
+		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
 	
 	if err := h.authService.VerifyAccountSecurity(ctx, req.UserId, req.Code, req.Ip, req.UserAgent); err != nil {
@@ -210,27 +209,27 @@ func mapAccountSecurityErrorWithFields(err error) error {
 		t := helpers.GetLocaleTranslations(locale)
 		validationErrors["code"] = fmt.Sprintf(t.Invalid, "code")
 		encodedError := helpers.EncodeValidationError(validationErrors)
-		return status.Errorf(codes.InvalidArgument, encodedError)
+		return status.Error(codes.InvalidArgument, encodedError)
 	case errors.Is(err, service.ErrPhoneRequired):
 		t := helpers.GetLocaleTranslations(locale)
 		validationErrors["phone"] = fmt.Sprintf(t.Required, "phone")
 		encodedError := helpers.EncodeValidationError(validationErrors)
-		return status.Errorf(codes.InvalidArgument, encodedError)
+		return status.Error(codes.InvalidArgument, encodedError)
 	case errors.Is(err, service.ErrInvalidPhoneFormat):
 		t := helpers.GetLocaleTranslations(locale)
 		validationErrors["phone"] = fmt.Sprintf(t.IranianMobile, "phone")
 		encodedError := helpers.EncodeValidationError(validationErrors)
-		return status.Errorf(codes.InvalidArgument, encodedError)
+		return status.Error(codes.InvalidArgument, encodedError)
 	case errors.Is(err, service.ErrPhoneAlreadyTaken):
 		t := helpers.GetLocaleTranslations(locale)
 		validationErrors["phone"] = fmt.Sprintf(t.Unique, "phone")
 		encodedError := helpers.EncodeValidationError(validationErrors)
-		return status.Errorf(codes.InvalidArgument, encodedError)
+		return status.Error(codes.InvalidArgument, encodedError)
 	case errors.Is(err, service.ErrInvalidUnlockDuration):
 		t := helpers.GetLocaleTranslations(locale)
 		validationErrors["time"] = fmt.Sprintf(t.Invalid, "time")
 		encodedError := helpers.EncodeValidationError(validationErrors)
-		return status.Errorf(codes.InvalidArgument, encodedError)
+		return status.Error(codes.InvalidArgument, encodedError)
 	case errors.Is(err, service.ErrAccountSecurityNotFound):
 		return status.Errorf(codes.InvalidArgument, "%v", err)
 	case errors.Is(err, service.ErrUserNotFound):

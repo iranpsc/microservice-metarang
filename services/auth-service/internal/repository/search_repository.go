@@ -378,7 +378,7 @@ func (r *searchRepository) getFeatureCoordinates(ctx context.Context, featureID 
 		SELECT c.id, CAST(c.x AS DECIMAL(10,6)) as x, CAST(c.y AS DECIMAL(10,6)) as y
 		FROM coordinates c
 		INNER JOIN geometries g ON c.geometry_id = g.id
-		INNER JOIN features f ON f.geometry_id = g.id
+		INNER JOIN features f ON g.feature_id = f.id
 		WHERE f.id = ?
 		ORDER BY c.id
 	`

@@ -128,6 +128,6 @@ func mapServiceErrorToValidationFields(err error, locale string) (map[string]str
 // returnValidationError returns a gRPC InvalidArgument error with encoded validation fields
 func returnValidationError(fields map[string]string) error {
 	encodedError := helpers.EncodeValidationError(fields)
-	return status.Errorf(codes.InvalidArgument, encodedError)
+	return status.Error(codes.InvalidArgument, encodedError)
 }
 

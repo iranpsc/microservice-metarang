@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc/status"
 	pbCommon "metargb/shared/pb/common"
 	pb "metargb/shared/pb/support"
-	"metargb/shared/pkg/helpers"
 )
 
 type UserEventHandler struct {

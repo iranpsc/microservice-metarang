@@ -58,32 +58,69 @@ func (o ProfileLimitationOptions) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements json.Unmarshaler
 func (o *ProfileLimitationOptions) UnmarshalJSON(data []byte) error {
-	var m map[string]bool
-	if err := json.Unmarshal(data, &m); err != nil {
+	// Handle empty or null JSON
+	if len(data) == 0 || string(data) == "null" {
+		*o = DefaultOptions()
+		return nil
+	}
+
+	// First, try to unmarshal as a string (in case JSON is double-encoded)
+	var jsonStr string
+	if err := json.Unmarshal(data, &jsonStr); err == nil {
+		// It's a JSON string, unmarshal the inner JSON
+		data = []byte(jsonStr)
+	}
+
+	// Use json.RawMessage to get raw JSON, then parse manually
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
 	// Set defaults first
 	*o = DefaultOptions()
 
+	// Helper function to parse json.RawMessage to bool
+	parseBoolFromRaw := func(raw json.RawMessage) bool {
+		// Try to unmarshal as bool first
+		var b bool
+		if err := json.Unmarshal(raw, &b); err == nil {
+			return b
+		}
+
+		// Try to unmarshal as string
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			return s == "true" || s == "1" || s == "True" || s == "TRUE"
+		}
+
+		// Try to unmarshal as number
+		var n float64
+		if err := json.Unmarshal(raw, &n); err == nil {
+			return n != 0
+		}
+
+		return false
+	}
+
 	// Override with provided values
-	if val, ok := m["follow"]; ok {
-		o.Follow = val
+	if val, ok := raw["follow"]; ok {
+		o.Follow = parseBoolFromRaw(val)
 	}
-	if val, ok := m["send_message"]; ok {
-		o.SendMessage = val
+	if val, ok := raw["send_message"]; ok {
+		o.SendMessage = parseBoolFromRaw(val)
 	}
-	if val, ok := m["share"]; ok {
-		o.Share = val
+	if val, ok := raw["share"]; ok {
+		o.Share = parseBoolFromRaw(val)
 	}
-	if val, ok := m["send_ticket"]; ok {
-		o.SendTicket = val
+	if val, ok := raw["send_ticket"]; ok {
+		o.SendTicket = parseBoolFromRaw(val)
 	}
-	if val, ok := m["view_profile_images"]; ok {
-		o.ViewProfileImages = val
+	if val, ok := raw["view_profile_images"]; ok {
+		o.ViewProfileImages = parseBoolFromRaw(val)
 	}
-	if val, ok := m["view_features_locations"]; ok {
-		o.ViewFeaturesLocations = val
+	if val, ok := raw["view_features_locations"]; ok {
+		o.ViewFeaturesLocations = parseBoolFromRaw(val)
 	}
 
 	return nil

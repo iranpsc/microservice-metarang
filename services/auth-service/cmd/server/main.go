@@ -226,9 +226,16 @@ func main() {
 	profileLimitationService := service.NewProfileLimitationService(profileLimitationRepo, userRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
 
+	// Get API Gateway URL for profile photo URLs - ensure it's not empty
+	apiGatewayURL := getEnv("API_GATEWAY_URL", "")
+	if apiGatewayURL == "" {
+		apiGatewayURL = getEnv("APP_URL", "http://localhost:8000")
+	}
+	log.Printf("Profile photo service using API Gateway URL: %s", apiGatewayURL)
+
 	// Initialize profile photo service (storage client can be added later when proto files are generated)
 	// For now, service works without storage client (files can be uploaded via HTTP endpoint)
-	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, nil)
+	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, nil, apiGatewayURL)
 
 	// Initialize user events service
 	userEventsService := service.NewUserEventsService(activityRepo, userRepo)
@@ -246,7 +253,7 @@ func main() {
 	handler.RegisterCitizenHandler(grpcServer, citizenService)
 	handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
 	handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)
-	handler.RegisterProfilePhotoHandler(grpcServer, profilePhotoService)
+	handler.RegisterProfilePhotoHandler(grpcServer, profilePhotoService, apiGatewayURL)
 	handler.RegisterSettingsHandler(grpcServer, settingsService)
 	handler.RegisterUserEventsHandler(grpcServer, userEventsService, userRepo)
 	handler.RegisterSearchHandler(grpcServer, searchService)
