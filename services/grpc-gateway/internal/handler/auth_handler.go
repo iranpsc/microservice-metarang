@@ -736,15 +736,26 @@ func (h *AuthHandler) GetUserWallet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response according to Laravel WalletResource spec
-	// Documentation specifies: psc, irr, red, blue, yellow, satisfaction, effect
+	// Convert string values to numeric format (remove K, M suffixes and return as numbers)
+	parseFloat := func(s string) float64 {
+		if s == "" {
+			return 0
+		}
+		val, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0
+		}
+		return val
+	}
+
+	// Format response with numeric values
 	data := map[string]interface{}{
-		"psc":          resp.Psc,
-		"irr":          resp.Irr,
-		"red":          resp.Red,
-		"blue":         resp.Blue,
-		"yellow":       resp.Yellow,
-		"satisfaction": resp.Satisfaction,
+		"psc":          parseFloat(resp.Psc),
+		"irr":          parseFloat(resp.Irr),
+		"red":          parseFloat(resp.Red),
+		"blue":         parseFloat(resp.Blue),
+		"yellow":       parseFloat(resp.Yellow),
+		"satisfaction": parseFloat(resp.Satisfaction),
 		"effect":       resp.Effect,
 	}
 
@@ -2132,6 +2143,13 @@ func (h *AuthHandler) GetProfileLimitation(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Format response according to Laravel API spec: { "data": {...} }
+	// Get user from context to determine note visibility
+	userCtx, err := middleware.GetUserFromRequest(r)
+	callerUserID := uint64(0)
+	if err == nil {
+		callerUserID = userCtx.UserID
+	}
+
 	data := map[string]interface{}{
 		"id":              resp.Data.Id,
 		"limiter_user_id": resp.Data.LimiterUserId,
@@ -2148,7 +2166,8 @@ func (h *AuthHandler) GetProfileLimitation(w http.ResponseWriter, r *http.Reques
 		"updated_at": resp.Data.UpdatedAt,
 	}
 
-	if resp.Data.Note != "" {
+	// Only include note if caller is the limiter (as per API documentation)
+	if resp.Data.Note != "" && callerUserID == resp.Data.LimiterUserId {
 		data["note"] = resp.Data.Note
 	}
 

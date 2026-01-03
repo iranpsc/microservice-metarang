@@ -140,7 +140,7 @@ func main() {
 	handler.RegisterPaymentHandler(grpcServer, paymentService)
 
 	// Start gRPC server
-	port := getEnv("GRPC_PORT", "50054")
+	port := getEnv("GRPC_PORT", "50052")
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)

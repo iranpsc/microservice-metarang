@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	commercialpb "metargb/shared/pb/commercial"
 	featurespb "metargb/shared/pb/features"
@@ -103,7 +105,29 @@ func NewHelperService(levelsAddr, featuresAddr, commercialAddr string) HelperSer
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		conn, err := grpc.DialContext(ctx, commercialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		// Create client interceptor to forward authorization header
+		interceptor := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+			// Check if authorization is already in outgoing metadata
+			outMd, hasOutgoing := metadata.FromOutgoingContext(ctx)
+			if hasOutgoing && len(outMd.Get("authorization")) > 0 {
+				// Already has authorization, proceed
+				return invoker(ctx, method, req, reply, cc, opts...)
+			}
+
+			// Try to get authorization from incoming metadata
+			if inMd, ok := metadata.FromIncomingContext(ctx); ok {
+				if authHeaders := inMd.Get("authorization"); len(authHeaders) > 0 {
+					// Forward authorization header to outgoing call
+					ctx = metadata.AppendToOutgoingContext(ctx, "authorization", authHeaders[0])
+				}
+			}
+
+			return invoker(ctx, method, req, reply, cc, opts...)
+		}
+
+		conn, err := grpc.DialContext(ctx, commercialAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(interceptor))
 		if err != nil {
 			log.Printf("Warning: Failed to connect to commercial service at %s: %v (will use stub implementations)", commercialAddr, err)
 		} else {
@@ -283,8 +307,45 @@ func (s *helperService) GetUserLevel(ctx context.Context, userID uint64) (*Level
 
 // GetUserWallet calls Commercial service to get user's wallet balances
 func (s *helperService) GetUserWallet(ctx context.Context, userID uint64) (*WalletInfo, error) {
+	// Try to reconnect if client is nil (service might not have been ready at startup)
+	if s.walletClient == nil && s.commercialServiceAddr != "" {
+		log.Printf("Attempting to reconnect to commercial service at %s", s.commercialServiceAddr)
+		connectCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Create client interceptor to forward authorization header
+		interceptor := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+			// Check if authorization is already in outgoing metadata
+			outMd, hasOutgoing := metadata.FromOutgoingContext(ctx)
+			if hasOutgoing && len(outMd.Get("authorization")) > 0 {
+				// Already has authorization, proceed
+				return invoker(ctx, method, req, reply, cc, opts...)
+			}
+
+			// Try to get authorization from incoming metadata
+			if inMd, ok := metadata.FromIncomingContext(ctx); ok {
+				if authHeaders := inMd.Get("authorization"); len(authHeaders) > 0 {
+					// Forward authorization header to outgoing call
+					ctx = metadata.AppendToOutgoingContext(ctx, "authorization", authHeaders[0])
+				}
+			}
+
+			return invoker(ctx, method, req, reply, cc, opts...)
+		}
+
+		conn, err := grpc.DialContext(connectCtx, s.commercialServiceAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(interceptor))
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to commercial service at %s: %w", s.commercialServiceAddr, err)
+		}
+		s.commercialConn = conn
+		s.walletClient = commercialpb.NewWalletServiceClient(conn)
+		log.Printf("Successfully reconnected to commercial service at %s", s.commercialServiceAddr)
+	}
+
 	if s.walletClient == nil {
-		return nil, nil
+		return nil, fmt.Errorf("commercial service not available")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -295,7 +356,7 @@ func (s *helperService) GetUserWallet(ctx context.Context, userID uint64) (*Wall
 	})
 	if err != nil {
 		log.Printf("Failed to get user wallet: %v", err)
-		return nil, nil // Return nil on error to not break the flow
+		return nil, fmt.Errorf("failed to get wallet from commercial service: %w", err)
 	}
 
 	return &WalletInfo{

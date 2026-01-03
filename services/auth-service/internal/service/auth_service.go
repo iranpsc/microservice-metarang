@@ -27,7 +27,7 @@ import (
 type AuthService interface {
 	Register(ctx context.Context, backURL, referral string) (string, error)
 	Redirect(ctx context.Context, redirectTo, backURL string) (string, string, error) // returns url and state
-	Callback(ctx context.Context, state, code string) (*CallbackResult, error)
+	Callback(ctx context.Context, state, code, ip string) (*CallbackResult, error)
 	GetMe(ctx context.Context, token string) (*UserDetails, error)
 	Logout(ctx context.Context, userID uint64, ip, userAgent string) error
 	ValidateToken(ctx context.Context, token string) (*models.User, error)
@@ -139,6 +139,14 @@ func NewAuthService(
 }
 
 func (s *authService) Register(ctx context.Context, backURL, referral string) (string, error) {
+	// Validate referral code exists if provided (matching Laravel: exists:users,code)
+	if referral != "" {
+		user, err := s.userRepo.FindByCode(ctx, referral)
+		if err != nil || user == nil {
+			return "", fmt.Errorf("referral code does not exist")
+		}
+	}
+
 	// Build redirect_uri pointing to auth.redirect route (not auth/redirect)
 	redirectURI := s.appURL + "/api/auth/redirect"
 	if s.appURL == "" {
@@ -203,7 +211,7 @@ func (s *authService) Redirect(ctx context.Context, redirectTo, backURL string) 
 	return authURL, state, nil
 }
 
-func (s *authService) Callback(ctx context.Context, state, code string) (*CallbackResult, error) {
+func (s *authService) Callback(ctx context.Context, state, code, ip string) (*CallbackResult, error) {
 	// Retrieve and remove cached state (pull semantics)
 	// Throws InvalidArgumentException if missing or doesn't match
 	stateExists, err := s.cacheRepo.GetState(ctx, state)
@@ -252,7 +260,7 @@ func (s *authService) Callback(ctx context.Context, state, code string) (*Callba
 			Phone:        sql.NullString{String: userData.Mobile, Valid: userData.Mobile != ""},
 			Password:     string(hashedPassword),
 			Code:         userData.Code,
-			IP:           "", // Should be set from request context
+			IP:           ip, // Set IP from gRPC metadata
 			ReferrerID:   referrerID,
 			AccessToken:  sql.NullString{String: tokenData.AccessToken, Valid: true},
 			RefreshToken: sql.NullString{String: tokenData.RefreshToken, Valid: true},
@@ -278,6 +286,7 @@ func (s *authService) Callback(ctx context.Context, state, code string) (*Callba
 		user.Name = userData.Name
 		user.Email = userData.Email
 		user.Phone = sql.NullString{String: userData.Mobile, Valid: userData.Mobile != ""}
+		user.IP = ip // Update IP from gRPC metadata
 		user.AccessToken = sql.NullString{String: tokenData.AccessToken, Valid: true}
 		user.RefreshToken = sql.NullString{String: tokenData.RefreshToken, Valid: true}
 		user.TokenType = sql.NullString{String: tokenData.TokenType, Valid: true}
@@ -312,9 +321,9 @@ func (s *authService) Callback(ctx context.Context, state, code string) (*Callba
 	plainToken := tokenParts[1]
 
 	// Trigger login observer (fires logedIn event)
-	// Note: IP and UserAgent should be extracted from gRPC metadata
+	// Note: UserAgent should be extracted from gRPC metadata
 	if s.observerService != nil {
-		if err := s.observerService.OnUserLogin(ctx, user, user.IP, ""); err != nil {
+		if err := s.observerService.OnUserLogin(ctx, user, ip, ""); err != nil {
 			// Log error but don't fail the login
 			fmt.Printf("observer error on login: %v\n", err)
 		}
@@ -325,6 +334,7 @@ func (s *authService) Callback(ctx context.Context, state, code string) (*Callba
 	backURL, _ := s.cacheRepo.GetBackURL(ctx, state)
 
 	// Determine redirect base URL (prefer redirect_to, fallback to back_url, then frontEndURL)
+	// Matching Laravel: $url = ($redirectTo ?: $backUrl) . '/?' . $query;
 	redirectBaseURL := redirectTo
 	if redirectBaseURL == "" {
 		redirectBaseURL = backURL
@@ -338,10 +348,11 @@ func (s *authService) Callback(ctx context.Context, state, code string) (*Callba
 	}
 
 	// Construct redirect URL with token and expires_at query parameters
+	// Match Laravel format: base_url + '/?' + query_string
 	redirectParams := url.Values{}
 	redirectParams.Set("token", plainToken)
 	redirectParams.Set("expires_at", fmt.Sprintf("%d", int32(time.Until(expiresAt).Minutes())))
-	redirectURL := fmt.Sprintf("%s?%s", redirectBaseURL, redirectParams.Encode())
+	redirectURL := fmt.Sprintf("%s/?%s", redirectBaseURL, redirectParams.Encode())
 
 	log.Printf("Callback successful for user %d, redirecting to: %s", user.ID, redirectURL)
 

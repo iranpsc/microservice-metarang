@@ -121,7 +121,8 @@ func mapProfileLimitationError(err error) error {
 	case errors.Is(err, service.ErrProfileLimitationNotFound):
 		return status.Errorf(codes.NotFound, "%s", err.Error())
 	case errors.Is(err, service.ErrProfileLimitationAlreadyExists):
-		return status.Errorf(codes.FailedPrecondition, "%s", err.Error())
+		// Return 403 Forbidden as per API documentation
+		return status.Errorf(codes.PermissionDenied, "%s", err.Error())
 	case errors.Is(err, service.ErrInvalidOptions):
 		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	case errors.Is(err, service.ErrNoteTooLong):

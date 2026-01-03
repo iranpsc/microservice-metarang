@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -33,8 +34,30 @@ func RegisterAuthHandler(grpcServer *grpc.Server, authService service.AuthServic
 }
 
 func (h *authHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+	// Validate back_url is required (matching Laravel: 'back_url' => 'required|url')
+	validationErrors := make(map[string]string)
+	locale := "en" // TODO: Get locale from config or context
+
+	if req.BackUrl == "" {
+		t := helpers.GetLocaleTranslations(locale)
+		validationErrors["back_url"] = fmt.Sprintf(t.Required, "back_url")
+	}
+
+	// If validation errors exist, return them
+	if len(validationErrors) > 0 {
+		encodedError := helpers.EncodeValidationError(validationErrors)
+		return nil, status.Error(codes.InvalidArgument, encodedError)
+	}
+
 	url, err := h.authService.Register(ctx, req.BackUrl, req.Referral)
 	if err != nil {
+		// Check if it's a referral validation error
+		if strings.Contains(err.Error(), "referral code does not exist") {
+			t := helpers.GetLocaleTranslations(locale)
+			validationErrors["referral"] = fmt.Sprintf(t.Invalid, "referral")
+			encodedError := helpers.EncodeValidationError(validationErrors)
+			return nil, status.Error(codes.InvalidArgument, encodedError)
+		}
 		return nil, status.Errorf(codes.Internal, "registration failed: %v", err)
 	}
 
@@ -55,7 +78,10 @@ func (h *authHandler) Redirect(ctx context.Context, req *pb.RedirectRequest) (*p
 }
 
 func (h *authHandler) Callback(ctx context.Context, req *pb.CallbackRequest) (*pb.CallbackResponse, error) {
-	result, err := h.authService.Callback(ctx, req.State, req.Code)
+	// Extract IP from gRPC metadata if available
+	ip := extractIPFromContext(ctx)
+	
+	result, err := h.authService.Callback(ctx, req.State, req.Code, ip)
 	if err != nil {
 		// Map InvalidArgumentException to InvalidArgument status code
 		if strings.Contains(err.Error(), "invalid state value") {
@@ -247,4 +273,28 @@ func mapAccountSecurityErrorWithFields(err error) error {
 	default:
 		return status.Errorf(codes.Internal, "account security operation failed: %v", err)
 	}
+}
+
+// extractIPFromContext extracts the IP address from gRPC metadata
+// Looks for x-forwarded-for, x-real-ip, or peer address
+func extractIPFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+
+	// Check for X-Forwarded-For header
+	if values := md.Get("x-forwarded-for"); len(values) > 0 {
+		// Take the first IP if multiple are present
+		ips := strings.Split(values[0], ",")
+		return strings.TrimSpace(ips[0])
+	}
+
+	// Check for X-Real-IP header
+	if values := md.Get("x-real-ip"); len(values) > 0 {
+		return values[0]
+	}
+
+	// Could also extract from peer.Peer if needed
+	return ""
 }

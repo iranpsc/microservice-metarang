@@ -23,6 +23,7 @@ import (
 	"metargb/auth-service/internal/service"
 	notificationspb "metargb/shared/pb/notifications"
 	pb "metargb/shared/pb/auth"
+	storagepb "metargb/shared/pb/storage"
 )
 
 func main() {
@@ -180,9 +181,9 @@ func main() {
 
 	// Initialize helper service for cross-service integrations
 	helperService := service.NewHelperService(
-		getEnv("LEVELS_SERVICE_ADDR", "levels-service:50051"),
-		getEnv("FEATURES_SERVICE_ADDR", "features-service:50051"),
-		getEnv("COMMERCIAL_SERVICE_ADDR", "commercial-service:50051"),
+		getEnv("LEVELS_SERVICE_ADDR", "levels-service:50054"),
+		getEnv("FEATURES_SERVICE_ADDR", "features-service:50053"),
+		getEnv("COMMERCIAL_SERVICE_ADDR", "commercial-service:50052"),
 	)
 
 	// Initialize notifications SMS client (optional - service can work without it)
@@ -238,6 +239,19 @@ func main() {
 	// For now, service works without storage client (files can be uploaded via HTTP endpoint)
 	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, nil, apiGatewayURL)
 
+	// Initialize storage service client for profile photo uploads
+	storageServiceAddr := getEnv("STORAGE_SERVICE_ADDR", "storage-service:50060")
+	var storageClient storagepb.FileStorageServiceClient
+	storageConn, err := grpc.NewClient(storageServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Printf("Warning: Failed to connect to storage service: %v (profile photo uploads will fail)", err)
+		storageClient = nil
+	} else {
+		defer storageConn.Close()
+		storageClient = storagepb.NewFileStorageServiceClient(storageConn)
+		log.Printf("Successfully connected to storage service at %s", storageServiceAddr)
+	}
+
 	// Initialize user events service
 	userEventsService := service.NewUserEventsService(activityRepo, userRepo)
 
@@ -250,6 +264,7 @@ func main() {
 	// Create profile photo handler instance (needed by auth handler)
 	profilePhotoHandler := &handler.ProfilePhotoHandler{
 		ProfilePhotoService: profilePhotoService,
+		StorageClient:       storageClient,
 		ApiGatewayURL:       apiGatewayURL,
 	}
 

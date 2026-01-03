@@ -27,6 +27,8 @@ type ProfilePhotoService interface {
 	ListProfilePhotos(ctx context.Context, userID uint64) ([]*models.Image, error)
 	// UploadProfilePhoto uploads a new profile photo for a user
 	UploadProfilePhoto(ctx context.Context, userID uint64, imageData []byte, filename, contentType string) (*models.Image, error)
+	// CreateProfilePhotoRecord creates a database record for a profile photo with the given URL
+	CreateProfilePhotoRecord(ctx context.Context, userID uint64, url string) (*models.Image, error)
 	// GetProfilePhoto retrieves a profile photo by ID
 	GetProfilePhoto(ctx context.Context, id uint64) (*models.Image, error)
 	// DeleteProfilePhoto deletes a profile photo (with ownership check)
@@ -116,6 +118,20 @@ func (s *profilePhotoService) UploadProfilePhoto(ctx context.Context, userID uin
 		url = fmt.Sprintf("/uploads/profile/%s", filename)
 	}
 
+	// Prepend gateway URL to make it a full URL before storing in database
+	fullURL := s.prependGatewayURL(url)
+
+	// Create image record in database with full URL
+	image, err := s.repo.Create(ctx, userID, fullURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create profile photo record: %w", err)
+	}
+
+	return image, nil
+}
+
+// CreateProfilePhotoRecord creates a database record for a profile photo with the given URL
+func (s *profilePhotoService) CreateProfilePhotoRecord(ctx context.Context, userID uint64, url string) (*models.Image, error) {
 	// Prepend gateway URL to make it a full URL before storing in database
 	fullURL := s.prependGatewayURL(url)
 

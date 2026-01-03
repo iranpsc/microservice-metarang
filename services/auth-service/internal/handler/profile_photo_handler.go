@@ -2,7 +2,9 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -11,6 +13,7 @@ import (
 
 	"metargb/auth-service/internal/service"
 	pb "metargb/shared/pb/auth"
+	storagepb "metargb/shared/pb/storage"
 )
 
 // ProfilePhotoHandler handles profile photo gRPC requests
@@ -18,12 +21,14 @@ import (
 type ProfilePhotoHandler struct {
 	pb.UnimplementedProfilePhotoServiceServer
 	ProfilePhotoService service.ProfilePhotoService
+	StorageClient       storagepb.FileStorageServiceClient
 	ApiGatewayURL       string
 }
 
-func RegisterProfilePhotoHandler(grpcServer *grpc.Server, profilePhotoService service.ProfilePhotoService, apiGatewayURL string) {
+func RegisterProfilePhotoHandler(grpcServer *grpc.Server, profilePhotoService service.ProfilePhotoService, storageClient storagepb.FileStorageServiceClient, apiGatewayURL string) {
 	pb.RegisterProfilePhotoServiceServer(grpcServer, &ProfilePhotoHandler{
 		ProfilePhotoService: profilePhotoService,
+		StorageClient:       storageClient,
 		ApiGatewayURL:       apiGatewayURL,
 	})
 }
@@ -99,17 +104,82 @@ func (h *ProfilePhotoHandler) UploadProfilePhoto(ctx context.Context, req *pb.Up
 		return nil, status.Errorf(codes.InvalidArgument, "content_type is required")
 	}
 
-	photo, err := h.ProfilePhotoService.UploadProfilePhoto(ctx, req.UserId, req.ImageData, req.Filename, req.ContentType)
+	// Validate file size (≤1 MB = 1024 * 1024 bytes)
+	const maxSize = 1024 * 1024
+	if len(req.ImageData) > maxSize {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid image: must be PNG or JPEG, ≤1 MB")
+	}
+
+	// Validate content type
+	contentType := strings.ToLower(req.ContentType)
+	if contentType != "image/png" && contentType != "image/jpeg" && contentType != "image/jpg" {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid image: must be PNG or JPEG, ≤1 MB")
+	}
+
+	// Validate filename extension
+	filenameLower := strings.ToLower(req.Filename)
+	if !strings.HasSuffix(filenameLower, ".png") && !strings.HasSuffix(filenameLower, ".jpg") && !strings.HasSuffix(filenameLower, ".jpeg") {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid image: must be PNG or JPEG, ≤1 MB")
+	}
+
+	// Upload file to storage-service
+	if h.StorageClient == nil {
+		return nil, status.Errorf(codes.Internal, "storage service not available")
+	}
+
+	// Create upload ID for chunk upload
+	uploadID := fmt.Sprintf("profile_photo_%d_%d", req.UserId, time.Now().UnixNano())
+
+	// Upload file using ChunkUpload (single chunk since file is small)
+	chunkReq := &storagepb.ChunkUploadRequest{
+		UploadId:    uploadID,
+		ChunkData:   req.ImageData,
+		ChunkIndex:  0,
+		TotalChunks: 1,
+		Filename:    req.Filename,
+		ContentType: req.ContentType,
+		TotalSize:   int64(len(req.ImageData)),
+		UploadPath:  "/uploads/profile", // Upload path for profile photos
+	}
+
+	chunkResp, err := h.StorageClient.ChunkUpload(ctx, chunkReq)
 	if err != nil {
-		// Map service errors to gRPC status codes
-		switch err {
-		case service.ErrImageRequired:
-			return nil, status.Errorf(codes.InvalidArgument, "image is required")
-		case service.ErrInvalidImage:
-			return nil, status.Errorf(codes.InvalidArgument, "invalid image: must be PNG or JPEG, ≤1 MB")
-		default:
-			return nil, status.Errorf(codes.Internal, "failed to upload profile photo: %v", err)
-		}
+		return nil, status.Errorf(codes.Internal, "failed to upload file to storage service: %v", err)
+	}
+
+	if !chunkResp.Success {
+		return nil, status.Errorf(codes.Internal, "storage service upload failed: %s", chunkResp.Message)
+	}
+
+	if !chunkResp.IsFinished {
+		return nil, status.Errorf(codes.Internal, "storage service upload did not complete")
+	}
+
+	// Get file path from storage service response
+	// FileUrl contains the directory path (e.g., "uploads/image-jpeg/2024-01-01/")
+	// FilePath contains the filename
+	// Combine them to get the full path
+	dirPath := chunkResp.FileUrl
+	filename := chunkResp.FilePath
+	if filename == "" {
+		// Fallback to FinalFilename if FilePath is not set
+		filename = chunkResp.FinalFilename
+	}
+
+	if dirPath == "" {
+		return nil, status.Errorf(codes.Internal, "storage service did not return file directory path")
+	}
+	if filename == "" {
+		return nil, status.Errorf(codes.Internal, "storage service did not return filename")
+	}
+
+	// Construct full path: directory + filename
+	fullPath := strings.TrimSuffix(dirPath, "/") + "/" + filename
+
+	// Create database record with the full file path from storage-service
+	photo, err := h.ProfilePhotoService.CreateProfilePhotoRecord(ctx, req.UserId, fullPath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create profile photo record: %v", err)
 	}
 
 	// URLs are now stored as full URLs in the database, but keep fallback for existing records

@@ -7,7 +7,6 @@ import (
 	"github.com/shopspring/decimal"
 
 	"metargb/commercial-service/internal/repository"
-	"metargb/shared/pkg/helpers"
 )
 
 type WalletService interface {
@@ -37,24 +36,15 @@ func (s *walletService) GetWallet(ctx context.Context, userID uint64) (map[strin
 		return nil, fmt.Errorf("wallet not found")
 	}
 
-	// Convert decimals to float64 for formatting
-	pscFloat, _ := wallet.PSC.Float64()
-	irrFloat, _ := wallet.IRR.Float64()
-	redFloat, _ := wallet.Red.Float64()
-	blueFloat, _ := wallet.Blue.Float64()
-	yellowFloat, _ := wallet.Yellow.Float64()
-	satisfactionFloat, _ := wallet.Satisfaction.Float64()
-
-	// Format exactly as Laravel WalletResource does
-	// Laravel: 'psc' => formatCompactNumber($this->psc)
+	// Return raw numeric values without formatting (no K, M suffixes)
 	return map[string]string{
-		"psc":          helpers.FormatCompactNumber(pscFloat),
-		"irr":          helpers.FormatCompactNumber(irrFloat),
-		"red":          helpers.FormatCompactNumber(redFloat),
-		"blue":         helpers.FormatCompactNumber(blueFloat),
-		"yellow":       helpers.FormatCompactNumber(yellowFloat),
-		"satisfaction": helpers.NumberFormat(satisfactionFloat, 1), // Laravel: number_format($this->satisfaction, 1)
-		"effect":       wallet.Effect.String(),                     // effect is returned as-is
+		"psc":          wallet.PSC.String(),
+		"irr":          wallet.IRR.String(),
+		"red":          wallet.Red.String(),
+		"blue":         wallet.Blue.String(),
+		"yellow":       wallet.Yellow.String(),
+		"satisfaction": wallet.Satisfaction.String(),
+		"effect":       wallet.Effect.String(),
 	}, nil
 }
 

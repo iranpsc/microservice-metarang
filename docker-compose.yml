@@ -81,6 +81,8 @@ services:
         condition: service_healthy
       notifications-service:
         condition: service_started
+      commercial-service:
+        condition: service_healthy
     networks:
       - metargb-network
     restart: unless-stopped
@@ -138,6 +140,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50052"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - metargb-network
     restart: unless-stopped

@@ -49,14 +49,25 @@ func (r *walletRepository) FindByUserID(ctx context.Context, userID uint64) (*mo
 		return nil, fmt.Errorf("failed to find wallet: %w", err)
 	}
 
-	// Parse decimal values
-	wallet.PSC, _ = decimal.NewFromString(psc)
-	wallet.IRR, _ = decimal.NewFromString(irr)
-	wallet.Red, _ = decimal.NewFromString(red)
-	wallet.Blue, _ = decimal.NewFromString(blue)
-	wallet.Yellow, _ = decimal.NewFromString(yellow)
-	wallet.Satisfaction, _ = decimal.NewFromString(satisfaction)
-	wallet.Effect, _ = decimal.NewFromString(effect)
+	// Parse decimal values - handle empty strings as zero
+	parseDecimal := func(s string) decimal.Decimal {
+		if s == "" {
+			return decimal.Zero
+		}
+		d, err := decimal.NewFromString(s)
+		if err != nil {
+			return decimal.Zero
+		}
+		return d
+	}
+
+	wallet.PSC = parseDecimal(psc)
+	wallet.IRR = parseDecimal(irr)
+	wallet.Red = parseDecimal(red)
+	wallet.Blue = parseDecimal(blue)
+	wallet.Yellow = parseDecimal(yellow)
+	wallet.Satisfaction = parseDecimal(satisfaction)
+	wallet.Effect = parseDecimal(effect)
 
 	return wallet, nil
 }

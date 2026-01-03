@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strconv"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -34,6 +35,14 @@ func (h *WalletHandler) GetWallet(ctx context.Context, req *pb.GetWalletRequest)
 		return nil, status.Errorf(codes.Internal, "failed to get wallet: %v", err)
 	}
 
+	// Parse effect from string to float64
+	effect := 0.0
+	if effectStr, ok := wallet["effect"]; ok && effectStr != "" {
+		if parsedEffect, err := strconv.ParseFloat(effectStr, 64); err == nil {
+			effect = parsedEffect
+		}
+	}
+
 	return &pb.WalletResponse{
 		Psc:          wallet["psc"],
 		Irr:          wallet["irr"],
@@ -41,6 +50,7 @@ func (h *WalletHandler) GetWallet(ctx context.Context, req *pb.GetWalletRequest)
 		Blue:         wallet["blue"],
 		Yellow:       wallet["yellow"],
 		Satisfaction: wallet["satisfaction"],
+		Effect:       effect,
 	}, nil
 }
 
@@ -53,6 +63,14 @@ func (h *WalletHandler) DeductBalance(ctx context.Context, req *pb.DeductBalance
 		}, nil
 	}
 
+	// Parse effect from string to float64
+	effect := 0.0
+	if effectStr, ok := wallet["effect"]; ok && effectStr != "" {
+		if parsedEffect, err := strconv.ParseFloat(effectStr, 64); err == nil {
+			effect = parsedEffect
+		}
+	}
+
 	return &pb.DeductBalanceResponse{
 		Success: true,
 		Message: "Balance deducted successfully",
@@ -63,6 +81,7 @@ func (h *WalletHandler) DeductBalance(ctx context.Context, req *pb.DeductBalance
 			Blue:         wallet["blue"],
 			Yellow:       wallet["yellow"],
 			Satisfaction: wallet["satisfaction"],
+			Effect:       effect,
 		},
 	}, nil
 }
@@ -76,6 +95,14 @@ func (h *WalletHandler) AddBalance(ctx context.Context, req *pb.AddBalanceReques
 		}, nil
 	}
 
+	// Parse effect from string to float64
+	effect := 0.0
+	if effectStr, ok := wallet["effect"]; ok && effectStr != "" {
+		if parsedEffect, err := strconv.ParseFloat(effectStr, 64); err == nil {
+			effect = parsedEffect
+		}
+	}
+
 	return &pb.AddBalanceResponse{
 		Success: true,
 		Message: "Balance added successfully",
@@ -86,6 +113,7 @@ func (h *WalletHandler) AddBalance(ctx context.Context, req *pb.AddBalanceReques
 			Blue:         wallet["blue"],
 			Yellow:       wallet["yellow"],
 			Satisfaction: wallet["satisfaction"],
+			Effect:       effect,
 		},
 	}, nil
 }

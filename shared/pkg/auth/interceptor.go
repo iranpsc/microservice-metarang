@@ -144,6 +144,8 @@ func shouldSkipAuth(fullMethod string) bool {
 		"/auth.AuthService/Redirect",
 		"/auth.AuthService/Callback",
 		"/auth.AuthService/ValidateToken", // Other services call this to validate tokens
+		// Commercial service public endpoints
+		"/commercial.WalletService/GetWallet", // Public endpoint - anyone can view any user's wallet
 	}
 
 	for _, method := range publicMethods {
