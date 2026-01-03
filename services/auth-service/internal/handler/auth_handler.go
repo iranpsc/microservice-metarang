@@ -19,14 +19,16 @@ import (
 
 type authHandler struct {
 	pb.UnimplementedAuthServiceServer
-	authService service.AuthService
-	tokenRepo   repository.TokenRepository
+	authService         service.AuthService
+	tokenRepo           repository.TokenRepository
+	profilePhotoHandler *ProfilePhotoHandler
 }
 
-func RegisterAuthHandler(grpcServer *grpc.Server, authService service.AuthService, tokenRepo repository.TokenRepository) {
+func RegisterAuthHandler(grpcServer *grpc.Server, authService service.AuthService, tokenRepo repository.TokenRepository, profilePhotoHandler *ProfilePhotoHandler) {
 	pb.RegisterAuthServiceServer(grpcServer, &authHandler{
-		authService: authService,
-		tokenRepo:   tokenRepo,
+		authService:         authService,
+		tokenRepo:           tokenRepo,
+		profilePhotoHandler: profilePhotoHandler,
 	})
 }
 
@@ -75,27 +77,33 @@ func (h *authHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User
 		return nil, status.Errorf(codes.Unauthenticated, "authentication failed: %v", err)
 	}
 
+	// Default automatic_logout to 55 if 0 (matching Laravel: settings->automatic_logout ?: 55)
+	automaticLogout := userDetails.AutomaticLogout
+	if automaticLogout == 0 {
+		automaticLogout = 55
+	}
+
 	response := &pb.UserResponse{
 		Id:                         userDetails.ID,
 		Name:                       userDetails.Name,
-		Token:                      userDetails.Token,
-		AccessToken:                userDetails.AccessToken,
-		AutomaticLogout:            userDetails.AutomaticLogout,
 		Code:                       userDetails.Code,
-		Image:                      userDetails.Image,
+		AutomaticLogout:            automaticLogout,
+		Level:                      nil, // Set below if available
+		Image:                      h.profilePhotoHandler.PrependGatewayURL(userDetails.Image),
 		Notifications:              userDetails.Notifications,
 		SocrePercentageToNextLevel: userDetails.ScorePercentageToNextLevel, // TYPO PRESERVED!
 		UnasnweredQuestionsCount:   userDetails.UnansweredQuestionsCount,   // TYPO PRESERVED!
 		HourlyProfitTimePercentage: userDetails.HourlyProfitTimePercentage,
 		VerifiedKyc:                userDetails.VerifiedKYC,
 		Birthdate:                  userDetails.Birthdate,
+		// Token and AccessToken are omitted to match Laravel AuthenticatedUserResource structure
 	}
 
 	if userDetails.Level != nil {
 		response.Level = &pb.Level{
-			Id:          userDetails.Level.ID,
-			Title:       userDetails.Level.Title,
-			Score:       userDetails.Level.Score,
+			Id:    userDetails.Level.ID,
+			Title: userDetails.Level.Title,
+			Score: userDetails.Level.Score,
 		}
 	}
 
@@ -140,18 +148,18 @@ func (h *authHandler) RequestAccountSecurity(ctx context.Context, req *pb.Reques
 	// Validate time parameter
 	validationErrors := make(map[string]string)
 	locale := "en" // TODO: Get locale from config or context
-	
+
 	if req.TimeMinutes < 5 || req.TimeMinutes > 60 {
 		t := helpers.GetLocaleTranslations(locale)
 		validationErrors["time"] = fmt.Sprintf(t.Invalid, "time")
 	}
-	
+
 	// If validation errors exist, return them with field information
 	if len(validationErrors) > 0 {
 		encodedError := helpers.EncodeValidationError(validationErrors)
 		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
-	
+
 	if err := h.authService.RequestAccountSecurity(ctx, req.UserId, req.TimeMinutes, req.Phone); err != nil {
 		return nil, mapAccountSecurityErrorWithFields(err)
 	}
@@ -162,7 +170,7 @@ func (h *authHandler) VerifyAccountSecurity(ctx context.Context, req *pb.VerifyA
 	// Validate code parameter
 	validationErrors := make(map[string]string)
 	locale := "en" // TODO: Get locale from config or context
-	
+
 	if req.Code == "" {
 		t := helpers.GetLocaleTranslations(locale)
 		validationErrors["code"] = fmt.Sprintf(t.Required, "code")
@@ -183,13 +191,13 @@ func (h *authHandler) VerifyAccountSecurity(ctx context.Context, req *pb.VerifyA
 			validationErrors["code"] = fmt.Sprintf(t.Invalid, "code")
 		}
 	}
-	
+
 	// If validation errors exist, return them with field information
 	if len(validationErrors) > 0 {
 		encodedError := helpers.EncodeValidationError(validationErrors)
 		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
-	
+
 	if err := h.authService.VerifyAccountSecurity(ctx, req.UserId, req.Code, req.Ip, req.UserAgent); err != nil {
 		return nil, mapAccountSecurityErrorWithFields(err)
 	}
@@ -203,7 +211,7 @@ func mapAccountSecurityError(err error) error {
 func mapAccountSecurityErrorWithFields(err error) error {
 	locale := "en" // TODO: Get locale from config or context
 	validationErrors := make(map[string]string)
-	
+
 	switch {
 	case errors.Is(err, service.ErrInvalidOTPCode):
 		t := helpers.GetLocaleTranslations(locale)

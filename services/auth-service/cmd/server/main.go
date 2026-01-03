@@ -22,6 +22,7 @@ import (
 	"metargb/auth-service/internal/repository"
 	"metargb/auth-service/internal/service"
 	notificationspb "metargb/shared/pb/notifications"
+	pb "metargb/shared/pb/auth"
 )
 
 func main() {
@@ -246,14 +247,21 @@ func main() {
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
+	// Create profile photo handler instance (needed by auth handler)
+	profilePhotoHandler := &handler.ProfilePhotoHandler{
+		ProfilePhotoService: profilePhotoService,
+		ApiGatewayURL:       apiGatewayURL,
+	}
+
 	// Register handlers
-	handler.RegisterAuthHandler(grpcServer, authService, tokenRepo)
+	handler.RegisterAuthHandler(grpcServer, authService, tokenRepo, profilePhotoHandler)
 	handler.RegisterUserHandler(grpcServer, userService, profileLimitationService, helperService)
 	handler.RegisterKYCHandler(grpcServer, kycService)
 	handler.RegisterCitizenHandler(grpcServer, citizenService)
 	handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
 	handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)
-	handler.RegisterProfilePhotoHandler(grpcServer, profilePhotoService, apiGatewayURL)
+	// Register profile photo handler (also register it separately for its own gRPC service)
+	pb.RegisterProfilePhotoServiceServer(grpcServer, profilePhotoHandler)
 	handler.RegisterSettingsHandler(grpcServer, settingsService)
 	handler.RegisterUserEventsHandler(grpcServer, userEventsService, userRepo)
 	handler.RegisterSearchHandler(grpcServer, searchService)
