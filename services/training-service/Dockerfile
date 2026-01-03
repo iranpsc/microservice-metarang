@@ -14,8 +14,12 @@ COPY ./shared/go.mod /workspace/metargb/shared/
 COPY ./shared/ /workspace/metargb/shared/
 
 # Copy training service
+# Copy go.mod and go.sum first for better Docker layer caching
 COPY ./services/training-service/go.mod ./services/training-service/go.sum* /workspace/metargb/training-service/
+# Copy entire service directory contents (trailing slash copies contents, not the directory itself)
 COPY ./services/training-service/ /workspace/metargb/training-service/
+# Explicitly ensure cmd directory is copied (safety check)
+COPY ./services/training-service/cmd /workspace/metargb/training-service/cmd
 
 # Setup go workspace
 WORKDIR /workspace
@@ -41,6 +45,8 @@ RUN go mod download
 # Build the application  
 WORKDIR /workspace
 ENV GOWORK=/workspace/go.work
+# Verify cmd/server exists before building
+RUN test -d /workspace/metargb/training-service/cmd/server || (echo "ERROR: cmd/server directory not found!" && echo "Directory contents:" && ls -la /workspace/metargb/training-service/ && echo "Looking for cmd:" && find /workspace/metargb/training-service -name "cmd" -o -name "server" && exit 1)
 RUN cd /workspace/metargb/training-service && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o /app/training-service ./cmd/server
 
 # Final stage
