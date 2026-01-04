@@ -31,7 +31,7 @@ func NewCitizenRepository(db *sql.DB) CitizenRepository {
 func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (*models.CitizenProfile, error) {
 	// Get user by code (case-insensitive)
 	query := `
-		SELECT id, name, email, phone, code, position, score, created_at
+		SELECT id, name, email, phone, code, score, created_at
 		FROM users
 		WHERE LOWER(code) = LOWER(?)
 		LIMIT 1
@@ -39,13 +39,11 @@ func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (
 
 	user := &models.CitizenProfile{}
 	var createdAt time.Time
-	var position sql.NullString
 	err := r.db.QueryRowContext(ctx, query, code).Scan(
-		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Code, &position, &user.Score, &createdAt,
+		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Code, &user.Score, &createdAt,
 	)
-	if err == nil && position.Valid {
-		user.Position = position.String
-	}
+	// Position is not stored in the database; it's a privacy-controlled field with a hardcoded value in Laravel
+	// Leave it empty here - privacy filtering will control if it's included in the response
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -336,27 +334,27 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 	}
 
 	// Build query based on range type
+	// Laravel behavior:
+	// - yearly: ALL data, no time filter (groups by year from first to current)
+	// - monthly: last 12 months
+	// - weekly: last 7 days  
+	// - daily: last 24 hours
 	var dateFormat string
-	var groupBy string
 	var timeFilter string
 
 	now := time.Now()
 	switch rangeType {
 	case "yearly":
-		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 YEAR)"
-		groupBy = "YEAR(created_at), MONTH(created_at)"
+		timeFilter = "1=1" // No time filter for yearly - show all data
 		dateFormat = "%Y/%m"
 	case "monthly":
-		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 MONTH)"
-		groupBy = "YEAR(created_at), MONTH(created_at), DAY(created_at)"
+		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 12 MONTH)" // Last 12 months, not 1 month
 		dateFormat = "%Y/%m/%d"
 	case "weekly":
-		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 WEEK)"
-		groupBy = "YEAR(created_at), MONTH(created_at), DAY(created_at)"
+		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 7 DAY)" // Last 7 days, not 1 week
 		dateFormat = "%Y/%m/%d"
 	default: // daily
 		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 DAY)"
-		groupBy = "YEAR(created_at), MONTH(created_at), DAY(created_at), HOUR(created_at)"
 		dateFormat = "%Y/%m/%d %H"
 	}
 
@@ -370,7 +368,10 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 	for i, id := range referralIDs {
 		args[i] = id
 	}
-	args = append(args, now)
+	// Only add time parameter if not yearly (yearly uses "1=1" which needs no parameter)
+	if rangeType != "yearly" {
+		args = append(args, now)
+	}
 
 	var totalCount int
 	var totalAmount int64
@@ -380,6 +381,7 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 	}
 
 	// Get chart data points
+	// Use DATE_FORMAT in GROUP BY to comply with MySQL's only_full_group_by mode
 	chartQuery := `
 		SELECT 
 			DATE_FORMAT(created_at, ?) as label,
@@ -388,16 +390,21 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 		FROM referral_order_histories
 		WHERE referral_id IN (` + buildPlaceholders(len(referralIDs)) + `)
 		AND ` + timeFilter + `
-		GROUP BY ` + groupBy + `
-		ORDER BY created_at ASC
+		GROUP BY DATE_FORMAT(created_at, ?)
+		ORDER BY DATE_FORMAT(created_at, ?) ASC
 	`
 
 	chartArgs := make([]interface{}, 0)
-	chartArgs = append(chartArgs, dateFormat)
+	chartArgs = append(chartArgs, dateFormat) // For SELECT DATE_FORMAT
 	for _, id := range referralIDs {
 		chartArgs = append(chartArgs, id)
 	}
-	chartArgs = append(chartArgs, now)
+	// Only add time parameter if not yearly (yearly uses "1=1" which needs no parameter)
+	if rangeType != "yearly" {
+		chartArgs = append(chartArgs, now)
+	}
+	chartArgs = append(chartArgs, dateFormat) // For GROUP BY DATE_FORMAT
+	chartArgs = append(chartArgs, dateFormat) // For ORDER BY DATE_FORMAT
 
 	chartRows, err := r.db.QueryContext(ctx, chartQuery, chartArgs...)
 	if err != nil {
