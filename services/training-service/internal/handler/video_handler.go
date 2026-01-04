@@ -2,6 +2,9 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -210,9 +213,44 @@ func (h *VideoHandler) buildVideoResponse(ctx context.Context, video *service.Vi
 		CreatedAt:   video.CreatedAtJalali,
 	}
 
-	// Set image_url and video_url (these would come from storage service or config)
-	resp.ImageUrl = video.Video.Image
-	resp.VideoUrl = "" // Would be constructed from fileName or storage service
+	// Set image_url and video_url (prepend APP_URL + /uploads/ if configured)
+	appURL := strings.TrimSuffix(os.Getenv("APP_URL"), "/")
+	
+	// Construct image_url (pattern: APP_URL + /uploads/{imagePath})
+	if video.Video.Image != "" {
+		if strings.HasPrefix(video.Video.Image, "http://") || strings.HasPrefix(video.Video.Image, "https://") {
+			// Already a full URL, use as-is
+			resp.ImageUrl = video.Video.Image
+		} else if appURL != "" {
+			// Ensure image path starts with /uploads/
+			imagePath := strings.TrimPrefix(video.Video.Image, "/")
+			if !strings.HasPrefix(imagePath, "uploads/") {
+				imagePath = "uploads/" + imagePath
+			}
+			resp.ImageUrl = fmt.Sprintf("%s/%s", appURL, imagePath)
+		} else {
+			// No APP_URL configured, use relative path
+			imagePath := strings.TrimPrefix(video.Video.Image, "/")
+			if !strings.HasPrefix(imagePath, "uploads/") {
+				imagePath = "uploads/" + imagePath
+			}
+			resp.ImageUrl = "/" + imagePath
+		}
+	} else {
+		resp.ImageUrl = ""
+	}
+	
+	// Construct video_url (pattern: APP_URL + /uploads/videos/{fileName})
+	if video.Video.FileName != "" {
+		videoPath := "/uploads/videos/" + video.Video.FileName
+		if appURL != "" {
+			resp.VideoUrl = fmt.Sprintf("%s%s", appURL, videoPath)
+		} else {
+			resp.VideoUrl = videoPath
+		}
+	} else {
+		resp.VideoUrl = ""
+	}
 
 	// Set creator
 	if video.Creator != nil {
