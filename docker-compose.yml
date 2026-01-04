@@ -103,9 +103,13 @@ services:
     environment:
       HTTP_PORT: 8080
       AUTH_SERVICE_ADDR: auth-service:50051
+      TRAINING_SERVICE_ADDR: training-service:50057
+      FINANCIAL_SERVICE_ADDR: financial-service:50062
       STORAGE_SERVICE_ADDR: storage-service:8059
     depends_on:
       auth-service:
+        condition: service_started
+      training-service:
         condition: service_started
       storage-service:
         condition: service_started
@@ -275,6 +279,38 @@ services:
       timeout: 3s
       retries: 3
 
+  # Training Service - Video Tutorials & Comments
+  training-service:
+    build:
+      context: .
+      dockerfile: ./services/training-service/Dockerfile
+    container_name: metargb-training-service
+    ports:
+      - "50057:50057"
+    env_file:
+      - ./services/training-service/config.env
+    environment:
+      GRPC_PORT: 50057
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: metargb_db
+      DB_USER: metargb_user
+      DB_PASSWORD: metargb_password
+      AUTH_SERVICE_ADDR: auth-service:50051
+    depends_on:
+      mysql:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - metargb-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50057"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
   # Notifications Service - Multi-channel Notifications
   notifications-service:
     build:
@@ -325,9 +361,9 @@ services:
       dockerfile: ./services/financial-service/Dockerfile
     container_name: metargb-financial-service
     ports:
-      - "50057:50057"
+      - "50062:50062"
     environment:
-      GRPC_PORT: 50057
+      GRPC_PORT: 50062
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metargb_db
@@ -344,7 +380,7 @@ services:
       - metargb-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50057"]
+      test: ["CMD", "nc", "-z", "localhost", "50062"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -466,6 +502,8 @@ services:
       calendar-service:
         condition: service_started
       support-service:
+        condition: service_started
+      training-service:
         condition: service_started
       notifications-service:
         condition: service_started

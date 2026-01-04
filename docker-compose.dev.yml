@@ -83,6 +83,15 @@ services:
       - ./shared:/workspace/metargb/shared
     command: sh -c "cd /workspace/metargb/support-service && sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod && air -c /workspace/metargb/support-service/.air.toml"
 
+  training-service:
+    build:
+      context: .
+      dockerfile: ./services/training-service/Dockerfile.dev
+    volumes:
+      - ./services/training-service:/workspace/metargb/training-service
+      - ./shared:/workspace/metargb/shared
+    command: sh -c "cd /workspace/metargb/training-service && sed -i 's|replace metargb/shared => ../../shared|replace metargb/shared => /workspace/metargb/shared|g' go.mod && air -c /workspace/metargb/training-service/.air.toml"
+
   notifications-service:
     build:
       context: .
