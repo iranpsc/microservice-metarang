@@ -1,8 +1,8 @@
-# Levels API (v2)
+# Levels API
 
 The Levels API exposes read-only endpoints for browsing level metadata, detailed general information, and supporting assets (gems, gifts, licenses, and prizes). All endpoints are intended for public catalogue consumption and return JSON payloads.
 
-- **Base path:** `/api/v2/levels`
+- **Base path:** `/api/levels`
 - **Primary controller:** `App\Http\Controllers\Api\V2\LevelController`
 - **Middleware:** None (public routes)
 
@@ -144,17 +144,17 @@ return [
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v2/levels` | Public | Lists every level with basic metadata and optional image URLs. |
-| `GET` | `/api/v2/levels/{level:slug}` | Public | Returns a single level with general info and image when available. |
-| `GET` | `/api/v2/levels/{level:slug}/general-info` | Public | Provides the full `LevelGeneralInfo` record for the specified level. |
-| `GET` | `/api/v2/levels/{level:slug}/gem` | Public | Returns gem configuration data associated with the level. |
-| `GET` | `/api/v2/levels/{level:slug}/gift` | Public | Returns the gift configuration for the level. |
-| `GET` | `/api/v2/levels/{level:slug}/licenses` | Public | Returns licensing metadata for the level. |
-| `GET` | `/api/v2/levels/{level:slug}/prize` | Public | Returns prize thresholds and satisfaction metrics for the level. |
+| `GET` | `/api/levels` | Public | Lists every level with basic metadata and optional image URLs. |
+| `GET` | `/api/levels/{level:slug}` | Public | Returns a single level with general info and image when available. |
+| `GET` | `/api/levels/{level:slug}/general-info` | Public | Provides the full `LevelGeneralInfo` record for the specified level. |
+| `GET` | `/api/levels/{level:slug}/gem` | Public | Returns gem configuration data associated with the level. |
+| `GET` | `/api/levels/{level:slug}/gift` | Public | Returns the gift configuration for the level. |
+| `GET` | `/api/levels/{level:slug}/licenses` | Public | Returns licensing metadata for the level. |
+| `GET` | `/api/levels/{level:slug}/prize` | Public | Returns prize thresholds and satisfaction metrics for the level. |
 
 ## Endpoints
 
-### GET `/api/v2/levels`
+### GET `/api/levels`
 
 - **Controller method:** `LevelController@index`
 - **Route binding:** None; returns all levels ordered by default primary key.
@@ -162,7 +162,7 @@ return [
 - **Response:** `200 OK` with `LevelResource` collection containing `id`, `name`, `slug`, optional `image`, and `background_image`.
 - **Notes:** Images are only included if the polymorphic `image` relation is populated (`select` + `with('image')`).
 
-### GET `/api/v2/levels/{level:slug}`
+### GET `/api/levels/{level:slug}`
 
 - **Controller method:** `LevelController@show`
 - **Route binding:** Resolves the `Level` by `slug`. Unknown slugs produce `404`.
@@ -170,7 +170,7 @@ return [
 - **Response:** `200 OK` with a single `LevelResource`. The controller eager-loads `image` and `generalInfo`, so nested general info fields are populated when the relation exists.
 - **Notes:** If `generalInfo` or `image` records are missing, the corresponding keys return `null` or are omitted due to the resource’s `whenLoaded` helpers.
 
-### GET `/api/v2/levels/{level:slug}/general-info`
+### GET `/api/levels/{level:slug}/general-info`
 
 - **Controller method:** `LevelController@getGeneralInfo`
 - **Route binding:** Reuses the bound `Level`. Missing general info returns `null` fields.
@@ -178,7 +178,7 @@ return [
 - **Response:** `200 OK` with `GeneralInfoResource`, exposing typography, scoring, and design metadata.
 - **Notes:** Consumers should tolerate empty strings or `null` for optional fields like `persian_font`.
 
-### GET `/api/v2/levels/{level:slug}/gem`
+### GET `/api/levels/{level:slug}/gem`
 
 - **Controller method:** `LevelController@gem`
 - **Route binding:** Reuses the bound `Level` model.
@@ -186,7 +186,7 @@ return [
 - **Response:** `200 OK` with `GemResource`. All non-hidden columns from `level_gems` are emitted.
 - **Notes:** Expect numeric gem counts and color/channel configuration fields exactly as stored.
 
-### GET `/api/v2/levels/{level:slug}/gift`
+### GET `/api/levels/{level:slug}/gift`
 
 - **Controller method:** `LevelController@gift`
 - **Route binding:** Reuses the bound `Level` model.
@@ -194,7 +194,7 @@ return [
 - **Response:** `200 OK` with `GiftResource`. Contains gift entitlement fields as stored in `level_gifts`.
 - **Notes:** Payload mirrors database columns; no transformation beyond hidden timestamps.
 
-### GET `/api/v2/levels/{level:slug}/licenses`
+### GET `/api/levels/{level:slug}/licenses`
 
 - **Controller method:** `LevelController@licenses`
 - **Route binding:** Reuses the bound `Level` model.
@@ -202,7 +202,7 @@ return [
 - **Response:** `200 OK` with `LicensesResource`, exposing licensing booleans and metadata from `level_licenses`.
 - **Notes:** Useful for gating feature access in clients; ensure consumers handle `null` when a license record has not been created.
 
-### GET `/api/v2/levels/{level:slug}/prize`
+### GET `/api/levels/{level:slug}/prize`
 
 - **Controller method:** `LevelController@prizes`
 - **Route binding:** Reuses the bound `Level` model.

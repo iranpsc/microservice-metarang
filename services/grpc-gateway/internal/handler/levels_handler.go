@@ -11,12 +11,39 @@ import (
 
 type LevelsHandler struct {
 	levelClient levelspb.LevelServiceClient
+	appURL      string
 }
 
-func NewLevelsHandler(conn *grpc.ClientConn) *LevelsHandler {
+func NewLevelsHandler(conn *grpc.ClientConn, appURL string) *LevelsHandler {
 	return &LevelsHandler{
 		levelClient: levelspb.NewLevelServiceClient(conn),
+		appURL:      strings.TrimSuffix(appURL, "/"),
 	}
+}
+
+// prefixImageURL prefixes an image/file URL with APP_URL/uploads/ if it's not already a full URL
+func (h *LevelsHandler) prefixImageURL(url string) string {
+	if url == "" {
+		return url
+	}
+	// If already a full URL (starts with http:// or https://), return as-is
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+		return url
+	}
+	// If APP_URL is not configured, return relative path with /uploads/ prefix
+	if h.appURL == "" {
+		path := strings.TrimPrefix(url, "/")
+		if !strings.HasPrefix(path, "uploads/") {
+			return "/uploads/" + path
+		}
+		return "/" + path
+	}
+	// Prefix with APP_URL/uploads/
+	path := strings.TrimPrefix(url, "/")
+	if !strings.HasPrefix(path, "uploads/") {
+		path = "uploads/" + path
+	}
+	return h.appURL + "/" + path
 }
 
 // GetAllLevels handles GET /api/v2/levels
@@ -43,14 +70,14 @@ func (h *LevelsHandler) GetAllLevels(w http.ResponseWriter, r *http.Request) {
 			"slug": level.Slug,
 		}
 
-		// Add image URL if present (should include admin_panel_url prefix)
+		// Add image URL if present (prefixed with APP_URL/uploads/)
 		if level.ImageUrl != "" {
-			levelMap["image"] = level.ImageUrl
+			levelMap["image"] = h.prefixImageURL(level.ImageUrl)
 		}
 
-		// Add background_image if present
+		// Add background_image if present (prefixed with APP_URL/uploads/)
 		if level.BackgroundImage != "" {
-			levelMap["background_image"] = level.BackgroundImage
+			levelMap["background_image"] = h.prefixImageURL(level.BackgroundImage)
 		}
 
 		levels = append(levels, levelMap)
@@ -67,8 +94,17 @@ func (h *LevelsHandler) GetLevel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract slug from path
-	slug := extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	// Extract slug from path (supports both /api/levels and /api/v2/levels)
+	var slug string
+	if strings.HasPrefix(r.URL.Path, "/api/v2/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	} else if strings.HasPrefix(r.URL.Path, "/api/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/levels/")
+	} else {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	
 	if slug == "" {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
@@ -84,7 +120,7 @@ func (h *LevelsHandler) GetLevel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	level := formatLevelResponse(resp.Level)
+	level := h.formatLevelResponse(resp.Level)
 	writeJSON(w, http.StatusOK, level)
 }
 
@@ -96,7 +132,17 @@ func (h *LevelsHandler) GetLevelGeneralInfo(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	slug := extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	// Extract slug from path (supports both /api/levels and /api/v2/levels)
+	var slug string
+	if strings.HasPrefix(r.URL.Path, "/api/v2/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	} else if strings.HasPrefix(r.URL.Path, "/api/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/levels/")
+	} else {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	
 	if slug == "" {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
@@ -134,9 +180,9 @@ func (h *LevelsHandler) GetLevelGeneralInfo(w http.ResponseWriter, r *http.Reque
 			"designer":       resp.GeneralInfo.Designer,
 			"model_designer": resp.GeneralInfo.ModelDesigner,
 			"creation_date":  resp.GeneralInfo.CreationDate,
-			"png_file":       resp.GeneralInfo.PngFile,
-			"fbx_file":       resp.GeneralInfo.FbxFile,
-			"gif_file":       resp.GeneralInfo.GifFile,
+			"png_file":       h.prefixImageURL(resp.GeneralInfo.PngFile),
+			"fbx_file":       h.prefixImageURL(resp.GeneralInfo.FbxFile),
+			"gif_file":       h.prefixImageURL(resp.GeneralInfo.GifFile),
 		}
 	} else {
 		generalInfo = nil
@@ -153,7 +199,17 @@ func (h *LevelsHandler) GetLevelGem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug := extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	// Extract slug from path (supports both /api/levels and /api/v2/levels)
+	var slug string
+	if strings.HasPrefix(r.URL.Path, "/api/v2/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	} else if strings.HasPrefix(r.URL.Path, "/api/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/levels/")
+	} else {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	
 	if slug == "" {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
@@ -186,8 +242,8 @@ func (h *LevelsHandler) GetLevelGem(w http.ResponseWriter, r *http.Request) {
 			"color":         resp.Gem.Color,
 			"has_animation": resp.Gem.HasAnimation,
 			"lines":         resp.Gem.Lines,
-			"png_file":      resp.Gem.PngFile,
-			"fbx_file":      resp.Gem.FbxFile,
+			"png_file":      h.prefixImageURL(resp.Gem.PngFile),
+			"fbx_file":      h.prefixImageURL(resp.Gem.FbxFile),
 			"encryption":    resp.Gem.Encryption,
 			"designer":      resp.Gem.Designer,
 		}
@@ -207,7 +263,17 @@ func (h *LevelsHandler) GetLevelGift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug := extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	// Extract slug from path (supports both /api/levels and /api/v2/levels)
+	var slug string
+	if strings.HasPrefix(r.URL.Path, "/api/v2/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	} else if strings.HasPrefix(r.URL.Path, "/api/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/levels/")
+	} else {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	
 	if slug == "" {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
@@ -246,9 +312,9 @@ func (h *LevelsHandler) GetLevelGift(w http.ResponseWriter, r *http.Request) {
 			"three_d_model_points":      resp.Gift.ThreeDModelPoints,
 			"three_d_model_lines":       resp.Gift.ThreeDModelLines,
 			"has_animation":             resp.Gift.HasAnimation,
-			"png_file":                  resp.Gift.PngFile,
-			"fbx_file":                  resp.Gift.FbxFile,
-			"gif_file":                  resp.Gift.GifFile,
+			"png_file":                  h.prefixImageURL(resp.Gift.PngFile),
+			"fbx_file":                  h.prefixImageURL(resp.Gift.FbxFile),
+			"gif_file":                  h.prefixImageURL(resp.Gift.GifFile),
 			"rent":                      resp.Gift.Rent,
 			"vod_count":                 resp.Gift.VodCount,
 			"start_vod_id":              resp.Gift.StartVodId,
@@ -269,7 +335,17 @@ func (h *LevelsHandler) GetLevelLicenses(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	slug := extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	// Extract slug from path (supports both /api/levels and /api/v2/levels)
+	var slug string
+	if strings.HasPrefix(r.URL.Path, "/api/v2/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	} else if strings.HasPrefix(r.URL.Path, "/api/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/levels/")
+	} else {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	
 	if slug == "" {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
@@ -327,7 +403,17 @@ func (h *LevelsHandler) GetLevelPrize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug := extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	// Extract slug from path (supports both /api/levels and /api/v2/levels)
+	var slug string
+	if strings.HasPrefix(r.URL.Path, "/api/v2/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/v2/levels/")
+	} else if strings.HasPrefix(r.URL.Path, "/api/levels/") {
+		slug = extractSlugFromPath(r.URL.Path, "/api/levels/")
+	} else {
+		writeError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	
 	if slug == "" {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
@@ -371,7 +457,7 @@ func (h *LevelsHandler) GetLevelPrize(w http.ResponseWriter, r *http.Request) {
 }
 
 // formatLevelResponse formats a Level proto message to match Laravel LevelResource format
-func formatLevelResponse(level *levelspb.Level) map[string]interface{} {
+func (h *LevelsHandler) formatLevelResponse(level *levelspb.Level) map[string]interface{} {
 	if level == nil {
 		return nil
 	}
@@ -382,14 +468,14 @@ func formatLevelResponse(level *levelspb.Level) map[string]interface{} {
 		"slug": level.Slug,
 	}
 
-	// Add image URL if present
+	// Add image URL if present (prefixed with APP_URL/uploads/)
 	if level.ImageUrl != "" {
-		levelMap["image"] = level.ImageUrl
+		levelMap["image"] = h.prefixImageURL(level.ImageUrl)
 	}
 
-	// Add background_image if present
+	// Add background_image if present (prefixed with APP_URL/uploads/)
 	if level.BackgroundImage != "" {
-		levelMap["background_image"] = level.BackgroundImage
+		levelMap["background_image"] = h.prefixImageURL(level.BackgroundImage)
 	}
 
 	// Add general_info if loaded (only in show endpoint)
@@ -397,9 +483,9 @@ func formatLevelResponse(level *levelspb.Level) map[string]interface{} {
 		levelMap["general_info"] = map[string]interface{}{
 			"score":       level.GeneralInfo.Score,
 			"rank":        level.GeneralInfo.Rank,
-			"png_file":    level.GeneralInfo.PngFile,
-			"fbx_file":    level.GeneralInfo.FbxFile,
-			"gif_file":    level.GeneralInfo.GifFile,
+			"png_file":    h.prefixImageURL(level.GeneralInfo.PngFile),
+			"fbx_file":    h.prefixImageURL(level.GeneralInfo.FbxFile),
+			"gif_file":    h.prefixImageURL(level.GeneralInfo.GifFile),
 			"description": level.GeneralInfo.Description,
 		}
 	}
@@ -407,10 +493,99 @@ func formatLevelResponse(level *levelspb.Level) map[string]interface{} {
 	return levelMap
 }
 
+// HandleLevelsRoutes is the main router for levels endpoints
+// Handles both /api/levels and /api/v2/levels prefixes
+// Routes to appropriate handler based on path structure
+func (h *LevelsHandler) HandleLevelsRoutes(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	
+	// Determine the base prefix used (/api/levels or /api/v2/levels)
+	var basePrefix string
+	if strings.HasPrefix(path, "/api/v2/levels") {
+		basePrefix = "/api/v2/levels"
+	} else if strings.HasPrefix(path, "/api/levels") {
+		basePrefix = "/api/levels"
+	} else {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	
+	// Handle exact match: /api/levels or /api/v2/levels
+	if path == basePrefix {
+		h.GetAllLevels(w, r)
+		return
+	}
+	
+	// Extract the path after the prefix
+	suffix := strings.TrimPrefix(path, basePrefix)
+	suffix = strings.TrimPrefix(suffix, "/")
+	
+	if suffix == "" {
+		// This is /api/levels/ or /api/v2/levels/ - treat as list
+		h.GetAllLevels(w, r)
+		return
+	}
+	
+	// Split the suffix into parts
+	parts := strings.Split(suffix, "/")
+	slug := parts[0]
+	
+	// Handle nested routes: /api/levels/{slug}/general-info, etc.
+	if len(parts) == 2 {
+		resource := parts[1]
+		switch resource {
+		case "general-info":
+			// Temporarily update the path for the handler
+			r.URL.Path = basePrefix + "/" + slug + "/general-info"
+			h.GetLevelGeneralInfo(w, r)
+			return
+		case "gem":
+			r.URL.Path = basePrefix + "/" + slug + "/gem"
+			h.GetLevelGem(w, r)
+			return
+		case "gift":
+			r.URL.Path = basePrefix + "/" + slug + "/gift"
+			h.GetLevelGift(w, r)
+			return
+		case "licenses":
+			r.URL.Path = basePrefix + "/" + slug + "/licenses"
+			h.GetLevelLicenses(w, r)
+			return
+		case "prize":
+			r.URL.Path = basePrefix + "/" + slug + "/prize"
+			h.GetLevelPrize(w, r)
+			return
+		}
+	}
+	
+	// Handle single level: /api/levels/{slug} or /api/v2/levels/{slug}
+	if len(parts) == 1 {
+		r.URL.Path = basePrefix + "/" + slug
+		h.GetLevel(w, r)
+		return
+	}
+	
+	// No match found
+	writeError(w, http.StatusNotFound, "not found")
+}
+
 // extractSlugFromPath extracts slug from URL path
-// e.g., "/api/v2/levels/my-level" -> "my-level"
+// Supports both /api/levels and /api/v2/levels prefixes
+// e.g., "/api/levels/my-level" -> "my-level"
 // e.g., "/api/v2/levels/my-level/general-info" -> "my-level/general-info"
 func extractSlugFromPath(path, prefix string) string {
+	// Support both /api/levels and /api/v2/levels
+	if strings.HasPrefix(path, "/api/v2/levels/") {
+		if prefix == "/api/v2/levels/" || prefix == "/api/levels/" {
+			return strings.TrimPrefix(path, "/api/v2/levels/")
+		}
+	} else if strings.HasPrefix(path, "/api/levels/") {
+		if prefix == "/api/levels/" || prefix == "/api/v2/levels/" {
+			return strings.TrimPrefix(path, "/api/levels/")
+		}
+	}
+	
+	// Fallback to original logic
 	if !strings.HasPrefix(path, prefix) {
 		return ""
 	}

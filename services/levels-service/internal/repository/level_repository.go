@@ -278,8 +278,8 @@ func (r *LevelRepository) FindBySlug(ctx context.Context, slug string) (*pb.Leve
 // Implements Laravel: $level->generalInfo
 func (r *LevelRepository) GetLevelGeneralInfo(ctx context.Context, levelID uint64) (*pb.LevelGeneralInfo, error) {
 	query := `
-		SELECT id, level_id, score, rank, description, subcategories,
-		       persian_font, english_font, file_volume, used_colors, points, lines,
+		SELECT id, level_id, score, ` + "`rank`" + `, description, subcategories,
+		       persian_font, english_font, file_volume, used_colors, points, ` + "`lines`" + `,
 		       has_animation, designer, model_designer, creation_date,
 		       COALESCE(png_file, '') as png_file,
 		       COALESCE(fbx_file, '') as fbx_file,
@@ -391,7 +391,7 @@ func (r *LevelRepository) GetLevelPrize(ctx context.Context, levelID uint64) (*p
 func (r *LevelRepository) GetLevelGem(ctx context.Context, levelID uint64) (*pb.LevelGem, error) {
 	query := `
 		SELECT id, level_id, name, description, thread, points, volume, color,
-		       has_animation, lines, png_file, fbx_file, encryption, designer
+		       has_animation, ` + "`lines`" + `, png_file, fbx_file, encryption, designer
 		FROM level_gems
 		WHERE level_id = ?
 	`

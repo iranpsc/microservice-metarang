@@ -18,6 +18,7 @@ type Config struct {
 	NotificationServiceAddr string
 	StorageServiceAddr      string
 	Locale                  string
+	AppURL                  string
 }
 
 func Load() *Config {
@@ -36,6 +37,7 @@ func Load() *Config {
 		NotificationServiceAddr: getEnv("NOTIFICATION_SERVICE_ADDR", "notifications-service:50058"),
 		StorageServiceAddr:      getEnv("STORAGE_SERVICE_ADDR", "storage-service:8059"),
 		Locale:                  locale,
+		AppURL:                  getEnv("APP_URL", ""),
 	}
 }
 
