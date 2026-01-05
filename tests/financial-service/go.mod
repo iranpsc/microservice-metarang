@@ -1,13 +1,12 @@
-module metargb/financial-service
+module metargb/financial-service-tests
 
 go 1.24.0
 
 toolchain go1.24.3
 
 require (
-	github.com/go-sql-driver/mysql v1.7.1
-	github.com/joho/godotenv v1.5.1
 	google.golang.org/grpc v1.76.0
+	metargb/financial-service v0.0.0
 	metargb/shared v0.0.0
 )
 
@@ -18,6 +17,7 @@ require (
 	github.com/go-playground/validator/v10 v10.16.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/yaa110/go-persian-calendar v1.2.0 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
@@ -27,4 +27,6 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 )
 
-replace metargb/shared => /workspace/metargb/shared
+replace metargb/financial-service => ../../services/financial-service
+
+replace metargb/shared => ../../shared

@@ -33,6 +33,7 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *pb.CreateOrderReque
 	validationErrors := mergeValidationErrors(
 		validateMin("amount", int64(req.Amount), 1, locale),
 		validateRequired("asset", req.Asset, locale),
+		validateOneOf("asset", req.Asset, []string{"psc", "irr", "red", "blue", "yellow"}, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -60,6 +61,15 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *pb.CreateOrderReque
 }
 
 func (h *OrderHandler) HandleCallback(ctx context.Context, req *pb.HandleCallbackRequest) (*pb.HandleCallbackResponse, error) {
+	locale := "en" // TODO: Get locale from config or context
+	validationErrors := mergeValidationErrors(
+		validateRequired("order_id", req.OrderId, locale),
+		validateRequired("token", req.Token, locale),
+	)
+	if len(validationErrors) > 0 {
+		return nil, returnValidationError(validationErrors)
+	}
+
 	// Convert additional params map
 	additionalParams := make(map[string]string)
 	if req.AdditionalParams != nil {

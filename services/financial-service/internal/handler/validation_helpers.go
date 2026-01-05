@@ -12,7 +12,7 @@ import (
 // returnValidationError returns a gRPC InvalidArgument error with encoded validation fields
 func returnValidationError(fields map[string]string) error {
 	encodedError := helpers.EncodeValidationError(fields)
-	return status.Errorf(codes.InvalidArgument, encodedError)
+	return status.Errorf(codes.InvalidArgument, "%s", encodedError)
 }
 
 // validateRequired validates that a field is not empty/zero
@@ -25,7 +25,19 @@ func validateRequired(fieldName string, value interface{}, locale string) map[st
 		if v == "" {
 			validationErrors[fieldName] = fmt.Sprintf(t.Required, fieldName)
 		}
-	case uint64, uint32, int64, int32:
+	case uint64:
+		if v == 0 {
+			validationErrors[fieldName] = fmt.Sprintf(t.Required, fieldName)
+		}
+	case uint32:
+		if v == 0 {
+			validationErrors[fieldName] = fmt.Sprintf(t.Required, fieldName)
+		}
+	case int64:
+		if v == 0 {
+			validationErrors[fieldName] = fmt.Sprintf(t.Required, fieldName)
+		}
+	case int32:
 		if v == 0 {
 			validationErrors[fieldName] = fmt.Sprintf(t.Required, fieldName)
 		}
@@ -53,6 +65,30 @@ func validateMinLength(fieldName string, value string, minLength int, locale str
 
 	if len(value) < minLength {
 		validationErrors[fieldName] = fmt.Sprintf(t.Min, fieldName, fmt.Sprintf("%d", minLength))
+	}
+
+	return validationErrors
+}
+
+// validateOneOf validates that a string value is one of the allowed values
+func validateOneOf(fieldName string, value string, allowedValues []string, locale string) map[string]string {
+	validationErrors := make(map[string]string)
+	t := helpers.GetLocaleTranslations(locale)
+
+	if value == "" {
+		return validationErrors // Let validateRequired handle empty values
+	}
+
+	valid := false
+	for _, allowed := range allowedValues {
+		if value == allowed {
+			valid = true
+			break
+		}
+	}
+
+	if !valid {
+		validationErrors[fieldName] = fmt.Sprintf(t.Invalid, fieldName)
 	}
 
 	return validationErrors
