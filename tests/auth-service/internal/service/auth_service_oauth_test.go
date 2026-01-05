@@ -259,7 +259,7 @@ func TestCallback(t *testing.T) {
 			"http://localhost:3000",
 		)
 
-		result, err := svc.Callback(ctx, state, "test_code")
+		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -309,7 +309,7 @@ func TestCallback(t *testing.T) {
 			"http://localhost:3000",
 		)
 
-		_, err := svc.Callback(ctx, "invalid_state", "test_code")
+		_, err := svc.Callback(ctx, "invalid_state", "test_code", "127.0.0.1")
 		if err == nil {
 			t.Fatal("Expected error for invalid state")
 		}
@@ -360,7 +360,7 @@ func TestCallback(t *testing.T) {
 			"http://localhost:3000",
 		)
 
-		result, err := svc.Callback(ctx, state, "test_code")
+		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -422,7 +422,7 @@ func TestCallback(t *testing.T) {
 			"http://localhost:3000",
 		)
 
-		result, err := svc.Callback(ctx, state, "test_code")
+		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}

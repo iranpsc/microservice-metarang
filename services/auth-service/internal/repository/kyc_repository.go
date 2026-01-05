@@ -14,6 +14,7 @@ type KYCRepository interface {
 	FindByUserID(ctx context.Context, userID uint64) (*models.KYC, error)
 	Update(ctx context.Context, kyc *models.KYC) error
 	CheckUniqueMelliCode(ctx context.Context, melliCode string, excludeUserID uint64) (bool, error)
+	CheckVerifyTextExists(ctx context.Context, verifyTextID uint64) (bool, error)
 	CreateBankAccount(ctx context.Context, bankAccount *models.BankAccount) error
 	FindBankAccountsByUserID(ctx context.Context, userID uint64) ([]*models.BankAccount, error)
 	FindBankAccountByID(ctx context.Context, bankAccountID uint64) (*models.BankAccount, error)
@@ -215,4 +216,14 @@ func (r *kycRepository) CheckUniqueMelliCode(ctx context.Context, melliCode stri
 		return false, fmt.Errorf("failed to check unique melli code: %w", err)
 	}
 	return count == 0, nil
+}
+
+func (r *kycRepository) CheckVerifyTextExists(ctx context.Context, verifyTextID uint64) (bool, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM kyc_verify_texts WHERE id = ?`
+	err := r.db.QueryRowContext(ctx, query, verifyTextID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check verify_text_id existence: %w", err)
+	}
+	return count > 0, nil
 }

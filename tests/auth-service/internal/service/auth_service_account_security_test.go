@@ -22,7 +22,7 @@ func TestRequestAccountSecurityCreatesAndDispatchesOTP(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "",
+			Phone:           sql.NullString{Valid: false},
 			PhoneVerifiedAt: sql.NullTime{Valid: false},
 		},
 	}
@@ -72,8 +72,8 @@ func TestRequestAccountSecurityCreatesAndDispatchesOTP(t *testing.T) {
 	}
 
 	updatedUser := users[1]
-	if updatedUser.Phone != "09123456789" {
-		t.Errorf("expected user phone updated, got %q", updatedUser.Phone)
+	if !updatedUser.Phone.Valid || updatedUser.Phone.String != "09123456789" {
+		t.Errorf("expected user phone updated, got %v", updatedUser.Phone)
 	}
 	if updatedUser.PhoneVerifiedAt.Valid {
 		t.Errorf("phone should remain unverified until verification step")
@@ -93,7 +93,7 @@ func TestRequestAccountSecurityUpdatesExistingRecord(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "09101234567",
+			Phone:           sql.NullString{String: "09101234567", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: true},
 		},
 	}
@@ -142,12 +142,12 @@ func TestRequestAccountSecurityValidations(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "",
+			Phone:           sql.NullString{Valid: false},
 			PhoneVerifiedAt: sql.NullTime{Valid: false},
 		},
 		2: {
 			ID:              2,
-			Phone:           "09123456789",
+			Phone:           sql.NullString{String: "09123456789", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: true},
 		},
 	}
@@ -186,7 +186,7 @@ func TestRequestAccountSecurityNotificationError(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "",
+			Phone:           sql.NullString{Valid: false},
 			PhoneVerifiedAt: sql.NullTime{Valid: false},
 		},
 	}
@@ -210,7 +210,7 @@ func TestVerifyAccountSecuritySuccess(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "09100000000",
+			Phone:           sql.NullString{String: "09100000000", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: false},
 		},
 	}
@@ -288,17 +288,17 @@ func TestVerifyAccountSecurityFailures(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "09100000000",
+			Phone:           sql.NullString{String: "09100000000", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: true},
 		},
 		2: {
 			ID:              2,
-			Phone:           "09111111111",
+			Phone:           sql.NullString{String: "09111111111", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: true},
 		},
 		3: {
 			ID:              3,
-			Phone:           "09122222222",
+			Phone:           sql.NullString{String: "09122222222", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: true},
 		},
 	}
@@ -408,7 +408,7 @@ func TestRequestAccountSecurityPhoneHandling(t *testing.T) {
 		users := map[uint64]*models.User{
 			1: {
 				ID:              1,
-				Phone:           "09123456789",
+				Phone:           sql.NullString{String: "09123456789", Valid: true},
 				PhoneVerifiedAt: sql.NullTime{Valid: true, Time: time.Now()},
 			},
 		}
@@ -437,7 +437,7 @@ func TestRequestAccountSecurityPhoneHandling(t *testing.T) {
 		users := map[uint64]*models.User{
 			1: {
 				ID:              1,
-				Phone:           "",
+				Phone:           sql.NullString{Valid: false},
 				PhoneVerifiedAt: sql.NullTime{Valid: false},
 			},
 		}
@@ -454,8 +454,8 @@ func TestRequestAccountSecurityPhoneHandling(t *testing.T) {
 			t.Fatalf("RequestAccountSecurity failed: %v", err)
 		}
 
-		if users[1].Phone != "09123456789" {
-			t.Errorf("expected phone to be trimmed, got %q", users[1].Phone)
+		if !users[1].Phone.Valid || users[1].Phone.String != "09123456789" {
+			t.Errorf("expected phone to be trimmed, got %v", users[1].Phone)
 		}
 	})
 
@@ -463,7 +463,7 @@ func TestRequestAccountSecurityPhoneHandling(t *testing.T) {
 		users := map[uint64]*models.User{
 			1: {
 				ID:              1,
-				Phone:           "",
+				Phone:           sql.NullString{Valid: false},
 				PhoneVerifiedAt: sql.NullTime{Valid: false},
 			},
 		}
@@ -500,7 +500,7 @@ func TestRequestAccountSecurityPhoneHandling(t *testing.T) {
 		users := map[uint64]*models.User{
 			1: {
 				ID:              1,
-				Phone:           "09123456789",
+				Phone:           sql.NullString{String: "09123456789", Valid: true},
 				PhoneVerifiedAt: sql.NullTime{Valid: true},
 			},
 		}
@@ -554,7 +554,7 @@ func TestVerifyAccountSecurityEventLogging(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "09100000000",
+			Phone:           sql.NullString{String: "09100000000", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: false},
 		},
 	}
@@ -619,7 +619,7 @@ func TestVerifyAccountSecurityUnlockWindow(t *testing.T) {
 	users := map[uint64]*models.User{
 		1: {
 			ID:              1,
-			Phone:           "09100000000",
+			Phone:           sql.NullString{String: "09100000000", Valid: true},
 			PhoneVerifiedAt: sql.NullTime{Valid: true},
 		},
 	}
@@ -736,7 +736,7 @@ func (f *fakeUserRepository) MarkEmailAsVerified(context.Context, uint64) error 
 
 func (f *fakeUserRepository) UpdatePhone(_ context.Context, userID uint64, phone string) error {
 	if user, ok := f.users[userID]; ok {
-		user.Phone = phone
+		user.Phone = sql.NullString{String: phone, Valid: phone != ""}
 		return nil
 	}
 	return fmt.Errorf("user %d not found", userID)
@@ -755,7 +755,7 @@ func (f *fakeUserRepository) IsPhoneTaken(_ context.Context, phone string, exclu
 		if id == excludeUserID {
 			continue
 		}
-		if user.Phone == phone {
+		if user.Phone.Valid && user.Phone.String == phone {
 			return true, nil
 		}
 	}

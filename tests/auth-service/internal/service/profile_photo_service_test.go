@@ -106,7 +106,7 @@ func TestProfilePhotoService_ListProfilePhotos(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
 	storageClient := newFakeStorageClient()
-	service := NewProfilePhotoService(repo, storageClient)
+	service := NewProfilePhotoService(repo, storageClient, "http://localhost:8080")
 
 	t.Run("successful list", func(t *testing.T) {
 		userID := uint64(1)
@@ -141,7 +141,7 @@ func TestProfilePhotoService_UploadProfilePhoto(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
 	storageClient := newFakeStorageClient()
-	service := NewProfilePhotoService(repo, storageClient)
+	service := NewProfilePhotoService(repo, storageClient, "http://localhost:8080")
 
 	t.Run("successful upload", func(t *testing.T) {
 		userID := uint64(1)
@@ -234,7 +234,7 @@ func TestProfilePhotoService_GetProfilePhoto(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
 	storageClient := newFakeStorageClient()
-	service := NewProfilePhotoService(repo, storageClient)
+	service := NewProfilePhotoService(repo, storageClient, "http://localhost:8080")
 
 	t.Run("successful get", func(t *testing.T) {
 		userID := uint64(1)
@@ -276,7 +276,7 @@ func TestProfilePhotoService_DeleteProfilePhoto(t *testing.T) {
 	ctx := context.Background()
 	repo := newFakeProfilePhotoRepository()
 	storageClient := newFakeStorageClient()
-	service := NewProfilePhotoService(repo, storageClient)
+	service := NewProfilePhotoService(repo, storageClient, "http://localhost:8080")
 
 	t.Run("successful delete", func(t *testing.T) {
 		userID := uint64(1)

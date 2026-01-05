@@ -3,6 +3,9 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -12,6 +15,7 @@ import (
 	"metargb/auth-service/internal/models"
 	"metargb/auth-service/internal/service"
 	pb "metargb/shared/pb/auth"
+	storagepb "metargb/shared/pb/storage"
 	"metargb/shared/pkg/jalali"
 )
 
@@ -30,6 +34,82 @@ func (h *kycHandler) GetKYC(ctx context.Context, req *pb.GetKYCRequest) (*pb.KYC
 }
 
 func (h *kycHandler) UpdateKYC(ctx context.Context, req *pb.UpdateKYCRequest) (*pb.KYCResponse, error) {
+	// Validate melli_card file
+	if len(req.MelliCardData) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "melli_card_data is required")
+	}
+
+	if req.MelliCardFilename == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "melli_card_filename is required")
+	}
+
+	if req.MelliCardContentType == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "melli_card_content_type is required")
+	}
+
+	// Validate file size (max 5MB = 5 * 1024 * 1024 bytes)
+	const maxSize = 5 * 1024 * 1024
+	if len(req.MelliCardData) > maxSize {
+		return nil, status.Errorf(codes.InvalidArgument, "melli_card file size exceeds maximum of 5MB")
+	}
+
+	// Validate content type
+	contentType := strings.ToLower(req.MelliCardContentType)
+	if contentType != "image/png" && contentType != "image/jpeg" && contentType != "image/jpg" {
+		return nil, status.Errorf(codes.InvalidArgument, "melli_card must be a PNG or JPEG image")
+	}
+
+	// Validate filename extension
+	filenameLower := strings.ToLower(req.MelliCardFilename)
+	if !strings.HasSuffix(filenameLower, ".png") && !strings.HasSuffix(filenameLower, ".jpg") && !strings.HasSuffix(filenameLower, ".jpeg") {
+		return nil, status.Errorf(codes.InvalidArgument, "melli_card filename must have .png, .jpg, or .jpeg extension")
+	}
+
+	// Upload melli_card to storage-service
+	var melliCardURL string
+	if h.storageClient != nil {
+		uploadID := fmt.Sprintf("kyc_melli_card_%d_%d", req.UserId, time.Now().UnixNano())
+
+		chunkReq := &storagepb.ChunkUploadRequest{
+			UploadId:    uploadID,
+			ChunkData:   req.MelliCardData,
+			ChunkIndex:  0,
+			TotalChunks: 1,
+			Filename:    req.MelliCardFilename,
+			ContentType: req.MelliCardContentType,
+			TotalSize:   int64(len(req.MelliCardData)),
+			UploadPath:  "/uploads/kyc", // Upload path for KYC documents
+		}
+
+		chunkResp, err := h.storageClient.ChunkUpload(ctx, chunkReq)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to upload melli_card to storage service: %v", err)
+		}
+
+		if !chunkResp.Success {
+			return nil, status.Errorf(codes.Internal, "storage service upload failed: %s", chunkResp.Message)
+		}
+
+		if !chunkResp.IsFinished {
+			return nil, status.Errorf(codes.Internal, "storage service upload did not complete")
+		}
+
+		// Construct full path from storage service response
+		dirPath := chunkResp.FileUrl
+		filename := chunkResp.FilePath
+		if filename == "" {
+			filename = chunkResp.FinalFilename
+		}
+
+		if dirPath == "" || filename == "" {
+			return nil, status.Errorf(codes.Internal, "storage service did not return complete file path")
+		}
+
+		melliCardURL = strings.TrimSuffix(dirPath, "/") + "/" + filename
+	} else {
+		return nil, status.Errorf(codes.Internal, "storage service not available")
+	}
+
 	videoPath := ""
 	videoName := ""
 	if req.Video != nil {
@@ -45,7 +125,7 @@ func (h *kycHandler) UpdateKYC(ctx context.Context, req *pb.UpdateKYCRequest) (*
 		req.MelliCode,
 		req.Birthdate,
 		req.Province,
-		req.MelliCard,
+		melliCardURL,
 		videoPath,
 		videoName,
 		req.VerifyTextId,
@@ -109,7 +189,13 @@ func mapKYCServiceError(err error) error {
 		errors.Is(err, service.ErrInvalidMelliCode),
 		errors.Is(err, service.ErrInvalidBirthdate),
 		errors.Is(err, service.ErrInvalidProvince),
+		errors.Is(err, service.ErrProvinceRequired),
 		errors.Is(err, service.ErrInvalidGender),
+		errors.Is(err, service.ErrGenderRequired),
+		errors.Is(err, service.ErrVerifyTextIDRequired),
+		errors.Is(err, service.ErrVerifyTextIDNotFound),
+		errors.Is(err, service.ErrVideoRequired),
+		errors.Is(err, service.ErrMelliCardRequired),
 		errors.Is(err, service.ErrMelliCodeNotUnique):
 		locale := "en" // TODO: Get locale from config or context
 		if fields, ok := mapServiceErrorToValidationFields(err, locale); ok {
@@ -123,12 +209,14 @@ func mapKYCServiceError(err error) error {
 
 type kycHandler struct {
 	pb.UnimplementedKYCServiceServer
-	kycService service.KYCService
+	kycService    service.KYCService
+	storageClient storagepb.FileStorageServiceClient
 }
 
-func RegisterKYCHandler(grpcServer *grpc.Server, kycService service.KYCService) {
+func RegisterKYCHandler(grpcServer *grpc.Server, kycService service.KYCService, storageClient storagepb.FileStorageServiceClient) {
 	pb.RegisterKYCServiceServer(grpcServer, &kycHandler{
-		kycService: kycService,
+		kycService:    kycService,
+		storageClient: storageClient,
 	})
 }
 

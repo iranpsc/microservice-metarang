@@ -288,10 +288,12 @@ message UpdateKYCRequest {
   string melli_code = 4;
   string birthdate = 5; // Jalali date format: Y/m/d
   string province = 6;
-  string melli_card = 7; // Public URL to uploaded image
-  VideoInfo video = 8;
-  uint64 verify_text_id = 9;
-  string gender = 10; // male, female, other
+  bytes melli_card_data = 7; // Image file data (PNG/JPEG, max 5MB)
+  string melli_card_filename = 8; // Original filename
+  string melli_card_content_type = 9; // MIME type (image/png, image/jpeg)
+  VideoInfo video = 10;
+  uint64 verify_text_id = 11;
+  string gender = 12; // male, female, other
 }
 
 message VideoInfo {

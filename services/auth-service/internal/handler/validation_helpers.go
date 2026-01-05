@@ -33,8 +33,26 @@ func mapServiceErrorToValidationFields(err error, locale string) (map[string]str
 	case errors.Is(err, service.ErrInvalidProvince):
 		validationErrors["province"] = fmt.Sprintf(t.Invalid, "province")
 		return validationErrors, true
+	case errors.Is(err, service.ErrProvinceRequired):
+		validationErrors["province"] = fmt.Sprintf(t.Required, "province")
+		return validationErrors, true
 	case errors.Is(err, service.ErrInvalidGender):
 		validationErrors["gender"] = fmt.Sprintf(t.Invalid, "gender")
+		return validationErrors, true
+	case errors.Is(err, service.ErrGenderRequired):
+		validationErrors["gender"] = fmt.Sprintf(t.Required, "gender")
+		return validationErrors, true
+	case errors.Is(err, service.ErrVerifyTextIDRequired):
+		validationErrors["verify_text_id"] = fmt.Sprintf(t.Required, "verify_text_id")
+		return validationErrors, true
+	case errors.Is(err, service.ErrVerifyTextIDNotFound):
+		validationErrors["verify_text_id"] = fmt.Sprintf(t.Invalid, "verify_text_id")
+		return validationErrors, true
+	case errors.Is(err, service.ErrVideoRequired):
+		validationErrors["video"] = fmt.Sprintf(t.Required, "video")
+		return validationErrors, true
+	case errors.Is(err, service.ErrMelliCardRequired):
+		validationErrors["melli_card"] = fmt.Sprintf(t.Required, "melli_card")
 		return validationErrors, true
 	case errors.Is(err, service.ErrMelliCodeNotUnique):
 		validationErrors["melli_code"] = fmt.Sprintf(t.Unique, "melli_code")

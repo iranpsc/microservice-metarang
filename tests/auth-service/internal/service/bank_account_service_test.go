@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"metargb/auth-service/internal/models"
-	"metargb/auth-service/internal/repository"
 )
 
 // Valid test data for Iranian bank accounts

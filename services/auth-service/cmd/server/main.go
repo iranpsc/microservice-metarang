@@ -271,7 +271,7 @@ func main() {
 	// Register handlers
 	handler.RegisterAuthHandler(grpcServer, authService, tokenRepo, profilePhotoHandler)
 	handler.RegisterUserHandler(grpcServer, userService, profileLimitationService, helperService)
-	handler.RegisterKYCHandler(grpcServer, kycService)
+	handler.RegisterKYCHandler(grpcServer, kycService, storageClient)
 	handler.RegisterCitizenHandler(grpcServer, citizenService)
 	handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
 	handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)

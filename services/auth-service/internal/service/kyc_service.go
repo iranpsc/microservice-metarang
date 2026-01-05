@@ -24,7 +24,13 @@ var (
 	ErrMelliCodeNotUnique     = errors.New("melli code already exists")
 	ErrInvalidBirthdate       = errors.New("invalid birthdate format")
 	ErrInvalidProvince        = errors.New("province must be at most 255 characters")
+	ErrProvinceRequired       = errors.New("province is required")
 	ErrInvalidGender          = errors.New("gender must be one of: male, female, other")
+	ErrGenderRequired         = errors.New("gender is required")
+	ErrVerifyTextIDRequired   = errors.New("verify_text_id is required")
+	ErrVerifyTextIDNotFound   = errors.New("verify_text_id does not exist")
+	ErrVideoRequired          = errors.New("video is required")
+	ErrMelliCardRequired      = errors.New("melli_card is required")
 	ErrBankAccountNotFound    = errors.New("bank account not found")
 	ErrBankAccountNotOwned    = errors.New("bank account does not belong to user")
 	ErrBankAccountNotRejected = errors.New("bank account must be rejected to update")
@@ -68,10 +74,37 @@ func (s *kycService) GetKYC(ctx context.Context, userID uint64) (*models.KYC, er
 }
 
 func (s *kycService) UpdateKYC(ctx context.Context, userID uint64, fname, lname, melliCode, birthdate, province, melliCard, videoPath, videoName string, verifyTextID uint64, gender string) (*models.KYC, error) {
-	// Validate input
+	// Validate required fields
+	if melliCard == "" {
+		return nil, ErrMelliCardRequired
+	}
+	if videoPath == "" || videoName == "" {
+		return nil, ErrVideoRequired
+	}
+	if verifyTextID == 0 {
+		return nil, ErrVerifyTextIDRequired
+	}
+
+	// Check if verify_text_id exists
+	exists, err := s.kycRepo.CheckVerifyTextExists(ctx, verifyTextID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check verify_text_id: %w", err)
+	}
+	if !exists {
+		return nil, ErrVerifyTextIDNotFound
+	}
+
+	// Validate input (this also trims the values internally)
 	if err := s.validateKYCInput(fname, lname, melliCode, birthdate, province, gender); err != nil {
 		return nil, err
 	}
+
+	// Trim values after validation (validation trims internally but doesn't modify originals)
+	fname = strings.TrimSpace(fname)
+	lname = strings.TrimSpace(lname)
+	melliCode = strings.TrimSpace(melliCode)
+	province = strings.TrimSpace(province)
+	gender = strings.TrimSpace(gender)
 
 	// Check if KYC already exists
 	existing, err := s.kycRepo.FindByUserID(ctx, userID)
@@ -118,15 +151,10 @@ func (s *kycService) UpdateKYC(ctx context.Context, userID uint64, fname, lname,
 		existing.MelliCard = melliCard
 		existing.Status = 0                // Reset to pending
 		existing.Errors = sql.NullString{} // Clear errors
-		if videoURL != "" {
-			existing.Video = sql.NullString{String: videoURL, Valid: true}
-		}
-		if verifyTextID > 0 {
-			existing.VerifyTextID = sql.NullInt64{Int64: int64(verifyTextID), Valid: true}
-		}
-		if gender != "" {
-			existing.Gender = sql.NullString{String: gender, Valid: true}
-		}
+		// Video, verify_text_id, and gender are required, so always set them
+		existing.Video = sql.NullString{String: videoURL, Valid: true}
+		existing.VerifyTextID = sql.NullInt64{Int64: int64(verifyTextID), Valid: true}
+		existing.Gender = sql.NullString{String: gender, Valid: true}
 
 		if err := s.kycRepo.Update(ctx, existing); err != nil {
 			return nil, fmt.Errorf("failed to update kyc: %w", err)
@@ -142,18 +170,12 @@ func (s *kycService) UpdateKYC(ctx context.Context, userID uint64, fname, lname,
 		MelliCode: strings.TrimSpace(melliCode),
 		Province:  strings.TrimSpace(province),
 		MelliCard: melliCard,
-		Status:    0, // Pending
-		Birthdate: sql.NullTime{Time: parsedDate, Valid: true},
-		Errors:    sql.NullString{},
-	}
-	if videoURL != "" {
-		kyc.Video = sql.NullString{String: videoURL, Valid: true}
-	}
-	if verifyTextID > 0 {
-		kyc.VerifyTextID = sql.NullInt64{Int64: int64(verifyTextID), Valid: true}
-	}
-	if gender != "" {
-		kyc.Gender = sql.NullString{String: gender, Valid: true}
+		Status:      0, // Pending
+		Birthdate:   sql.NullTime{Time: parsedDate, Valid: true},
+		Errors:      sql.NullString{},
+		Video:       sql.NullString{String: videoURL, Valid: true},
+		VerifyTextID: sql.NullInt64{Int64: int64(verifyTextID), Valid: true},
+		Gender:      sql.NullString{String: gender, Valid: true},
 	}
 
 	if err := s.kycRepo.Create(ctx, kyc); err != nil {
@@ -189,12 +211,18 @@ func (s *kycService) validateKYCInput(fname, lname, melliCode, birthdate, provin
 	}
 
 	province = strings.TrimSpace(province)
+	if province == "" {
+		return ErrProvinceRequired
+	}
 	if len(province) > 255 {
 		return ErrInvalidProvince
 	}
 
 	gender = strings.TrimSpace(gender)
-	if gender != "" && gender != "male" && gender != "female" && gender != "other" {
+	if gender == "" {
+		return ErrGenderRequired
+	}
+	if gender != "male" && gender != "female" && gender != "other" {
 		return ErrInvalidGender
 	}
 
