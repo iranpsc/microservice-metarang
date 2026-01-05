@@ -15,6 +15,10 @@ use (
 	./services/storage-service
 	./services/support-service
 	./services/training-service
+	./shared
+	./tests/database
+	./tests/golden
+	./tests/integration
 )
 
 replace metargb/shared => ./shared

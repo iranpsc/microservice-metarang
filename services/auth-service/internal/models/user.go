@@ -241,6 +241,21 @@ type BankAccount struct {
 	UpdatedAt    time.Time      `db:"updated_at"`
 }
 
+// Pending returns true if bank account status is pending (0)
+func (b *BankAccount) Pending() bool {
+	return b.Status == 0
+}
+
+// Verified returns true if bank account status is verified/approved (1)
+func (b *BankAccount) Verified() bool {
+	return b.Status == 1
+}
+
+// Rejected returns true if bank account status is rejected (-1)
+func (b *BankAccount) Rejected() bool {
+	return b.Status == -1
+}
+
 // UserEvent represents login/logout and other user events
 type UserEvent struct {
 	ID        uint64    `db:"id"`

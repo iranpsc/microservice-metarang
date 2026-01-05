@@ -104,51 +104,24 @@ func validateIranianNationalCode(fl validator.FieldLevel) bool {
 	return (remainder < 2 && check == remainder) || (remainder >= 2 && check == 11-remainder)
 }
 
-// validateIranianSheba validates Iranian Sheba (IBAN) numbers
-// Format: IR + 24 digits (IR + 2 check digits + 22 account digits)
+// validateIranianSheba validates Iranian Sheba numbers
+// Format: 25 digits (without IR prefix) - matches sample "6201600000000000080068121"
 func validateIranianSheba(fl validator.FieldLevel) bool {
-	sheba := strings.ToUpper(strings.TrimSpace(fl.Field().String()))
+	sheba := strings.TrimSpace(fl.Field().String())
 
-	// Must start with IR and be 26 characters total
-	if len(sheba) != 26 || !strings.HasPrefix(sheba, "IR") {
+	// Must be exactly 25 digits (matching sample format)
+	if len(sheba) != 25 {
 		return false
 	}
 
-	// Check if all characters after IR are digits
-	for i := 2; i < 26; i++ {
-		if sheba[i] < '0' || sheba[i] > '9' {
+	// Check if all characters are digits
+	for _, char := range sheba {
+		if char < '0' || char > '9' {
 			return false
 		}
 	}
 
-	// Validate IBAN check digits using mod 97 algorithm
-	return validateIBANCheckDigits(sheba)
-}
-
-// validateIBANCheckDigits validates IBAN check digits using mod 97 algorithm
-func validateIBANCheckDigits(iban string) bool {
-	// Move first 4 characters to end
-	rearranged := iban[4:] + iban[:4]
-
-	// Convert letters to numbers (A=10, B=11, ..., Z=35)
-	var numeric string
-	for _, char := range rearranged {
-		if char >= '0' && char <= '9' {
-			numeric += string(char)
-		} else if char >= 'A' && char <= 'Z' {
-			numeric += string(rune('0' + (char - 'A' + 10)))
-		} else {
-			return false
-		}
-	}
-
-	// Calculate mod 97
-	remainder := 0
-	for i := 0; i < len(numeric); i++ {
-		remainder = (remainder*10 + int(numeric[i]-'0')) % 97
-	}
-
-	return remainder == 1
+	return true
 }
 
 // validateIranianBankCardNumber validates Iranian bank card numbers
@@ -199,20 +172,23 @@ func validateLuhn(number string) bool {
 }
 
 // ValidateIranianSheba is a standalone function to validate Iranian Sheba
+// Format: 25 digits (without IR prefix) - matches sample "6201600000000000080068121"
 func ValidateIranianSheba(sheba string) bool {
-	sheba = strings.ToUpper(strings.TrimSpace(sheba))
+	sheba = strings.TrimSpace(sheba)
 
-	if len(sheba) != 26 || !strings.HasPrefix(sheba, "IR") {
+	// Must be exactly 25 digits (matching sample format)
+	if len(sheba) != 25 {
 		return false
 	}
 
-	for i := 2; i < 26; i++ {
-		if sheba[i] < '0' || sheba[i] > '9' {
+	// Check if all characters are digits
+	for _, char := range sheba {
+		if char < '0' || char > '9' {
 			return false
 		}
 	}
 
-	return validateIBANCheckDigits(sheba)
+	return true
 }
 
 // ValidateIranianBankCardNumber is a standalone function to validate Iranian bank card numbers

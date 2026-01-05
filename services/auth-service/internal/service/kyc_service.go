@@ -231,7 +231,7 @@ func (s *kycService) validateBankAccountInput(bankName, shabaNum, cardNum string
 		return ErrInvalidBankName
 	}
 
-	shabaNum = strings.TrimSpace(strings.ToUpper(shabaNum))
+	shabaNum = strings.TrimSpace(shabaNum)
 	if !helpers.ValidateIranianSheba(shabaNum) {
 		return ErrInvalidShabaNum
 	}

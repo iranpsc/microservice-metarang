@@ -798,22 +798,17 @@ func (h *AuthHandler) GetUserFeaturesCount(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
 }
 
-// ListBankAccounts handles GET /api/kyc/bank-accounts
+// ListBankAccounts handles GET /api/bank-accounts
 func (h *AuthHandler) ListBankAccounts(w http.ResponseWriter, r *http.Request) {
-	userIDStr := r.URL.Query().Get("user_id")
-	if userIDStr == "" {
-		writeError(w, http.StatusBadRequest, "user_id is required")
-		return
-	}
-
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid user_id")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
 	grpcReq := &pb.ListBankAccountsRequest{
-		UserId: userID,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.kycClient.ListBankAccounts(r.Context(), grpcReq)
@@ -828,10 +823,16 @@ func (h *AuthHandler) ListBankAccounts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// CreateBankAccount handles POST /api/kyc/bank-accounts
+// CreateBankAccount handles POST /api/bank-accounts
 func (h *AuthHandler) CreateBankAccount(w http.ResponseWriter, r *http.Request) {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	var req struct {
-		UserID   uint64 `json:"user_id"`
 		BankName string `json:"bank_name"`
 		ShabaNum string `json:"shaba_num"`
 		CardNum  string `json:"card_num"`
@@ -847,7 +848,7 @@ func (h *AuthHandler) CreateBankAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	grpcReq := &pb.CreateBankAccountRequest{
-		UserId:   req.UserID,
+		UserId:   userCtx.UserID,
 		BankName: req.BankName,
 		ShabaNum: req.ShabaNum,
 		CardNum:  req.CardNum,
@@ -874,9 +875,16 @@ func (h *AuthHandler) CreateBankAccount(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, response)
 }
 
-// GetBankAccount handles GET /api/kyc/bank-accounts/{bank_account_id}
+// GetBankAccount handles GET /api/bank-accounts/{bankAccount}
 func (h *AuthHandler) GetBankAccount(w http.ResponseWriter, r *http.Request) {
-	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/kyc/bank-accounts/")
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/bank-accounts/")
 	if bankAccountIDStr == "" {
 		writeError(w, http.StatusBadRequest, "bank_account_id is required")
 		return
@@ -888,20 +896,8 @@ func (h *AuthHandler) GetBankAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDStr := r.URL.Query().Get("user_id")
-	if userIDStr == "" {
-		writeError(w, http.StatusBadRequest, "user_id is required")
-		return
-	}
-
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid user_id")
-		return
-	}
-
 	grpcReq := &pb.GetBankAccountRequest{
-		UserId:        userID,
+		UserId:        userCtx.UserID,
 		BankAccountId: bankAccountID,
 	}
 
@@ -926,9 +922,16 @@ func (h *AuthHandler) GetBankAccount(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-// UpdateBankAccount handles PUT/PATCH /api/kyc/bank-accounts/{bank_account_id}
+// UpdateBankAccount handles PUT/PATCH /api/bank-accounts/{bankAccount}
 func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) {
-	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/kyc/bank-accounts/")
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/bank-accounts/")
 	if bankAccountIDStr == "" {
 		writeError(w, http.StatusBadRequest, "bank_account_id is required")
 		return
@@ -941,7 +944,6 @@ func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		UserID   uint64 `json:"user_id"`
 		BankName string `json:"bank_name"`
 		ShabaNum string `json:"shaba_num"`
 		CardNum  string `json:"card_num"`
@@ -957,7 +959,7 @@ func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	grpcReq := &pb.UpdateBankAccountRequest{
-		UserId:        req.UserID,
+		UserId:        userCtx.UserID,
 		BankAccountId: bankAccountID,
 		BankName:      req.BankName,
 		ShabaNum:      req.ShabaNum,
@@ -985,9 +987,16 @@ func (h *AuthHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, response)
 }
 
-// DeleteBankAccount handles DELETE /api/kyc/bank-accounts/{bank_account_id}
+// DeleteBankAccount handles DELETE /api/bank-accounts/{bankAccount}
 func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) {
-	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/kyc/bank-accounts/")
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	bankAccountIDStr := extractIDFromPath(r.URL.Path, "/api/bank-accounts/")
 	if bankAccountIDStr == "" {
 		writeError(w, http.StatusBadRequest, "bank_account_id is required")
 		return
@@ -999,20 +1008,8 @@ func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userIDStr := r.URL.Query().Get("user_id")
-	if userIDStr == "" {
-		writeError(w, http.StatusBadRequest, "user_id is required")
-		return
-	}
-
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid user_id")
-		return
-	}
-
 	grpcReq := &pb.DeleteBankAccountRequest{
-		UserId:        userID,
+		UserId:        userCtx.UserID,
 		BankAccountId: bankAccountID,
 	}
 
