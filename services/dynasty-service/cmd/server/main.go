@@ -76,21 +76,17 @@ func main() {
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
-	// Create unified handler with all services
-	dynastyHandler := handler.NewDynastyHandler(
-		dynastyService,
-		joinRequestService,
-		familyService,
-		prizeService,
-		permissionService,
-		userSearchService,
-	)
+	// Create dedicated handlers for each service
+	dynastyHandler := handler.NewDynastyHandler(dynastyService)
+	joinRequestHandler := handler.NewJoinRequestHandler(joinRequestService, permissionService, userSearchService)
+	familyHandler := handler.NewFamilyHandler(familyService, permissionService)
+	prizeHandler := handler.NewPrizeHandler(prizeService)
 
-	// Register all services on the same handler
+	// Register all services with their dedicated handlers
 	dynastypb.RegisterDynastyServiceServer(grpcServer, dynastyHandler)
-	dynastypb.RegisterJoinRequestServiceServer(grpcServer, dynastyHandler)
-	dynastypb.RegisterFamilyServiceServer(grpcServer, dynastyHandler)
-	dynastypb.RegisterDynastyPrizeServiceServer(grpcServer, dynastyHandler)
+	dynastypb.RegisterJoinRequestServiceServer(grpcServer, joinRequestHandler)
+	dynastypb.RegisterFamilyServiceServer(grpcServer, familyHandler)
+	dynastypb.RegisterDynastyPrizeServiceServer(grpcServer, prizeHandler)
 
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50053")

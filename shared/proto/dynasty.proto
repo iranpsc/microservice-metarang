@@ -23,6 +23,8 @@ service JoinRequestService {
   rpc AcceptJoinRequest(AcceptJoinRequestRequest) returns (common.Empty);
   rpc RejectJoinRequest(RejectJoinRequestRequest) returns (common.Empty);
   rpc DeleteJoinRequest(DeleteJoinRequestRequest) returns (common.Empty);
+  rpc GetDefaultPermissions(GetDefaultPermissionsRequest) returns (DefaultPermissionsResponse);
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
 }
 
 // FamilyService handles family members management
@@ -141,6 +143,30 @@ message RejectJoinRequestRequest {
 message DeleteJoinRequestRequest {
   uint64 request_id = 1;
   uint64 user_id = 2;
+}
+
+message GetDefaultPermissionsRequest {
+  string relationship = 1; // should be "offspring"
+}
+
+message DefaultPermissionsResponse {
+  ChildPermissions permissions = 1;
+}
+
+message SearchUsersRequest {
+  string search_term = 1;
+}
+
+message SearchUsersResponse {
+  repeated UserSearchResult data = 1;
+}
+
+message UserSearchResult {
+  uint64 id = 1;
+  string code = 2;
+  string name = 3;
+  string image = 4;
+  string level = 5;
 }
 
 message GetFamilyRequest {

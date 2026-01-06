@@ -51,7 +51,7 @@ func (h *DynastyHandler) GetDynasty(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
 }
 
 // CreateDynasty handles POST /api/dynasty/create/{feature}
@@ -87,7 +87,7 @@ func (h *DynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, resp)
+	writeJSON(w, http.StatusCreated, map[string]interface{}{"data": resp})
 }
 
 // UpdateDynastyFeature handles POST /api/dynasty/{dynasty}/update/{feature}
@@ -131,7 +131,7 @@ func (h *DynastyHandler) UpdateDynastyFeature(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
 }
 
 // GetFamily handles GET /api/dynasty/{dynasty}/family/{family}
@@ -180,7 +180,7 @@ func (h *DynastyHandler) GetFamily(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
 }
 
 // GetSentRequests handles GET /api/dynasty/requests/sent
@@ -213,7 +213,7 @@ func (h *DynastyHandler) GetSentRequests(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
 }
 
 // GetReceivedRequests handles GET /api/dynasty/requests/recieved
@@ -246,7 +246,7 @@ func (h *DynastyHandler) GetReceivedRequests(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
 }
 
 // SendJoinRequest handles POST /api/dynasty/add/member
@@ -304,7 +304,7 @@ func (h *DynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, resp)
+	writeJSON(w, http.StatusCreated, map[string]interface{}{"data": resp})
 }
 
 // AcceptJoinRequest handles POST /api/dynasty/requests/recieved/{joinRequest}
@@ -442,7 +442,7 @@ func (h *DynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
 }
 
 // ClaimPrize handles POST /api/dynasty/prizes/{recievedPrize}
@@ -563,7 +563,7 @@ func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.R
 	}
 
 	// Return empty JSON array per API spec
-	writeJSON(w, http.StatusOK, []interface{}{})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": []interface{}{}})
 }
 
 // SearchUsers handles POST /api/dynasty/search
@@ -601,10 +601,17 @@ func (h *DynastyHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 
 	// Note: User search would need to be implemented via a gRPC call
 	// For now, return empty array - this needs to be added to proto or handled differently
-	// The API spec mentions it returns { "date": [...] } (typo for "data")
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"date": []interface{}{}, // Note: API has typo "date" instead of "data"
-	})
+	grpcReq := &dynastypb.SearchUsersRequest{
+		SearchTerm: req.SearchTerm,
+	}
+
+	resp, err := h.joinRequestClient.SearchUsers(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp.Data})
 }
 
 // GetDefaultPermissions handles POST /api/dynasty/add/member/get/permissions
@@ -640,12 +647,15 @@ func (h *DynastyHandler) GetDefaultPermissions(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Note: This would need to call dynasty service to get default permissions
-	// For now, return empty permissions object
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"permissions": map[string]bool{
-			"BFR": false, "SF": false, "W": false, "JU": false, "DM": false,
-			"PIUP": false, "PITC": false, "PIC": false, "ESOO": false, "COTB": false,
-		},
-	})
+	grpcReq := &dynastypb.GetDefaultPermissionsRequest{
+		Relationship: req.Relationship,
+	}
+
+	resp, err := h.joinRequestClient.GetDefaultPermissions(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp.Permissions})
 }
