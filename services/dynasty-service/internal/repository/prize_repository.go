@@ -52,7 +52,7 @@ func (r *PrizeRepository) GetPrizeByRelationship(ctx context.Context, relationsh
 // AwardPrize creates a received prize record for a user
 func (r *PrizeRepository) AwardPrize(ctx context.Context, userID, prizeID uint64, message string) error {
 	query := `
-		INSERT INTO recieved_prizes (user_id, prize_id, message, created_at, updated_at)
+		INSERT INTO received_prizes (user_id, prize_id, message, created_at, updated_at)
 		VALUES (?, ?, ?, NOW(), NOW())
 	`
 
@@ -70,7 +70,7 @@ func (r *PrizeRepository) GetReceivedPrize(ctx context.Context, receivedPrizeID 
 		SELECT rp.id, rp.user_id, rp.prize_id, rp.message, rp.created_at, rp.updated_at,
 		       dp.member, dp.satisfaction, dp.introduction_profit_increase,
 		       dp.accumulated_capital_reserve, dp.data_storage, dp.psc
-		FROM recieved_prizes rp
+		FROM received_prizes rp
 		INNER JOIN dynasty_prizes dp ON dp.id = rp.prize_id
 		WHERE rp.id = ?
 	`
@@ -110,7 +110,7 @@ func (r *PrizeRepository) GetUserReceivedPrizes(ctx context.Context, userID uint
 		SELECT rp.id, rp.user_id, rp.prize_id, rp.message, rp.created_at, rp.updated_at,
 		       dp.id, dp.member, dp.satisfaction, dp.introduction_profit_increase,
 		       dp.accumulated_capital_reserve, dp.data_storage, dp.psc
-		FROM recieved_prizes rp
+		FROM received_prizes rp
 		INNER JOIN dynasty_prizes dp ON dp.id = rp.prize_id
 		WHERE rp.user_id = ?
 		ORDER BY rp.created_at DESC
@@ -154,7 +154,7 @@ func (r *PrizeRepository) GetUserReceivedPrizes(ctx context.Context, userID uint
 
 // DeleteReceivedPrize deletes a claimed prize
 func (r *PrizeRepository) DeleteReceivedPrize(ctx context.Context, receivedPrizeID uint64) error {
-	query := `DELETE FROM recieved_prizes WHERE id = ?`
+	query := `DELETE FROM received_prizes WHERE id = ?`
 
 	_, err := r.db.ExecContext(ctx, query, receivedPrizeID)
 	if err != nil {
@@ -285,7 +285,7 @@ func (r *PrizeRepository) GetPrizeByID(ctx context.Context, prizeID uint64) (*mo
 
 // CheckPrizeClaimed checks if a user has already claimed a specific prize
 func (r *PrizeRepository) CheckPrizeClaimed(ctx context.Context, userID, prizeID uint64) (bool, error) {
-	query := `SELECT COUNT(*) FROM recieved_prizes WHERE user_id = ? AND prize_id = ?`
+	query := `SELECT COUNT(*) FROM received_prizes WHERE user_id = ? AND prize_id = ?`
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userID, prizeID).Scan(&count)
@@ -299,7 +299,7 @@ func (r *PrizeRepository) CheckPrizeClaimed(ctx context.Context, userID, prizeID
 // ClaimPrize allows a user to claim a prize
 func (r *PrizeRepository) ClaimPrize(ctx context.Context, userID, prizeID uint64) error {
 	query := `
-		INSERT INTO recieved_prizes (user_id, prize_id, message, created_at, updated_at)
+		INSERT INTO received_prizes (user_id, prize_id, message, created_at, updated_at)
 		VALUES (?, ?, '', NOW(), NOW())
 	`
 

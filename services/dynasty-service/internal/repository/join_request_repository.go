@@ -281,13 +281,22 @@ func (r *JoinRequestRepository) GetDynastyPermission(ctx context.Context) (*mode
 	`
 
 	var perm models.DynastyPermission
+	var createdAt, updatedAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, query).Scan(
 		&perm.ID, &perm.BFR, &perm.SF, &perm.W, &perm.JU, &perm.DM,
 		&perm.PIUP, &perm.PITC, &perm.PIC, &perm.ESOO, &perm.COTB,
-		&perm.CreatedAt, &perm.UpdatedAt,
+		&createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dynasty permission: %w", err)
+	}
+
+	// Convert sql.NullTime to *time.Time
+	if createdAt.Valid {
+		perm.CreatedAt = &createdAt.Time
+	}
+	if updatedAt.Valid {
+		perm.UpdatedAt = &updatedAt.Time
 	}
 
 	return &perm, nil
@@ -312,4 +321,34 @@ func (r *JoinRequestRepository) CheckUserAge(ctx context.Context, userID uint64)
 	}
 
 	return isUnder18, nil
+}
+
+// GetLatestRequest gets the latest join request between two users
+func (r *JoinRequestRepository) GetLatestRequest(ctx context.Context, fromUser, toUser uint64) (*models.JoinRequest, error) {
+	query := `SELECT id, from_user, to_user, status, relationship, message, created_at, updated_at 
+	          FROM join_requests 
+	          WHERE from_user = ? AND to_user = ?
+	          ORDER BY created_at DESC 
+	          LIMIT 1`
+
+	var req models.JoinRequest
+	err := r.db.QueryRowContext(ctx, query, fromUser, toUser).Scan(
+		&req.ID,
+		&req.FromUser,
+		&req.ToUser,
+		&req.Status,
+		&req.Relationship,
+		&req.Message,
+		&req.CreatedAt,
+		&req.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest request: %w", err)
+	}
+
+	return &req, nil
 }

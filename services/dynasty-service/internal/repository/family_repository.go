@@ -184,3 +184,29 @@ func (r *FamilyRepository) GetUserBasicInfo(ctx context.Context, userID uint64) 
 
 	return &user, nil
 }
+
+// FindMemberByUserAndFamily finds a family member by user ID and family ID
+func (r *FamilyRepository) FindMemberByUserAndFamily(ctx context.Context, userID, familyID uint64) (*models.FamilyMember, error) {
+	query := `SELECT id, family_id, user_id, relationship, created_at, updated_at 
+	          FROM family_members 
+	          WHERE user_id = ? AND family_id = ?`
+
+	var member models.FamilyMember
+	err := r.db.QueryRowContext(ctx, query, userID, familyID).Scan(
+		&member.ID,
+		&member.FamilyID,
+		&member.UserID,
+		&member.Relationship,
+		&member.CreatedAt,
+		&member.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to find family member: %w", err)
+	}
+
+	return &member, nil
+}

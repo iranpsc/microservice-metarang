@@ -62,19 +62,19 @@ type ChildPermission struct {
 
 // DynastyPermission represents default dynasty permissions
 type DynastyPermission struct {
-	ID        uint64    `db:"id"`
-	BFR       bool      `db:"BFR"`
-	SF        bool      `db:"SF"`
-	W         bool      `db:"W"`
-	JU        bool      `db:"JU"`
-	DM        bool      `db:"DM"`
-	PIUP      bool      `db:"PIUP"`
-	PITC      bool      `db:"PITC"`
-	PIC       bool      `db:"PIC"`
-	ESOO      bool      `db:"ESOO"`
-	COTB      bool      `db:"COTB"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+	ID        uint64     `db:"id"`
+	BFR       bool       `db:"BFR"`
+	SF        bool       `db:"SF"`
+	W         bool       `db:"W"`
+	JU        bool       `db:"JU"`
+	DM        bool       `db:"DM"`
+	PIUP      bool       `db:"PIUP"`
+	PITC      bool       `db:"PITC"`
+	PIC       bool       `db:"PIC"`
+	ESOO      bool       `db:"ESOO"`
+	COTB      bool       `db:"COTB"`
+	CreatedAt *time.Time `db:"created_at"`
+	UpdatedAt *time.Time `db:"updated_at"`
 }
 
 // DynastyPrize represents dynasty rewards

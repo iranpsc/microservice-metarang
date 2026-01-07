@@ -61,16 +61,17 @@ func main() {
 	joinRequestRepo := repository.NewJoinRequestRepository(db)
 	familyRepo := repository.NewFamilyRepository(db)
 	prizeRepo := repository.NewPrizeRepository(db)
+	permissionRepo := repository.NewPermissionRepository(db)
 
 	// Notification service client (for sending notifications)
-	notificationServiceAddr := getEnv("NOTIFICATION_SERVICE_ADDR", "localhost:50054")
+	notificationServiceAddr := getEnv("NOTIFICATION_SERVICE_ADDR", "localhost:50058")
 
 	// Initialize services
-	dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, notificationServiceAddr)
+	dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, notificationServiceAddr)
 	joinRequestService := service.NewJoinRequestService(joinRequestRepo, dynastyRepo, familyRepo, prizeRepo, notificationServiceAddr)
 	familyService := service.NewFamilyService(familyRepo, dynastyRepo)
 	prizeService := service.NewPrizeService(prizeRepo)
-	permissionService := service.NewPermissionService(joinRequestRepo, familyRepo, dynastyRepo)
+	permissionService := service.NewPermissionService(permissionRepo, joinRequestRepo, familyRepo, dynastyRepo)
 	userSearchService := service.NewUserSearchService(db)
 
 	// Create gRPC server
@@ -89,7 +90,7 @@ func main() {
 	dynastypb.RegisterDynastyPrizeServiceServer(grpcServer, prizeHandler)
 
 	// Start gRPC server
-	port := getEnv("GRPC_PORT", "50053")
+	port := getEnv("GRPC_PORT", "50055")
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)

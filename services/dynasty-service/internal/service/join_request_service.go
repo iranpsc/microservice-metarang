@@ -187,6 +187,20 @@ func (s *JoinRequestService) AcceptJoinRequest(ctx context.Context, requestID, u
 		}
 	}
 
+	// Award prize based on relationship
+	if s.prizeRepo != nil {
+		prize, err := s.prizeRepo.GetPrizeByRelationship(ctx, request.Relationship)
+		if err == nil && prize != nil {
+			// Create message for prize
+			message := fmt.Sprintf("پاداش اضافه شدن به سلسله به عنوان %s", request.Relationship)
+			// Award prize to the user who accepted (the new family member)
+			if err := s.prizeRepo.AwardPrize(ctx, userID, prize.ID, message); err != nil {
+				// Log error but don't fail the entire operation
+				fmt.Printf("Warning: failed to award prize: %v\n", err)
+			}
+		}
+	}
+
 	// TODO: Send notifications via gRPC
 
 	return nil
@@ -262,4 +276,9 @@ func (s *JoinRequestService) GetPrizeByRelationship(ctx context.Context, relatio
 		return nil, nil
 	}
 	return s.prizeRepo.GetPrizeByRelationship(ctx, relationship)
+}
+
+// GetDefaultPermissions retrieves default dynasty permissions for offspring
+func (s *JoinRequestService) GetDefaultPermissions(ctx context.Context) (*models.DynastyPermission, error) {
+	return s.joinRequestRepo.GetDynastyPermission(ctx)
 }

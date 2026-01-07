@@ -377,6 +377,76 @@ func (h *DynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetSentRequest handles GET /api/dynasty/requests/sent/{joinRequest}
+func (h *DynastyHandler) GetSentRequest(w http.ResponseWriter, r *http.Request) {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	requestIDStr := extractIDFromPath(r.URL.Path, "/api/dynasty/requests/sent/")
+	if requestIDStr == "" {
+		writeError(w, http.StatusBadRequest, "request_id is required")
+		return
+	}
+
+	requestID, err := strconv.ParseUint(requestIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request_id")
+		return
+	}
+
+	grpcReq := &dynastypb.GetJoinRequestRequest{
+		RequestId: requestID,
+		UserId:    userCtx.UserID,
+	}
+
+	resp, err := h.joinRequestClient.GetJoinRequest(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
+}
+
+// GetReceivedRequest handles GET /api/dynasty/requests/recieved/{joinRequest}
+func (h *DynastyHandler) GetReceivedRequest(w http.ResponseWriter, r *http.Request) {
+	// Get user from context (set by auth middleware)
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	requestIDStr := extractIDFromPath(r.URL.Path, "/api/dynasty/requests/recieved/")
+	if requestIDStr == "" {
+		writeError(w, http.StatusBadRequest, "request_id is required")
+		return
+	}
+
+	requestID, err := strconv.ParseUint(requestIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request_id")
+		return
+	}
+
+	grpcReq := &dynastypb.GetJoinRequestRequest{
+		RequestId: requestID,
+		UserId:    userCtx.UserID,
+	}
+
+	resp, err := h.joinRequestClient.GetJoinRequest(r.Context(), grpcReq)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp})
+}
+
 // DeleteJoinRequest handles DELETE /api/dynasty/requests/sent/{joinRequest}
 func (h *DynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)

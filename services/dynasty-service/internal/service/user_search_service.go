@@ -37,10 +37,10 @@ func (s *UserSearchService) SearchUsers(
 ) ([]*UserSearchResult, error) {
 	query := `
 		SELECT u.id, u.code, u.name, 
-		       COALESCE(k.full_name, u.name) as display_name
+		       COALESCE(CONCAT(k.fname, ' ', k.lname), u.name) as display_name
 		FROM users u
 		LEFT JOIN kycs k ON k.user_id = u.id
-		WHERE u.code LIKE ? OR u.name LIKE ? OR k.full_name LIKE ?
+		WHERE u.code LIKE ? OR u.name LIKE ? OR CONCAT(k.fname, ' ', k.lname) LIKE ?
 		LIMIT ?
 	`
 

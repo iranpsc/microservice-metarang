@@ -217,3 +217,22 @@ func (r *DynastyRepository) GetDynastyMessage(ctx context.Context, messageType s
 
 	return message, nil
 }
+
+// CheckFeatureHasPendingRequest checks if feature has pending join requests
+func (r *DynastyRepository) CheckFeatureHasPendingRequest(ctx context.Context, featureID uint64) (bool, error) {
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM join_requests jr
+			INNER JOIN dynasties d ON d.user_id = jr.from_user
+			WHERE d.feature_id = ? AND jr.status = 0
+		)
+	`
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, featureID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check feature pending requests: %w", err)
+	}
+
+	return exists, nil
+}

@@ -10,17 +10,20 @@ import (
 
 // PermissionService manages children permissions
 type PermissionService struct {
+	permissionRepo *repository.PermissionRepository
 	joinRequestRepo *repository.JoinRequestRepository
 	familyRepo      *repository.FamilyRepository
 	dynastyRepo     *repository.DynastyRepository
 }
 
 func NewPermissionService(
+	permissionRepo *repository.PermissionRepository,
 	joinRequestRepo *repository.JoinRequestRepository,
 	familyRepo *repository.FamilyRepository,
 	dynastyRepo *repository.DynastyRepository,
 ) *PermissionService {
 	return &PermissionService{
+		permissionRepo: permissionRepo,
 		joinRequestRepo: joinRequestRepo,
 		familyRepo:      familyRepo,
 		dynastyRepo:     dynastyRepo,
@@ -43,8 +46,8 @@ func (s *PermissionService) UpdateChildPermission(
 		return fmt.Errorf("شما مجاز به تغییر دسترسی این کاربر نیستید")
 	}
 
-	// Get existing permissions
-	existingPerm, err := s.joinRequestRepo.GetChildPermission(ctx, childUserID)
+	// Verify permission exists
+	existingPerm, err := s.permissionRepo.GetByUserID(ctx, childUserID)
 	if err != nil {
 		return fmt.Errorf("failed to get permissions: %w", err)
 	}
@@ -52,34 +55,8 @@ func (s *PermissionService) UpdateChildPermission(
 		return fmt.Errorf("child has no permission record")
 	}
 
-	// Update specific permission
-	switch permission {
-	case "BFR":
-		existingPerm.BFR = status
-	case "SF":
-		existingPerm.SF = status
-	case "W":
-		existingPerm.W = status
-	case "JU":
-		existingPerm.JU = status
-	case "DM":
-		existingPerm.DM = status
-	case "PIUP":
-		existingPerm.PIUP = status
-	case "PITC":
-		existingPerm.PITC = status
-	case "PIC":
-		existingPerm.PIC = status
-	case "ESOO":
-		existingPerm.ESOO = status
-	case "COTB":
-		existingPerm.COTB = status
-	default:
-		return fmt.Errorf("invalid permission: %s", permission)
-	}
-
-	// Save updated permissions
-	if err := s.joinRequestRepo.UpdateChildPermission(ctx, childUserID, existingPerm); err != nil {
+	// Update specific permission using permission repository
+	if err := s.permissionRepo.UpdatePermission(ctx, childUserID, permission, status); err != nil {
 		return fmt.Errorf("failed to update permission: %w", err)
 	}
 
@@ -139,7 +116,7 @@ func (s *PermissionService) CanControlPermissions(
 
 // GetDefaultPermissions retrieves default dynasty permissions
 func (s *PermissionService) GetDefaultPermissions(ctx context.Context) (*models.DynastyPermission, error) {
-	perm, err := s.joinRequestRepo.GetDynastyPermission(ctx)
+	perm, err := s.permissionRepo.GetDefaultPermissions(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default permissions: %w", err)
 	}
@@ -165,7 +142,7 @@ func (s *PermissionService) CheckPermission(
 	}
 
 	// Get permissions
-	perm, err := s.joinRequestRepo.GetChildPermission(ctx, userID)
+	perm, err := s.permissionRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get permissions: %w", err)
 	}

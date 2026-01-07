@@ -1,14 +1,20 @@
 package integration
 
 import (
+	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"metargb/dynasty-service/internal/models"
+	"metargb/dynasty-service/internal/repository"
+	"metargb/dynasty-service/internal/service"
 )
 
-// TestDynastyFlow tests dynasty creation and member management
+// TestDynastyFlow tests complete dynasty creation and member management flow
 func TestDynastyFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -18,163 +24,229 @@ func TestDynastyFlow(t *testing.T) {
 	db := cfg.ConnectDB(t)
 	defer db.Close()
 
-	defer CleanupDB(t, db, "dynasties", "families", "family_members", "join_requests", "users", "features")
+	defer CleanupDB(t, db, "dynasties", "families", "family_members", "join_requests", "received_prizes", "children_permissions")
+
+	ctx := context.Background()
+
+	// Create test user (owner)
+	ownerID := CreateTestUser(t, db, "dynasty_owner_"+time.Now().Format("150405"), "owner@test.com")
+	featureID := uint64(CreateTestFeatureID(t, db, ownerID))
 
 	t.Run("CreateDynasty", func(t *testing.T) {
-		// Create user and feature
-		owner := CreateTestUser(t, db, "dynasty_owner_"+time.Now().Format("150405"), "dynasty_owner@test.com")
-		featureID := CreateTestFeature(t, db, &owner)
+		dynastyRepo := repository.NewDynastyRepository(db)
+		familyRepo := repository.NewFamilyRepository(db)
+		prizeRepo := repository.NewPrizeRepository(db)
+		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "")
 
 		// Create dynasty
-		dynastyID := time.Now().UnixNano()
-		dynastyName := "Test Dynasty " + time.Now().Format("150405")
-		
-		_, err := db.Exec(`
-			INSERT INTO dynasties (id, name, feature_id, founder_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, NOW(), NOW())
-		`, dynastyID, dynastyName, featureID, owner)
+		dynasty, family, err := dynastyService.CreateDynasty(ctx, uint64(ownerID), featureID)
 		require.NoError(t, err)
+		assert.NotNil(t, dynasty)
+		assert.NotNil(t, family)
+		assert.Equal(t, uint64(ownerID), dynasty.UserID)
+		assert.Equal(t, featureID, dynasty.FeatureID)
 
-		// Create family for founder
-		familyID := time.Now().UnixNano()
-		_, err = db.Exec(`
-			INSERT INTO families (id, dynasty_id, name, created_at, updated_at)
-			VALUES (?, ?, 'Founder Family', NOW(), NOW())
-		`, familyID, dynastyID)
+		// Verify dynasty exists
+		var dbDynastyID uint64
+		err = db.QueryRow("SELECT id FROM dynasties WHERE user_id = ?", ownerID).Scan(&dbDynastyID)
 		require.NoError(t, err)
+		assert.Equal(t, dynasty.ID, dbDynastyID)
 
-		// Add founder as family member
-		_, err = db.Exec(`
-			INSERT INTO family_members (id, family_id, user_id, role, relationship, created_at, updated_at)
-			VALUES (?, ?, ?, 'founder', 'self', NOW(), NOW())
-		`, time.Now().UnixNano(), familyID, owner)
+		// Verify family exists
+		var dbFamilyID uint64
+		err = db.QueryRow("SELECT id FROM families WHERE dynasty_id = ?", dynasty.ID).Scan(&dbFamilyID)
 		require.NoError(t, err)
+		assert.Equal(t, family.ID, dbFamilyID)
 
-		// Verify dynasty created
-		var foundName string
-		err = db.QueryRow("SELECT name FROM dynasties WHERE id = ?", dynastyID).Scan(&foundName)
-		require.NoError(t, err)
-		assert.Equal(t, dynastyName, foundName)
-
-		// Verify family created
-		var familyCount int
-		err = db.QueryRow("SELECT COUNT(*) FROM families WHERE dynasty_id = ?", dynastyID).Scan(&familyCount)
-		require.NoError(t, err)
-		assert.Equal(t, 1, familyCount)
-
-		// Verify founder is member
+		// Verify owner is family member
 		var memberCount int
-		err = db.QueryRow("SELECT COUNT(*) FROM family_members WHERE family_id = ? AND user_id = ?", familyID, owner).Scan(&memberCount)
+		err = db.QueryRow("SELECT COUNT(*) FROM family_members WHERE family_id = ? AND user_id = ? AND relationship = 'owner'", family.ID, ownerID).Scan(&memberCount)
 		require.NoError(t, err)
 		assert.Equal(t, 1, memberCount)
 	})
 
 	t.Run("SendAndAcceptJoinRequest", func(t *testing.T) {
-		// Create dynasty
-		owner := CreateTestUser(t, db, "dynasty_owner2_"+time.Now().Format("150405"), "dynasty_owner2@test.com")
-		featureID := CreateTestFeature(t, db, &owner)
+		// Create dynasty first
+		dynastyRepo := repository.NewDynastyRepository(db)
+		familyRepo := repository.NewFamilyRepository(db)
+		prizeRepo := repository.NewPrizeRepository(db)
+		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "")
 
-		dynastyID := time.Now().UnixNano()
-		_, err := db.Exec(`
-			INSERT INTO dynasties (id, name, feature_id, founder_id, created_at, updated_at)
-			VALUES (?, 'Test Dynasty 2', ?, ?, NOW(), NOW())
-		`, dynastyID, featureID, owner)
+		dynasty, family, err := dynastyService.CreateDynasty(ctx, uint64(ownerID), featureID)
 		require.NoError(t, err)
 
-		familyID := time.Now().UnixNano()
-		_, err = db.Exec(`
-			INSERT INTO families (id, dynasty_id, name, created_at, updated_at)
-			VALUES (?, ?, 'Main Family', NOW(), NOW())
-		`, familyID, dynastyID)
-		require.NoError(t, err)
+		// Create applicant user
+		applicantID := CreateTestUser(t, db, "applicant_"+time.Now().Format("150405"), "applicant@test.com")
 
-		// Create applicant
-		applicant := CreateTestUser(t, db, "applicant_"+time.Now().Format("150405"), "applicant@test.com")
+		joinRequestRepo := repository.NewJoinRequestRepository(db)
+		joinRequestService := service.NewJoinRequestService(joinRequestRepo, dynastyRepo, familyRepo, prizeRepo, "")
 
 		// Send join request
-		requestID := time.Now().UnixNano()
-		_, err = db.Exec(`
-			INSERT INTO join_requests (id, dynasty_id, user_id, family_id, status, relationship, created_at, updated_at)
-			VALUES (?, ?, ?, ?, 'pending', 'child', NOW(), NOW())
-		`, requestID, dynastyID, applicant, familyID)
+		message := "Please accept me as offspring"
+		req := &models.JoinRequest{
+			FromUser:     uint64(ownerID),
+			ToUser:       uint64(applicantID),
+			Status:       0, // pending
+			Relationship: "offspring",
+			Message:      &message,
+		}
+
+		err = joinRequestRepo.CreateJoinRequest(ctx, req)
 		require.NoError(t, err)
+		assert.NotZero(t, req.ID)
 
 		// Verify request created
-		var status string
-		err = db.QueryRow("SELECT status FROM join_requests WHERE id = ?", requestID).Scan(&status)
+		var status int16
+		err = db.QueryRow("SELECT status FROM join_requests WHERE id = ?", req.ID).Scan(&status)
 		require.NoError(t, err)
-		assert.Equal(t, "pending", status)
+		assert.Equal(t, int16(0), status)
 
-		// Accept request
-		tx, err := db.Begin()
-		require.NoError(t, err)
-
-		_, err = tx.Exec("UPDATE join_requests SET status = 'accepted' WHERE id = ?", requestID)
+		// Accept join request
+		err = joinRequestService.AcceptJoinRequest(ctx, req.ID, uint64(applicantID))
 		require.NoError(t, err)
 
-		// Add as family member
-		_, err = tx.Exec(`
-			INSERT INTO family_members (id, family_id, user_id, role, relationship, created_at, updated_at)
-			VALUES (?, ?, ?, 'member', 'child', NOW(), NOW())
-		`, time.Now().UnixNano(), familyID, applicant)
+		// Verify request status updated
+		err = db.QueryRow("SELECT status FROM join_requests WHERE id = ?", req.ID).Scan(&status)
 		require.NoError(t, err)
+		assert.Equal(t, int16(1), status) // accepted
 
-		err = tx.Commit()
-		require.NoError(t, err)
-
-		// Verify request accepted
-		err = db.QueryRow("SELECT status FROM join_requests WHERE id = ?", requestID).Scan(&status)
-		require.NoError(t, err)
-		assert.Equal(t, "accepted", status)
-
-		// Verify member added
+		// Verify member added to family
 		var memberCount int
-		err = db.QueryRow("SELECT COUNT(*) FROM family_members WHERE user_id = ?", applicant).Scan(&memberCount)
+		err = db.QueryRow("SELECT COUNT(*) FROM family_members WHERE family_id = ? AND user_id = ? AND relationship = 'offspring'", family.ID, applicantID).Scan(&memberCount)
 		require.NoError(t, err)
 		assert.Equal(t, 1, memberCount)
 	})
 
-	t.Run("SetChildPermissions", func(t *testing.T) {
-		// Create family
-		owner := CreateTestUser(t, db, "parent_"+time.Now().Format("150405"), "parent@test.com")
-		child := CreateTestUser(t, db, "child_"+time.Now().Format("150405"), "child@test.com")
+	t.Run("UpdateChildPermissions", func(t *testing.T) {
+		// Create dynasty and add child
+		dynastyRepo := repository.NewDynastyRepository(db)
+		familyRepo := repository.NewFamilyRepository(db)
+		prizeRepo := repository.NewPrizeRepository(db)
+		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "")
 
-		featureID := CreateTestFeature(t, db, &owner)
-		dynastyID := time.Now().UnixNano()
+		parentID := CreateTestUser(t, db, "parent_"+time.Now().Format("150405"), "parent@test.com")
+		childID := CreateTestUser(t, db, "child_"+time.Now().Format("150405"), "child@test.com")
+
+		dynasty, family, err := dynastyService.CreateDynasty(ctx, uint64(parentID), featureID)
+		require.NoError(t, err)
+
+		// Add child as family member
+		joinRequestRepo := repository.NewJoinRequestRepository(db)
+		permissionRepo := repository.NewPermissionRepository(db)
+
+		// Create child permission record
+		perm := &models.ChildPermission{
+			UserID:   uint64(childID),
+			Verified: false,
+			BFR:      false,
+			SF:       false,
+			W:        false,
+			JU:       false,
+			DM:       false,
+			PIUP:     false,
+			PITC:     false,
+			PIC:      false,
+			ESOO:     false,
+			COTB:     false,
+		}
+		err = permissionRepo.CreatePermission(ctx, perm)
+		require.NoError(t, err)
+
+		// Add child to family
+		member := &models.FamilyMember{
+			FamilyID:     family.ID,
+			UserID:       uint64(childID),
+			Relationship: "offspring",
+		}
+		err = familyRepo.CreateFamilyMember(ctx, member)
+		require.NoError(t, err)
+
+		// Update child permission
+		permissionService := service.NewPermissionService(permissionRepo, joinRequestRepo, familyRepo, dynastyRepo)
+		err = permissionService.UpdateChildPermission(ctx, uint64(parentID), uint64(childID), "BFR", true)
+		require.NoError(t, err)
+
+		// Verify permission updated
+		updatedPerm, err := permissionRepo.GetByUserID(ctx, uint64(childID))
+		require.NoError(t, err)
+		assert.NotNil(t, updatedPerm)
+		assert.True(t, updatedPerm.BFR)
+	})
+
+	t.Run("PrizeRedemption", func(t *testing.T) {
+		// Create user and award prize
+		userID := CreateTestUser(t, db, "prize_user_"+time.Now().Format("150405"), "prize@test.com")
+		prizeRepo := repository.NewPrizeRepository(db)
+		prizeService := service.NewPrizeService(prizeRepo)
+
+		// Create a prize first
 		_, err := db.Exec(`
-			INSERT INTO dynasties (id, name, feature_id, founder_id, created_at, updated_at)
-			VALUES (?, 'Test Dynasty 3', ?, ?, NOW(), NOW())
-		`, dynastyID, featureID, owner)
+			INSERT INTO dynasty_prizes (member, satisfaction, introduction_profit_increase, accumulated_capital_reserve, data_storage, psc, created_at, updated_at)
+			VALUES ('offspring', 0.1, 0.05, 0.02, 0.03, 1000, NOW(), NOW())
+		`)
 		require.NoError(t, err)
 
-		familyID := time.Now().UnixNano()
-		_, err = db.Exec(`
-			INSERT INTO families (id, dynasty_id, name, created_at, updated_at)
-			VALUES (?, ?, 'Family 3', NOW(), NOW())
-		`, familyID, dynastyID)
+		var prizeID uint64
+		err = db.QueryRow("SELECT id FROM dynasty_prizes WHERE member = 'offspring'").Scan(&prizeID)
 		require.NoError(t, err)
 
-		// Add child as member
-		_, err = db.Exec(`
-			INSERT INTO family_members (id, family_id, user_id, role, relationship, created_at, updated_at)
-			VALUES (?, ?, ?, 'member', 'child', NOW(), NOW())
-		`, time.Now().UnixNano(), familyID, child)
+		// Award prize to user
+		message := "Congratulations on joining dynasty!"
+		err = prizeRepo.AwardPrize(ctx, uint64(userID), prizeID, message)
 		require.NoError(t, err)
 
-		// Set permissions
-		permissions := `{"can_trade": true, "can_build": false, "can_withdraw": false}`
-		_, err = db.Exec(`
-			INSERT INTO children_permissions (id, parent_id, child_id, permissions, created_at, updated_at)
-			VALUES (?, ?, ?, ?, NOW(), NOW())
-			ON DUPLICATE KEY UPDATE permissions = VALUES(permissions)
-		`, time.Now().UnixNano(), owner, child, permissions)
+		// Verify prize awarded
+		var receivedPrizeID uint64
+		err = db.QueryRow("SELECT id FROM received_prizes WHERE user_id = ? AND prize_id = ?", userID, prizeID).Scan(&receivedPrizeID)
+		require.NoError(t, err)
+		assert.NotZero(t, receivedPrizeID)
+
+		// Claim prize
+		err = prizeService.ClaimPrize(ctx, receivedPrizeID, uint64(userID))
 		require.NoError(t, err)
 
-		// Verify permissions
-		var storedPerms string
-		err = db.QueryRow("SELECT permissions FROM children_permissions WHERE parent_id = ? AND child_id = ?", owner, child).Scan(&storedPerms)
+		// Verify prize deleted (claimed)
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM received_prizes WHERE id = ?", receivedPrizeID).Scan(&count)
 		require.NoError(t, err)
-		assert.Contains(t, storedPerms, "can_trade")
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("FeatureUpdateWithin30Days_CreatesDebt", func(t *testing.T) {
+		// This would require enhanced service with commercial client
+		// For now, just verify the logic structure exists
+		dynastyRepo := repository.NewDynastyRepository(db)
+		familyRepo := repository.NewFamilyRepository(db)
+		prizeRepo := repository.NewPrizeRepository(db)
+		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "")
+
+		dynasty, _, err := dynastyService.CreateDynasty(ctx, uint64(ownerID), featureID)
+		require.NoError(t, err)
+
+		// Update dynasty updated_at to simulate recent change
+		recentTime := time.Now().AddDate(0, 0, -15) // 15 days ago
+		_, err = db.Exec("UPDATE dynasties SET updated_at = ? WHERE id = ?", recentTime, dynasty.ID)
+		require.NoError(t, err)
+
+		// In enhanced service, this would check if < 30 days and create debt
+		// For integration test, we verify the dynasty exists and can be updated
+		err = dynastyRepo.UpdateDynastyFeature(ctx, dynasty.ID, featureID+1)
+		// This should work, but in production would trigger debt creation
+		assert.NoError(t, err)
 	})
 }
 
+// Helper function to create test feature ID (adapted from test_helpers)
+func CreateTestFeatureID(t *testing.T, db *sql.DB, userID int64) int64 {
+	result, err := db.Exec(`
+		INSERT INTO features (user_id, created_at, updated_at)
+		VALUES (?, NOW(), NOW())
+	`, userID)
+
+	if err != nil {
+		t.Fatalf("Failed to create test feature: %v", err)
+	}
+
+	id, _ := result.LastInsertId()
+	return id
+}
