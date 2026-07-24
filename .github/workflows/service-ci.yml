@@ -126,24 +126,27 @@ jobs:
           {
             echo "# Test Results: ${{ inputs.service_name }}"
             echo ""
-            echo "Checklist of every test suite and individual test executed in this job."
+            echo "Package-level checklist with failed tests expanded."
             echo ""
             echo "## Detailed Results"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run unit tests
         id: unit_tests
-        continue-on-error: true
         run: |
           bash .github/scripts/go-test-checklist.sh \
             "Unit Tests (services/${{ inputs.service_name }}/internal/...)" \
             "services/${{ inputs.service_name }}" \
             -- ./internal/... -race -coverprofile=coverage.out -covermode=atomic
 
+      # Keep later suites running after a failure so the checklist is complete.
+      # Prefer if: always() over continue-on-error so failed steps stay red.
       - name: Run integration tests
         id: integration_tests
-        if: hashFiles(format('tests/{0}/go.mod', inputs.service_name)) != ''
-        continue-on-error: true
+        if: >-
+          always() &&
+          !cancelled() &&
+          hashFiles(format('tests/{0}/go.mod', inputs.service_name)) != ''
         run: |
           bash .github/scripts/go-test-checklist.sh \
             "Integration Tests (tests/${{ inputs.service_name }}/...)" \
@@ -153,29 +156,41 @@ jobs:
           GOWORK: off
 
       - name: Install govulncheck
+        if: always() && !cancelled()
         run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
 
       - name: Run govulncheck
         id: govulncheck
-        continue-on-error: true
+        if: always() && !cancelled()
         run: |
           bash .github/scripts/govulncheck-checklist.sh \
             "Security Scan (govulncheck)" \
             "services/${{ inputs.service_name }}"
 
       - name: Finalize test checklist
-        if: always()
+        if: always() && !cancelled()
         run: |
-          unit_status="${{ steps.unit_tests.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+          unit_outcome="${{ steps.unit_tests.outcome }}"
           integration_outcome="${{ steps.integration_tests.outcome }}"
-          if [ "$integration_outcome" = "success" ]; then
-            integration_status="✅ Passed"
-          elif [ "$integration_outcome" = "skipped" ]; then
-            integration_status="⏭️ Not configured"
-          else
-            integration_status="❌ Failed"
-          fi
-          vuln_status="${{ steps.govulncheck.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+          vuln_outcome="${{ steps.govulncheck.outcome }}"
+
+          case "$unit_outcome" in
+            success) unit_status="✅ Passed" ;;
+            skipped) unit_status="⏭️ Skipped" ;;
+            *) unit_status="❌ Failed" ;;
+          esac
+
+          case "$integration_outcome" in
+            success) integration_status="✅ Passed" ;;
+            skipped|"") integration_status="⏭️ Not configured" ;;
+            *) integration_status="❌ Failed" ;;
+          esac
+
+          case "$vuln_outcome" in
+            success) vuln_status="✅ Passed" ;;
+            skipped|"") vuln_status="⏭️ Skipped" ;;
+            *) vuln_status="❌ Failed" ;;
+          esac
 
           {
             echo ""
@@ -189,15 +204,15 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           failed=0
-          [ "${{ steps.unit_tests.outcome }}" = "success" ] || failed=1
-          if [ "$integration_outcome" != "skipped" ] && [ "$integration_outcome" != "success" ]; then
+          [ "$unit_outcome" = "success" ] || failed=1
+          if [ -n "$integration_outcome" ] && [ "$integration_outcome" != "skipped" ] && [ "$integration_outcome" != "success" ]; then
             failed=1
           fi
-          [ "${{ steps.govulncheck.outcome }}" = "success" ] || failed=1
+          [ "$vuln_outcome" = "success" ] || [ "$vuln_outcome" = "skipped" ] || [ -z "$vuln_outcome" ] || failed=1
           exit "$failed"
 
       - name: Upload coverage to Codecov
-        if: always()
+        if: always() && !cancelled()
         uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073 # v5.5.5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

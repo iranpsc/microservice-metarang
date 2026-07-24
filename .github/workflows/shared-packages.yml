@@ -73,14 +73,13 @@ jobs:
           {
             echo "# Test Results: Shared Packages"
             echo ""
-            echo "Checklist of every test suite and individual test executed in this job."
+            echo "Package-level checklist with failed tests expanded."
             echo ""
             echo "## Detailed Results"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run tests
         id: unit_tests
-        continue-on-error: true
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
@@ -93,22 +92,36 @@ jobs:
             "shared" \
             -- ./pkg/... -race -coverprofile=coverage.out -covermode=atomic
 
+      # Keep later suites running after a failure so the checklist is complete.
+      # Prefer if: always() over continue-on-error so failed steps stay red.
       - name: Install govulncheck
+        if: always() && !cancelled()
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: Run govulncheck
         id: govulncheck
-        continue-on-error: true
+        if: always() && !cancelled()
         run: |
           bash .github/scripts/govulncheck-checklist.sh \
             "Security Scan (govulncheck)" \
             "shared"
 
       - name: Finalize test checklist
-        if: always()
+        if: always() && !cancelled()
         run: |
-          unit_status="${{ steps.unit_tests.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
-          vuln_status="${{ steps.govulncheck.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+          unit_outcome="${{ steps.unit_tests.outcome }}"
+          vuln_outcome="${{ steps.govulncheck.outcome }}"
+
+          case "$unit_outcome" in
+            success) unit_status="✅ Passed" ;;
+            *) unit_status="❌ Failed" ;;
+          esac
+
+          case "$vuln_outcome" in
+            success) vuln_status="✅ Passed" ;;
+            skipped|"") vuln_status="⏭️ Skipped" ;;
+            *) vuln_status="❌ Failed" ;;
+          esac
 
           {
             echo ""
@@ -121,12 +134,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           failed=0
-          [ "${{ steps.unit_tests.outcome }}" = "success" ] || failed=1
-          [ "${{ steps.govulncheck.outcome }}" = "success" ] || failed=1
+          [ "$unit_outcome" = "success" ] || failed=1
+          [ "$vuln_outcome" = "success" ] || [ "$vuln_outcome" = "skipped" ] || [ -z "$vuln_outcome" ] || failed=1
           exit "$failed"
 
       - name: Upload coverage
-        if: always()
+        if: always() && !cancelled()
         uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073 # v5.5.5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
