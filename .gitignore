@@ -62,6 +62,7 @@ logs/
 *.pem
 config.env
 services/**/config.env
+websocket-gateway/config.env
 
 # Docker / Compose overrides
 docker/*.env

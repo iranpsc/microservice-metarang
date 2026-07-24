@@ -1,4 +1,4 @@
-package service_test
+package service
 
 import (
 	"context"
@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-
-	"metarang/dynasty-service/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +21,7 @@ func TestDynastyService_CreateDynasty(t *testing.T) {
 	dynastyRepo := repository.NewDynastyRepository(db)
 	familyRepo := repository.NewFamilyRepository(db)
 	prizeRepo := repository.NewPrizeRepository(db)
-	service := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
+	service := NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
 
 	ctx := context.Background()
 	userID := uint64(1)
@@ -82,7 +80,7 @@ func TestDynastyService_GetDynastyByID(t *testing.T) {
 	dynastyRepo := repository.NewDynastyRepository(db)
 	familyRepo := repository.NewFamilyRepository(db)
 	prizeRepo := repository.NewPrizeRepository(db)
-	service := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
+	service := NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
 
 	ctx := context.Background()
 	dynastyID := uint64(1)
@@ -121,7 +119,7 @@ func TestDynastyService_UpdateDynastyFeature(t *testing.T) {
 	dynastyRepo := repository.NewDynastyRepository(db)
 	familyRepo := repository.NewFamilyRepository(db)
 	prizeRepo := repository.NewPrizeRepository(db)
-	service := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
+	service := NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
 
 	ctx := context.Background()
 	dynastyID := uint64(1)
@@ -133,7 +131,7 @@ func TestDynastyService_UpdateDynastyFeature(t *testing.T) {
 		mock.ExpectQuery("SELECT id, user_id, feature_id").
 			WithArgs(dynastyID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "feature_id", "created_at", "updated_at"}).
-				AddRow(dynastyID, userID, 100, time.Now().AddDate(0, 0, -60), time.Now().AddDate(0, 0, -31)))
+				AddRow(dynastyID, userID, 100, time.Now(), time.Now()))
 
 		// Update feature
 		mock.ExpectExec("UPDATE dynasties SET feature_id").
@@ -149,7 +147,7 @@ func TestDynastyService_UpdateDynastyFeature(t *testing.T) {
 		mock.ExpectQuery("SELECT id, user_id, feature_id").
 			WithArgs(dynastyID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "feature_id", "created_at", "updated_at"}).
-				AddRow(dynastyID, userID, 100, time.Now().AddDate(0, 0, -60), time.Now().AddDate(0, 0, -31)))
+				AddRow(dynastyID, userID, 100, time.Now(), time.Now()))
 
 		err := service.UpdateDynastyFeature(ctx, dynastyID, newFeatureID, otherUserID)
 		assert.Error(t, err)
