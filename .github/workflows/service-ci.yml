@@ -121,20 +121,80 @@ jobs:
       - name: Setup test database
         uses: ./.github/actions/setup-test-db
 
-      - name: Run unit tests
+      - name: Initialize test report
         run: |
-          cd services/${{ inputs.service_name }}
-          go test ./internal/... -v -race -coverprofile=coverage.out -covermode=atomic
-          if [ -f "../../tests/${{ inputs.service_name }}/go.mod" ]; then
-            cd "../../tests/${{ inputs.service_name }}"
-            GOWORK=off go test ./... -v -race
-          fi
+          {
+            echo "# Test Results: ${{ inputs.service_name }}"
+            echo ""
+            echo "Checklist of every test suite and individual test executed in this job."
+            echo ""
+            echo "## Detailed Results"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run unit tests
+        id: unit_tests
+        continue-on-error: true
+        run: |
+          bash .github/scripts/go-test-checklist.sh \
+            "Unit Tests (services/${{ inputs.service_name }}/internal/...)" \
+            "services/${{ inputs.service_name }}" \
+            -- ./internal/... -race -coverprofile=coverage.out -covermode=atomic
+
+      - name: Run integration tests
+        id: integration_tests
+        if: hashFiles(format('tests/{0}/go.mod', inputs.service_name)) != ''
+        continue-on-error: true
+        run: |
+          bash .github/scripts/go-test-checklist.sh \
+            "Integration Tests (tests/${{ inputs.service_name }}/...)" \
+            "tests/${{ inputs.service_name }}" \
+            -- ./... -race
+        env:
+          GOWORK: off
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
 
       - name: Run govulncheck
+        id: govulncheck
+        continue-on-error: true
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
-          cd services/${{ inputs.service_name }}
-          govulncheck ./...
+          bash .github/scripts/govulncheck-checklist.sh \
+            "Security Scan (govulncheck)" \
+            "services/${{ inputs.service_name }}"
+
+      - name: Finalize test checklist
+        if: always()
+        run: |
+          unit_status="${{ steps.unit_tests.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+          integration_outcome="${{ steps.integration_tests.outcome }}"
+          if [ "$integration_outcome" = "success" ]; then
+            integration_status="✅ Passed"
+          elif [ "$integration_outcome" = "skipped" ]; then
+            integration_status="⏭️ Not configured"
+          else
+            integration_status="❌ Failed"
+          fi
+          vuln_status="${{ steps.govulncheck.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+
+          {
+            echo ""
+            echo "## Summary"
+            echo ""
+            echo "| Test suite | Status |"
+            echo "|------------|--------|"
+            echo "| Unit tests | ${unit_status} |"
+            echo "| Integration tests | ${integration_status} |"
+            echo "| govulncheck | ${vuln_status} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          [ "${{ steps.unit_tests.outcome }}" = "success" ] || failed=1
+          if [ "$integration_outcome" != "skipped" ] && [ "$integration_outcome" != "success" ]; then
+            failed=1
+          fi
+          [ "${{ steps.govulncheck.outcome }}" = "success" ] || failed=1
+          exit "$failed"
 
       - name: Upload coverage to Codecov
         if: always()

@@ -5,12 +5,15 @@ on:
     paths:
       - 'shared/**'
       - '.github/workflows/shared-packages.yml'
+      - '.github/scripts/**'
     branches:
       - main
       - develop
   pull_request:
     paths:
       - 'shared/**'
+      - '.github/workflows/shared-packages.yml'
+      - '.github/scripts/**'
     branches:
       - main
       - develop
@@ -65,7 +68,19 @@ jobs:
           working-directory: shared
           args: --timeout=5m
 
+      - name: Initialize test report
+        run: |
+          {
+            echo "# Test Results: Shared Packages"
+            echo ""
+            echo "Checklist of every test suite and individual test executed in this job."
+            echo ""
+            echo "## Detailed Results"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Run tests
+        id: unit_tests
+        continue-on-error: true
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
@@ -73,14 +88,42 @@ jobs:
           DB_USER: root
           DB_PASSWORD: root_password
         run: |
-          cd shared
-          go test ./pkg/... -v -race -coverprofile=coverage.out -covermode=atomic
+          bash .github/scripts/go-test-checklist.sh \
+            "Shared Package Tests (shared/pkg/...)" \
+            "shared" \
+            -- ./pkg/... -race -coverprofile=coverage.out -covermode=atomic
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: Run govulncheck
+        id: govulncheck
+        continue-on-error: true
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-          cd shared
-          govulncheck ./...
+          bash .github/scripts/govulncheck-checklist.sh \
+            "Security Scan (govulncheck)" \
+            "shared"
+
+      - name: Finalize test checklist
+        if: always()
+        run: |
+          unit_status="${{ steps.unit_tests.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+          vuln_status="${{ steps.govulncheck.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+
+          {
+            echo ""
+            echo "## Summary"
+            echo ""
+            echo "| Test suite | Status |"
+            echo "|------------|--------|"
+            echo "| Shared package tests | ${unit_status} |"
+            echo "| govulncheck | ${vuln_status} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          [ "${{ steps.unit_tests.outcome }}" = "success" ] || failed=1
+          [ "${{ steps.govulncheck.outcome }}" = "success" ] || failed=1
+          exit "$failed"
 
       - name: Upload coverage
         if: always()
