@@ -134,26 +134,48 @@ jobs:
       - name: Run unit tests
         id: unit_tests
         run: |
+          # ./... covers internal/, cmd/, and in-module tests/ (e.g. levels-service/tests).
+          # Most services keep the bulk of tests in tests/<service>/ (next step).
           bash .github/scripts/go-test-checklist.sh \
-            "Unit Tests (services/${{ inputs.service_name }}/internal/...)" \
+            "Unit Tests (services/${{ inputs.service_name }}/...)" \
             "services/${{ inputs.service_name }}" \
-            -- ./internal/... -race -coverprofile=coverage.out -covermode=atomic
+            -- ./... -race -coverprofile=coverage.out -covermode=atomic
 
       # Keep later suites running after a failure so the checklist is complete.
       # Prefer if: always() over continue-on-error so failed steps stay red.
+      # Do not gate with hashFiles(): in reusable workflows it can evaluate empty and
+      # silently skip the external test modules where most tests actually live.
       - name: Run integration tests
         id: integration_tests
-        if: >-
-          always() &&
-          !cancelled() &&
-          hashFiles(format('tests/{0}/go.mod', inputs.service_name)) != ''
-        run: |
-          bash .github/scripts/go-test-checklist.sh \
-            "Integration Tests (tests/${{ inputs.service_name }}/...)" \
-            "tests/${{ inputs.service_name }}" \
-            -- ./... -race
+        if: always() && !cancelled()
         env:
           GOWORK: off
+          SERVICE_NAME: ${{ inputs.service_name }}
+        run: |
+          TEST_MOD="tests/${SERVICE_NAME}/go.mod"
+
+          if [ ! -f "$TEST_MOD" ]; then
+            orphan_count="$(find "tests/${SERVICE_NAME}" -name '*_test.go' 2>/dev/null | wc -l | tr -d ' ')"
+            {
+              echo ""
+              echo "### Integration Tests (tests/${SERVICE_NAME}/...)"
+              echo ""
+              if [ "${orphan_count:-0}" -gt 0 ]; then
+                echo "- [ ] ⚠️ Found ${orphan_count} \`*_test.go\` file(s) but no \`go.mod\` — cannot run as a module"
+                echo "::warning::tests/${SERVICE_NAME} has test files without go.mod; add a go.mod to run them in CI"
+              else
+                echo "- [x] Skipped — no \`tests/${SERVICE_NAME}/go.mod\`"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "status=ran" >> "$GITHUB_OUTPUT"
+          bash .github/scripts/go-test-checklist.sh \
+            "Integration Tests (tests/${SERVICE_NAME}/...)" \
+            "tests/${SERVICE_NAME}" \
+            -- ./... -race
 
       - name: Install govulncheck
         if: always() && !cancelled()
@@ -172,6 +194,7 @@ jobs:
         run: |
           unit_outcome="${{ steps.unit_tests.outcome }}"
           integration_outcome="${{ steps.integration_tests.outcome }}"
+          integration_status_flag="${{ steps.integration_tests.outputs.status }}"
           vuln_outcome="${{ steps.govulncheck.outcome }}"
 
           case "$unit_outcome" in
@@ -180,11 +203,15 @@ jobs:
             *) unit_status="❌ Failed" ;;
           esac
 
-          case "$integration_outcome" in
-            success) integration_status="✅ Passed" ;;
-            skipped|"") integration_status="⏭️ Not configured" ;;
-            *) integration_status="❌ Failed" ;;
-          esac
+          if [ "$integration_status_flag" = "skipped" ]; then
+            integration_status="⏭️ Not configured"
+          elif [ "$integration_outcome" = "success" ]; then
+            integration_status="✅ Passed"
+          elif [ -z "$integration_outcome" ] || [ "$integration_outcome" = "skipped" ]; then
+            integration_status="⏭️ Not configured"
+          else
+            integration_status="❌ Failed"
+          fi
 
           case "$vuln_outcome" in
             success) vuln_status="✅ Passed" ;;
@@ -205,8 +232,14 @@ jobs:
 
           failed=0
           [ "$unit_outcome" = "success" ] || failed=1
-          if [ -n "$integration_outcome" ] && [ "$integration_outcome" != "skipped" ] && [ "$integration_outcome" != "success" ]; then
+          if [ "$integration_status_flag" = "ran" ] && [ "$integration_outcome" != "success" ]; then
             failed=1
+          fi
+          if [ "$integration_status_flag" != "skipped" ] && [ "$integration_status_flag" != "ran" ]; then
+            # Step failed before writing status (e.g. checklist script failed).
+            if [ "$integration_outcome" != "success" ] && [ "$integration_outcome" != "skipped" ] && [ -n "$integration_outcome" ]; then
+              failed=1
+            fi
           fi
           [ "$vuln_outcome" = "success" ] || [ "$vuln_outcome" = "skipped" ] || [ -z "$vuln_outcome" ] || failed=1
           exit "$failed"
