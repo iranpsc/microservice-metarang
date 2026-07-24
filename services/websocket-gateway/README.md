@@ -2,6 +2,8 @@
 
 Real-time event broadcasting gateway for the MetaRGB microservices architecture using Socket.IO and Redis Pub/Sub.
 
+This service replaces the legacy Node.js `websocket-gateway/` directory with a Go implementation for stack consistency.
+
 ## Features
 
 - Socket.IO server (`github.com/googollee/go-socket.io`)
