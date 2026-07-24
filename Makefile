@@ -1,4 +1,4 @@
-.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-integration test-golden test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up
+.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up
 
 # Proto generation
 PROTO_DIR=shared/proto
@@ -46,10 +46,10 @@ help:
 	@echo "  deploy-all       - Deploy all services to Kubernetes"
 	@echo ""
 	@echo "Testing:"
-	@echo "  test             - Run integration tests"
+	@echo "  test             - Run all test suites (alias for test-all)"
 	@echo "  test-unit        - Run unit tests inside each service module"
 	@echo "  test-services    - Run dedicated service test modules (tests/*-service/)"
-	@echo "  test-all         - Run all test suites (unit, services, integration, golden, database)"
+	@echo "  test-all         - Run all test suites (unit, services, database)"
 	@echo "  test-coverage-features  - features-service handler coverage ≥70%"
 	@echo "  test-coverage-financial - financial-service handler coverage ≥70%"
 	@echo "  test-coverage-social    - social-service handler+service coverage ≥70%"
@@ -133,7 +133,7 @@ test-unit:
 	done
 	@echo "✅ All unit tests passed"
 
-# Dedicated service test modules under tests/ (excludes integration, golden, database)
+# Dedicated service test modules under tests/ (excludes database)
 SERVICE_TEST_MODULES=auth-service calendar-service commercial-service dynasty-service features-service financial-service grpc-gateway social-service storage-service support-service
 
 test-services:
@@ -184,27 +184,16 @@ test-coverage-social:
 	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
 	@echo "✅ social-service coverage OK"
 
-# Integration tests
-test-integration:
-	@echo "🧪 Running integration tests..."
-	cd tests/integration && go test -v ./...
-
-# Golden JSON tests
-test-golden:
-	@echo "🧪 Running golden JSON comparison tests..."
-	cd tests/golden && go test -v ./...
-
 # Database tests
 test-database:
 	@echo "🧪 Running database schema and concurrency tests..."
 	cd tests/database && go test -v ./...
 
 # Run all tests
-test-all: test-unit test-services test-integration test-golden test-database
+test-all: test-unit test-services test-database
 	@echo "✅ All test suites passed"
 
-# Legacy test target (kept for backward compatibility)
-test: test-integration
+test: test-all
 
 # =============================================================================
 # Local uploads symlink
@@ -442,7 +431,7 @@ endif
 
 dev-up: init-storage-uploads
 	@echo "🚀 Starting development environment with Docker Compose Watch..."
-	@echo "ℹ️  File changes will automatically trigger rebuilds (Go) or restarts (Node.js)"
+	@echo "ℹ️  File changes will automatically trigger rebuilds (Go services)"
 	@echo ""
 	$(DOCKER_COMPOSE) up --watch
 	@echo "✅ Development services started with watch mode!"

@@ -155,9 +155,15 @@ func (s *MarketplaceService) handleLimitedFeature(ctx context.Context, feature *
 
 	// Check buyer balance for color using gRPC
 	color := constants.GetColor(properties.Karbari)
+	if color == "" {
+		return fmt.Errorf("invalid feature karbari: %s", properties.Karbari)
+	}
 	if limitation.PriceLimit {
 		hasBalance, err := s.commercialClient.CheckBalance(ctx, buyerID, color, properties.Stability)
-		if err != nil || !hasBalance {
+		if err != nil {
+			return fmt.Errorf("failed to check buyer balance: %w", err)
+		}
+		if !hasBalance {
 			return fmt.Errorf("برای خرید این ملک شما نیاز به %.2f لیتر رنگ %s دارید",
 				properties.Stability, constants.GetColorPersian(properties.Karbari))
 		}
@@ -204,15 +210,21 @@ func (s *MarketplaceService) handleLimitedFeature(ctx context.Context, feature *
 		s.metrics.RecordTrade("limited", 0, 0)
 	}
 
-	// Create hourly profit
+	// Assign hourly profit to buyer (reuses existing feature row if any)
 	withdrawProfitDays, err := s.getUserVariableWithdrawProfit(ctx, buyerID)
 	if err != nil {
 		withdrawProfitDays = 10
 	}
 
-	_, err = s.hourlyProfitRepo.Create(ctx, buyerID, feature.ID, color, withdrawProfitDays)
-	if err != nil {
-		s.log.Error("Failed to create hourly profit", "error", err)
+	oldProfit, _ := s.hourlyProfitRepo.GetByFeatureAndUser(ctx, feature.ID, feature.OwnerID)
+	if oldProfit != nil && oldProfit.Amount > 0 && s.commercialClient != nil {
+		if err := s.commercialClient.AddBalance(ctx, feature.OwnerID, oldProfit.Asset, oldProfit.Amount); err != nil {
+			s.log.Error("Failed to transfer profit to seller", "error", err)
+		}
+	}
+
+	if err := s.hourlyProfitRepo.TransferProfitToNewOwner(ctx, feature.ID, feature.OwnerID, buyerID, color, withdrawProfitDays); err != nil {
+		s.log.Error("Failed to transfer hourly profit", "error", err)
 	}
 
 	// Track limited feature purchase
@@ -258,10 +270,16 @@ func (s *MarketplaceService) buyFromRGB(ctx context.Context, feature *models.Fea
 	}
 
 	color := constants.GetColor(properties.Karbari)
+	if color == "" {
+		return fmt.Errorf("invalid feature karbari: %s", properties.Karbari)
+	}
 
 	// Check buyer balance via gRPC
 	hasBalance, err := s.commercialClient.CheckBalance(ctx, buyerID, color, properties.Stability)
-	if err != nil || !hasBalance {
+	if err != nil {
+		return fmt.Errorf("failed to check buyer balance: %w", err)
+	}
+	if !hasBalance {
 		return fmt.Errorf("برای خرید این ملک شما نیاز به %.2f لیتر رنگ %s دارید",
 			properties.Stability, constants.GetColorPersian(properties.Karbari))
 	}
@@ -300,15 +318,21 @@ func (s *MarketplaceService) buyFromRGB(ctx context.Context, feature *models.Fea
 		return err
 	}
 
-	// Create hourly profit
+	// Assign hourly profit to buyer (reuses existing feature row if any)
 	withdrawProfitDays, _ := s.getUserVariableWithdrawProfit(ctx, buyerID)
 	if withdrawProfitDays == 0 {
 		withdrawProfitDays = 10
 	}
 
-	_, err = s.hourlyProfitRepo.Create(ctx, buyerID, feature.ID, color, withdrawProfitDays)
-	if err != nil {
-		s.log.Error("Failed to create hourly profit", "error", err)
+	oldProfit, _ := s.hourlyProfitRepo.GetByFeatureAndUser(ctx, feature.ID, feature.OwnerID)
+	if oldProfit != nil && oldProfit.Amount > 0 && s.commercialClient != nil {
+		if err := s.commercialClient.AddBalance(ctx, feature.OwnerID, oldProfit.Asset, oldProfit.Amount); err != nil {
+			s.log.Error("Failed to transfer profit to seller", "error", err)
+		}
+	}
+
+	if err := s.hourlyProfitRepo.TransferProfitToNewOwner(ctx, feature.ID, feature.OwnerID, buyerID, color, withdrawProfitDays); err != nil {
+		s.log.Error("Failed to transfer hourly profit", "error", err)
 	}
 
 	// Record metrics
@@ -370,9 +394,15 @@ func (s *MarketplaceService) buyFromUser(ctx context.Context, feature *models.Fe
 	platformFeePSC := constants.CalculatePlatformFee(pricePSC)
 	platformFeeIRR := constants.CalculatePlatformFee(priceIRR)
 
-	// Check buyer balance via gRPC
-	hasPSC, _ := s.commercialClient.CheckBalance(ctx, buyerID, "psc", buyerChargePSC)
-	hasIRR, _ := s.commercialClient.CheckBalance(ctx, buyerID, "irr", buyerChargeIRR)
+	// Check buyer balance via gRPC (buyer pays listed price + 5% fee for each asset)
+	hasPSC, err := s.commercialClient.CheckBalance(ctx, buyerID, "psc", buyerChargePSC)
+	if err != nil {
+		return fmt.Errorf("failed to check PSC balance: %w", err)
+	}
+	hasIRR, err := s.commercialClient.CheckBalance(ctx, buyerID, "irr", buyerChargeIRR)
+	if err != nil {
+		return fmt.Errorf("failed to check IRR balance: %w", err)
+	}
 	if !hasPSC || !hasIRR {
 		return fmt.Errorf("موجودی شما کافی نمی باشد")
 	}
@@ -442,8 +472,7 @@ func (s *MarketplaceService) buyFromUser(ctx context.Context, feature *models.Fe
 	}
 
 	// Transfer profit to new owner
-	_ = constants.GetColor(properties.Karbari) // Color for potential future use
-	if err := s.hourlyProfitRepo.TransferProfitToNewOwner(ctx, feature.ID, feature.OwnerID, buyerID, withdrawProfitDays); err != nil {
+	if err := s.hourlyProfitRepo.TransferProfitToNewOwner(ctx, feature.ID, feature.OwnerID, buyerID, constants.GetColor(properties.Karbari), withdrawProfitDays); err != nil {
 		s.log.Error("Failed to transfer hourly profit", "error", err)
 	}
 
@@ -612,10 +641,16 @@ func (s *MarketplaceService) SendBuyRequest(ctx context.Context, req *pb.SendBuy
 	buyerChargePSC := constants.CalculateBuyerCharge(pricePSC)
 	buyerChargeIRR := constants.CalculateBuyerCharge(priceIRR)
 
-	// Check buyer balance via gRPC
+	// Check buyer balance via gRPC (buyer pays listed price + 5% fee for each asset)
 	if s.commercialClient != nil {
-		hasPSC, _ := s.commercialClient.CheckBalance(ctx, buyerID, "psc", buyerChargePSC)
-		hasIRR, _ := s.commercialClient.CheckBalance(ctx, buyerID, "irr", buyerChargeIRR)
+		hasPSC, err := s.commercialClient.CheckBalance(ctx, buyerID, "psc", buyerChargePSC)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check PSC balance: %w", err)
+		}
+		hasIRR, err := s.commercialClient.CheckBalance(ctx, buyerID, "irr", buyerChargeIRR)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check IRR balance: %w", err)
+		}
 		if !hasPSC {
 			return nil, fmt.Errorf("موجودی psc شما کافی نیست")
 		}
@@ -807,7 +842,7 @@ func (s *MarketplaceService) AcceptBuyRequest(ctx context.Context, requestID, se
 		withdrawProfitDays = 10
 	}
 
-	if err := s.hourlyProfitRepo.TransferProfitToNewOwnerWithTx(ctx, tx, feature.ID, sellerID, buyRequest.BuyerID, withdrawProfitDays); err != nil {
+	if err := s.hourlyProfitRepo.TransferProfitToNewOwnerWithTx(ctx, tx, feature.ID, sellerID, buyRequest.BuyerID, constants.GetColor(properties.Karbari), withdrawProfitDays); err != nil {
 		return nil, fmt.Errorf("failed to transfer hourly profit: %w", err)
 	}
 

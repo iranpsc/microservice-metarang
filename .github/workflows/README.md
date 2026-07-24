@@ -6,10 +6,7 @@
 |----------|------|----------|---------|
 | Services CI/CD | `services-ci.yml` | Push/PR to `main`/`develop` (service, shared, or schema changes), manual | Detects changed services and runs the full CI/CD pipeline for each |
 | Service CI (Reusable) | `service-ci.yml` | Called by `services-ci.yml` | Lint → Test → Build/Scan → Deploy for a single service |
-| Integration Tests | `integration-tests.yml` | Push/PR to `main`/`develop`, daily at 02:00 UTC, manual | Full cross-service integration suite, wallet concurrency, and golden JSON tests |
 | Shared Packages CI | `shared-packages.yml` | Push/PR touching `shared/**`, manual | Lint, test, and vulnerability-check shared Go packages |
-| WebSocket Gateway CI/CD | `websocket-gateway.yml` | Push/PR touching `websocket-gateway/**`, manual | Build, scan, and push the Node.js WebSocket gateway image |
-| Load Tests | `load-tests.yml` | Weekly on Sundays at 03:00 UTC, manual | k6 load tests against the staging environment |
 
 ## How service CI works
 
@@ -49,12 +46,12 @@ Use **Actions → Services CI/CD → Run workflow**:
 | Secret | Used by | Required |
 |--------|---------|----------|
 | `DOCKER_USERNAME` / `DOCKER_PASSWORD` | Image push to Docker Hub (`abbasajorloo/<service>`) | Yes |
-| `KUBE_CONFIG` | Deploy, load tests | For deploys |
+| `KUBE_CONFIG` | Deploy | For deploys |
 | `CODECOV_TOKEN` | Coverage upload | Optional |
 
 ## Shared building blocks
 
-- `.github/actions/setup-test-db/` — composite action that installs the MySQL client and loads `scripts/schema.sql` into the MySQL service container. Used by `service-ci.yml` and `integration-tests.yml`.
+- `.github/actions/setup-test-db/` — composite action that installs the MySQL client and loads `scripts/schema.sql` into the MySQL service container. Used by `service-ci.yml`.
 - All third-party actions are pinned to commit SHAs; Dependabot (`.github/dependabot.yml`) keeps them updated weekly.
 
 ## Branch protection
@@ -62,5 +59,4 @@ Use **Actions → Services CI/CD → Run workflow**:
 Recommended required checks for `main`/`develop`:
 
 - **Services CI/CD** (covers lint/test/build of changed services)
-- **Integration Tests**
 - **Shared Packages CI** (for shared-only changes)

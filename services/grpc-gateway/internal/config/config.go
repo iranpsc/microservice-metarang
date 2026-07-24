@@ -10,9 +10,7 @@ type Config struct {
 	HTTPPort                string
 	AuthServiceAddr         string
 	CommercialServiceAddr   string
-	CalendarServiceAddr     string
 	DynastyServiceAddr      string
-	FeaturesServiceAddr     string
 	FinancialServiceAddr    string
 	SocialServiceAddr       string
 	LevelsServiceAddr       string
@@ -34,9 +32,7 @@ func Load() *Config {
 		HTTPPort:                getEnv("HTTP_PORT", "8080"),
 		AuthServiceAddr:         getEnv("AUTH_SERVICE_ADDR", "auth-service:50051"),
 		CommercialServiceAddr:   getEnv("COMMERCIAL_SERVICE_ADDR", "commercial-service:50052"),
-		CalendarServiceAddr:     getEnv("CALENDAR_SERVICE_ADDR", "calendar-service:50059"),
 		DynastyServiceAddr:      getEnv("DYNASTY_SERVICE_ADDR", "dynasty-service:50055"),
-		FeaturesServiceAddr:     getEnv("FEATURES_SERVICE_ADDR", "features-service:50053"),
 		FinancialServiceAddr:    getEnv("FINANCIAL_SERVICE_ADDR", "financial-service:50062"),
 		SocialServiceAddr:       getEnv("SOCIAL_SERVICE_ADDR", "social-service:50061"),
 		LevelsServiceAddr:       getEnv("LEVELS_SERVICE_ADDR", "levels-service:50054"),

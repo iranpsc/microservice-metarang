@@ -13,6 +13,7 @@ on:
       - '.github/workflows/services-ci.yml'
       - '.github/workflows/service-ci.yml'
       - '.github/actions/setup-test-db/**'
+      - '.github/scripts/**'
   pull_request:
     branches:
       - main
@@ -25,6 +26,7 @@ on:
       - '.github/workflows/services-ci.yml'
       - '.github/workflows/service-ci.yml'
       - '.github/actions/setup-test-db/**'
+      - '.github/scripts/**'
   workflow_dispatch:
     inputs:
       services:
@@ -62,6 +64,7 @@ jobs:
               - '.github/workflows/services-ci.yml'
               - '.github/workflows/service-ci.yml'
               - '.github/actions/setup-test-db/**'
+              - '.github/scripts/**'
             auth-service:
               - 'services/auth-service/**'
               - 'tests/auth-service/**'
@@ -87,8 +90,10 @@ jobs:
               - 'services/health-check-service/**'
             levels-service:
               - 'services/levels-service/**'
+              - 'tests/levels-service/**'
             notifications-service:
               - 'services/notifications-service/**'
+              - 'tests/notifications-service/**'
             social-service:
               - 'services/social-service/**'
               - 'tests/social-service/**'
@@ -100,6 +105,7 @@ jobs:
               - 'tests/support-service/**'
             training-service:
               - 'services/training-service/**'
+              - 'tests/training-service/**'
 
       - name: Build service list
         id: services

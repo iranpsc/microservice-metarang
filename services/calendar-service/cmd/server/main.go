@@ -16,8 +16,10 @@ import (
 	"google.golang.org/grpc"
 
 	"metarang/calendar-service/internal/handler"
+	"metarang/calendar-service/internal/middleware"
 	"metarang/calendar-service/internal/repository"
 	"metarang/calendar-service/internal/service"
+	authpb "metarang/shared/pb/auth"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
 	"metarang/shared/pkg/sentry"
@@ -88,19 +90,43 @@ func main() {
 		log.Fatalf("Failed to configure gRPC server: %v", err)
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
-	handler.RegisterCalendarHandler(grpcServer, calendarService)
+	calendarHandler := handler.RegisterCalendarHandler(grpcServer, calendarService)
 
-	port := getEnv("GRPC_PORT", "50058")
-	listener, err := net.Listen("tcp", ":"+port)
+	// Auth client for HTTP middleware (ValidateToken)
+	var authClient authpb.AuthServiceClient
+	authAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, err := grpcutil.NewClient(authAddr)
 	if err != nil {
-		log.Fatalf("Failed to listen on port %s: %v", port, err)
+		log.Printf("Warning: failed to connect to auth service at %s: %v", authAddr, err)
+	} else {
+		defer func() { _ = authConn.Close() }()
+		authClient = authpb.NewAuthServiceClient(authConn)
+		log.Printf("Created auth service client for %s", authAddr)
 	}
 
-	log.Printf("Calendar service listening on port %s", port)
+	grpcPort := getEnv("GRPC_PORT", "50059")
+	listener, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		log.Fatalf("Failed to listen on gRPC port %s: %v", grpcPort, err)
+	}
+
+	log.Printf("gRPC server listening on port %s", grpcPort)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPCalendarHandler(calendarHandler)
+	httpPort := getEnv("HTTP_PORT", "8060")
+	authMW := middleware.AuthMiddleware(authClient)
+	optionalAuthMW := middleware.OptionalAuthMiddleware(authClient)
+
+	log.Printf("HTTP server listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW, optionalAuthMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 
