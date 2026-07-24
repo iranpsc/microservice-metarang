@@ -133,6 +133,9 @@ jobs:
 
       - name: Run unit tests
         id: unit_tests
+        env:
+          # Unit suites stay in the summary table only; details are for tests/<service>.
+          CHECKLIST_WRITE_SUMMARY: "false"
         run: |
           # ./... covers internal/, cmd/, and in-module tests/ (e.g. levels-service/tests).
           # Most services keep the bulk of tests in tests/<service>/ (next step).

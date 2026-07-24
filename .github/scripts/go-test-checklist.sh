@@ -19,18 +19,26 @@ if [ "${1:-}" = "--" ]; then
 fi
 
 TEST_ARGS=("$@")
-SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
+# Set CHECKLIST_WRITE_SUMMARY=false to keep compact job logs without step-summary details.
+WRITE_SUMMARY="${CHECKLIST_WRITE_SUMMARY:-true}"
+if [ "$WRITE_SUMMARY" = "false" ] || [ "$WRITE_SUMMARY" = "0" ]; then
+  SUMMARY="/dev/null"
+else
+  SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
+fi
 JSON_LOG="$(mktemp)"
 ERR_LOG="$(mktemp)"
 trap 'rm -f "$JSON_LOG" "$ERR_LOG"' EXIT
 
 cd "$WORKDIR"
 
-{
-  echo ""
-  echo "### ${TITLE}"
-  echo ""
-} >> "$SUMMARY"
+if [ "$SUMMARY" != "/dev/null" ]; then
+  {
+    echo ""
+    echo "### ${TITLE}"
+    echo ""
+  } >> "$SUMMARY"
+fi
 
 echo "::group::${TITLE}"
 
