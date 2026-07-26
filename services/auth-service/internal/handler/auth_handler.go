@@ -170,6 +170,11 @@ func (h *authHandler) ValidateToken(ctx context.Context, req *pb.ValidateTokenRe
 }
 
 func (h *authHandler) RequestAccountSecurity(ctx context.Context, req *pb.RequestAccountSecurityRequest) (*emptypb.Empty, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate time parameter
 	validationErrors := make(map[string]string)
 
@@ -187,13 +192,18 @@ func (h *authHandler) RequestAccountSecurity(ctx context.Context, req *pb.Reques
 		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
 
-	if err := h.authService.RequestAccountSecurity(ctx, req.UserId, req.TimeMinutes, req.Phone); err != nil {
+	if err := h.authService.RequestAccountSecurity(ctx, userID, req.TimeMinutes, req.Phone); err != nil {
 		return nil, mapAccountSecurityErrorWithFields(err, h.locale)
 	}
 	return &emptypb.Empty{}, nil
 }
 
 func (h *authHandler) VerifyAccountSecurity(ctx context.Context, req *pb.VerifyAccountSecurityRequest) (*emptypb.Empty, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate code parameter
 	validationErrors := make(map[string]string)
 
@@ -224,7 +234,7 @@ func (h *authHandler) VerifyAccountSecurity(ctx context.Context, req *pb.VerifyA
 		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
 
-	if err := h.authService.VerifyAccountSecurity(ctx, req.UserId, req.Code, req.Ip, req.UserAgent); err != nil {
+	if err := h.authService.VerifyAccountSecurity(ctx, userID, req.Code, req.Ip, req.UserAgent); err != nil {
 		return nil, mapAccountSecurityErrorWithFields(err, h.locale)
 	}
 	return &emptypb.Empty{}, nil

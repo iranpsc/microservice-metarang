@@ -76,7 +76,7 @@ func fullOptions(follow bool) *pb.ProfileLimitationOptions {
 }
 
 func TestProfileLimitationHandler_CreateProfileLimitation(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful creation", func(t *testing.T) {
 		mockService := &mockProfileLimitationService{}
@@ -177,7 +177,7 @@ func TestProfileLimitationHandler_CreateProfileLimitation(t *testing.T) {
 }
 
 func TestProfileLimitationHandler_UpdateProfileLimitation(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful update retains note when omitted", func(t *testing.T) {
 		mockService := &mockProfileLimitationService{}
@@ -270,7 +270,7 @@ func TestProfileLimitationHandler_UpdateProfileLimitation(t *testing.T) {
 }
 
 func TestProfileLimitationHandler_DeleteProfileLimitation(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful delete", func(t *testing.T) {
 		mockService := &mockProfileLimitationService{}
@@ -305,13 +305,13 @@ func TestProfileLimitationHandler_DeleteProfileLimitation(t *testing.T) {
 }
 
 func TestProfileLimitationHandler_NoteVisibility(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(10)
 	mockService := &mockProfileLimitationService{}
 	mockService.createFunc = func(ctx context.Context, limiterUserID, limitedUserID uint64, options models.ProfileLimitationOptions, note service.NoteUpdate) (*models.ProfileLimitation, error) {
 		return &models.ProfileLimitation{
 			ID:            1,
-			LimiterUserID: 10,
-			LimitedUserID: 20,
+			LimiterUserID: limiterUserID,
+			LimitedUserID: limitedUserID,
 			Options:       options,
 			Note:          sql.NullString{String: "secret", Valid: true},
 		}, nil
@@ -320,7 +320,6 @@ func TestProfileLimitationHandler_NoteVisibility(t *testing.T) {
 
 	// Create response always uses limiter as caller, so note is present.
 	resp, err := h.CreateProfileLimitation(ctx, &pb.CreateProfileLimitationRequest{
-		LimiterUserId: 10,
 		LimitedUserId: 20,
 		Options:       fullOptions(true),
 		Note:          plStringPtr("secret"),

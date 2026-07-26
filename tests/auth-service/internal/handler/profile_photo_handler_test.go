@@ -76,7 +76,7 @@ func (m *mockProfilePhotoService) DeleteProfilePhoto(ctx context.Context, userID
 }
 
 func TestProfilePhotoHandler_ListProfilePhotos(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful list with full URLs - database records from auth-service, files from storage-service", func(t *testing.T) {
 		mockService := &mockProfilePhotoService{}
@@ -236,19 +236,19 @@ func TestProfilePhotoHandler_ListProfilePhotos(t *testing.T) {
 		}
 	})
 
-	t.Run("missing user_id", func(t *testing.T) {
+	t.Run("unauthenticated", func(t *testing.T) {
 		mockService := &mockProfilePhotoService{}
 		h := &handler.ProfilePhotoHandler{ProfilePhotoService: mockService}
 
-		req := &pb.ListProfilePhotosRequest{UserId: 0}
-		_, err := h.ListProfilePhotos(ctx, req)
+		req := &pb.ListProfilePhotosRequest{}
+		_, err := h.ListProfilePhotos(context.Background(), req)
 		if err == nil {
-			t.Fatal("Expected error for missing user_id")
+			t.Fatal("Expected error for unauthenticated request")
 		}
 
 		st, ok := status.FromError(err)
-		if !ok || st.Code() != codes.InvalidArgument {
-			t.Errorf("Expected InvalidArgument, got %v", err)
+		if !ok || st.Code() != codes.Unauthenticated {
+			t.Errorf("Expected Unauthenticated, got %v", err)
 		}
 	})
 
@@ -274,7 +274,7 @@ func TestProfilePhotoHandler_ListProfilePhotos(t *testing.T) {
 }
 
 func TestProfilePhotoHandler_UploadProfilePhoto(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful upload - database record stored by auth-service, file uploaded by storage-service", func(t *testing.T) {
 		mockService := &mockProfilePhotoService{}
@@ -329,7 +329,7 @@ func TestProfilePhotoHandler_UploadProfilePhoto(t *testing.T) {
 		}
 	})
 
-	t.Run("missing user_id", func(t *testing.T) {
+	t.Run("unauthenticated", func(t *testing.T) {
 		mockService := &mockProfilePhotoService{}
 		h := &handler.ProfilePhotoHandler{ProfilePhotoService: mockService}
 
@@ -339,14 +339,14 @@ func TestProfilePhotoHandler_UploadProfilePhoto(t *testing.T) {
 			ContentType: "image/jpeg",
 		}
 
-		_, err := h.UploadProfilePhoto(ctx, req)
+		_, err := h.UploadProfilePhoto(context.Background(), req)
 		if err == nil {
-			t.Fatal("Expected error for missing user_id")
+			t.Fatal("Expected error for unauthenticated request")
 		}
 
 		st, ok := status.FromError(err)
-		if !ok || st.Code() != codes.InvalidArgument {
-			t.Errorf("Expected InvalidArgument, got %v", err)
+		if !ok || st.Code() != codes.Unauthenticated {
+			t.Errorf("Expected Unauthenticated, got %v", err)
 		}
 	})
 
@@ -402,7 +402,7 @@ func TestProfilePhotoHandler_UploadProfilePhoto(t *testing.T) {
 }
 
 func TestProfilePhotoHandler_GetProfilePhoto(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful get with full URL", func(t *testing.T) {
 		mockService := &mockProfilePhotoService{}
@@ -480,7 +480,7 @@ func TestProfilePhotoHandler_GetProfilePhoto(t *testing.T) {
 }
 
 func TestProfilePhotoHandler_DeleteProfilePhoto(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful delete", func(t *testing.T) {
 		mockService := &mockProfilePhotoService{}
@@ -501,7 +501,7 @@ func TestProfilePhotoHandler_DeleteProfilePhoto(t *testing.T) {
 		}
 	})
 
-	t.Run("missing user_id", func(t *testing.T) {
+	t.Run("unauthenticated", func(t *testing.T) {
 		mockService := &mockProfilePhotoService{}
 		h := &handler.ProfilePhotoHandler{ProfilePhotoService: mockService}
 
@@ -509,14 +509,14 @@ func TestProfilePhotoHandler_DeleteProfilePhoto(t *testing.T) {
 			ProfilePhotoId: 1,
 		}
 
-		_, err := h.DeleteProfilePhoto(ctx, req)
+		_, err := h.DeleteProfilePhoto(context.Background(), req)
 		if err == nil {
-			t.Fatal("Expected error for missing user_id")
+			t.Fatal("Expected error for unauthenticated request")
 		}
 
 		st, ok := status.FromError(err)
-		if !ok || st.Code() != codes.InvalidArgument {
-			t.Errorf("Expected InvalidArgument, got %v", err)
+		if !ok || st.Code() != codes.Unauthenticated {
+			t.Errorf("Expected Unauthenticated, got %v", err)
 		}
 	})
 

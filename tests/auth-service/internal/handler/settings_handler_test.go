@@ -31,7 +31,7 @@ func TestSettingsHandler_GetSettings(t *testing.T) {
 	// It's structured to test error mapping and service calls
 	t.Skip("requires proto generation - test structure ready")
 
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 	_ = ctx
 
 	// Would test actual proto request/response after generation
@@ -40,7 +40,7 @@ func TestSettingsHandler_GetSettings(t *testing.T) {
 func TestSettingsHandler_UpdateSettings(t *testing.T) {
 	t.Skip("requires proto generation - test structure ready")
 
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("validates checkout cadence requires both fields", func(t *testing.T) {
 		// Test that both checkout_days_count and automatic_logout are required

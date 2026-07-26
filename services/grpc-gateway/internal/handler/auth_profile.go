@@ -13,20 +13,14 @@ import (
 
 // GetUser handles GET /api/user
 func (h *AuthHandler) GetUser(w http.ResponseWriter, r *http.Request) {
-	userIDStr := r.URL.Query().Get("user_id")
-	if userIDStr == "" {
-		writeError(w, http.StatusBadRequest, "user_id is required")
-		return
-	}
-
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid user_id")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
 	grpcReq := &pb.GetUserRequest{
-		UserId: userID,
+		UserId: userCtx.UserID,
 	}
 
 	resp, err := h.userClient.GetUser(r.Context(), grpcReq)
@@ -40,11 +34,16 @@ func (h *AuthHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 // UpdateProfile handles PUT/PATCH /api/user/profile
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	userCtx, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	var req struct {
-		UserID uint64 `json:"user_id"`
-		Name   string `json:"name"`
-		Email  string `json:"email"`
-		Phone  string `json:"phone"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		Phone string `json:"phone"`
 	}
 
 	if err := decodeRequestBody(r, &req); err != nil {
@@ -57,7 +56,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &pb.UpdateProfileRequest{
-		UserId: req.UserID,
+		UserId: userCtx.UserID,
 		Name:   req.Name,
 		Email:  req.Email,
 		Phone:  req.Phone,

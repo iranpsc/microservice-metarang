@@ -75,7 +75,7 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id uint64) (*models.User, e
 // Test ListUserEvents
 
 func TestUserEventsHandler_ListUserEvents(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful list", func(t *testing.T) {
 		mockService := &mockUserEventsService{}
@@ -148,7 +148,7 @@ func TestUserEventsHandler_ListUserEvents(t *testing.T) {
 // Test GetUserEvent
 
 func TestUserEventsHandler_GetUserEvent(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful get with report", func(t *testing.T) {
 		mockService := &mockUserEventsService{}
@@ -231,7 +231,7 @@ func TestUserEventsHandler_GetUserEvent(t *testing.T) {
 // Test ReportUserEvent
 
 func TestUserEventsHandler_ReportUserEvent(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful report", func(t *testing.T) {
 		mockService := &mockUserEventsService{}
@@ -392,7 +392,7 @@ func TestUserEventsHandler_ReportUserEvent(t *testing.T) {
 // Test SendReportResponse
 
 func TestUserEventsHandler_SendReportResponse(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful response", func(t *testing.T) {
 		mockService := &mockUserEventsService{}
@@ -531,7 +531,7 @@ func TestUserEventsHandler_SendReportResponse(t *testing.T) {
 // Test CloseEventReport
 
 func TestUserEventsHandler_CloseEventReport(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful close", func(t *testing.T) {
 		mockService := &mockUserEventsService{}

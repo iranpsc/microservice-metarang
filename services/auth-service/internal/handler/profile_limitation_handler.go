@@ -34,6 +34,11 @@ func (h *profileLimitationHandler) CreateProfileLimitation(ctx context.Context, 
 		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.Tf(locale, "options is required"))
 	}
 
+	limiterUserID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	options, err := convertProtoOptions(req.Options)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.Tf(locale, "%v", err))
@@ -41,7 +46,7 @@ func (h *profileLimitationHandler) CreateProfileLimitation(ctx context.Context, 
 
 	limitation, err := h.limitationService.Create(
 		ctx,
-		req.LimiterUserId,
+		limiterUserID,
 		req.LimitedUserId,
 		options,
 		noteUpdateFromProto(req.Note),
@@ -51,7 +56,7 @@ func (h *profileLimitationHandler) CreateProfileLimitation(ctx context.Context, 
 	}
 
 	return &pb.ProfileLimitationResponse{
-		Data: convertProfileLimitationToProto(limitation, req.LimiterUserId),
+		Data: convertProfileLimitationToProto(limitation, limiterUserID),
 	}, nil
 }
 
@@ -64,6 +69,11 @@ func (h *profileLimitationHandler) UpdateProfileLimitation(ctx context.Context, 
 		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.Tf(locale, "options is required"))
 	}
 
+	limiterUserID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	options, err := convertProtoOptions(req.Options)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.Tf(locale, "%v", err))
@@ -72,7 +82,7 @@ func (h *profileLimitationHandler) UpdateProfileLimitation(ctx context.Context, 
 	limitation, err := h.limitationService.Update(
 		ctx,
 		req.LimitationId,
-		req.LimiterUserId,
+		limiterUserID,
 		options,
 		noteUpdateFromProto(req.Note),
 	)
@@ -81,7 +91,7 @@ func (h *profileLimitationHandler) UpdateProfileLimitation(ctx context.Context, 
 	}
 
 	return &pb.ProfileLimitationResponse{
-		Data: convertProfileLimitationToProto(limitation, req.LimiterUserId),
+		Data: convertProfileLimitationToProto(limitation, limiterUserID),
 	}, nil
 }
 
@@ -89,7 +99,11 @@ func (h *profileLimitationHandler) DeleteProfileLimitation(ctx context.Context, 
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.Tf(getProjectLocale(), "request is required"))
 	}
-	if err := h.limitationService.Delete(ctx, req.LimitationId, req.LimiterUserId); err != nil {
+	limiterUserID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.limitationService.Delete(ctx, req.LimitationId, limiterUserID); err != nil {
 		return nil, MapProfileLimitationError(err, getProjectLocale())
 	}
 

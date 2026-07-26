@@ -17,6 +17,7 @@ import (
 	"github.com/redis/go-redis/v9/maintnotifications"
 	"google.golang.org/grpc"
 
+	"metarang/auth-service/internal/auth"
 	"metarang/auth-service/internal/handler"
 	"metarang/auth-service/internal/pubsub"
 	"metarang/auth-service/internal/repository"
@@ -24,6 +25,7 @@ import (
 	pb "metarang/shared/pb/auth"
 	notificationspb "metarang/shared/pb/notifications"
 	storagepb "metarang/shared/pb/storage"
+	sharedauth "metarang/shared/pkg/auth"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
 	"metarang/shared/pkg/sentry"
@@ -284,13 +286,15 @@ func main() {
 	// Initialize search service
 	searchService := service.NewSearchService(searchRepo)
 
-	// Create gRPC server with Prometheus metrics
+	// Create gRPC server with Prometheus metrics and authentication
 	serviceMetrics := metrics.NewMetrics("auth_service")
 	metrics.StartHTTPServer(getEnv("METRICS_PORT", "9090"))
+	tokenValidator := auth.NewLocalTokenValidator(tokenRepo)
 	serverOpts, err := grpcutil.ServerOptions(
 		grpc.ChainUnaryInterceptor(
 			sentry.UnaryServerInterceptor(),
 			metrics.UnaryServerInterceptor(serviceMetrics),
+			sharedauth.UnaryServerInterceptor(tokenValidator),
 		),
 	)
 	if err != nil {

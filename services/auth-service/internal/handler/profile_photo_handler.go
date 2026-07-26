@@ -59,11 +59,12 @@ func (h *ProfilePhotoHandler) PrependGatewayURL(url string) string {
 // ListProfilePhotos returns all profile photos for the authenticated user
 func (h *ProfilePhotoHandler) ListProfilePhotos(ctx context.Context, req *pb.ListProfilePhotosRequest) (*pb.ListProfilePhotosResponse, error) {
 	locale := getProjectLocale()
-	if req.UserId == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.T(locale, "user_id is required"))
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	photos, err := h.ProfilePhotoService.ListProfilePhotos(ctx, req.UserId)
+	photos, err := h.ProfilePhotoService.ListProfilePhotos(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", lang.Tf(locale, "failed to list profile photos: %v", err))
 	}
@@ -91,8 +92,9 @@ func (h *ProfilePhotoHandler) ListProfilePhotos(ctx context.Context, req *pb.Lis
 // UploadProfilePhoto uploads a new profile photo for the authenticated user
 func (h *ProfilePhotoHandler) UploadProfilePhoto(ctx context.Context, req *pb.UploadProfilePhotoRequest) (*pb.ProfilePhotoResponse, error) {
 	locale := getProjectLocale()
-	if req.UserId == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.T(locale, "user_id is required"))
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(req.ImageData) == 0 {
@@ -131,7 +133,7 @@ func (h *ProfilePhotoHandler) UploadProfilePhoto(ctx context.Context, req *pb.Up
 	}
 
 	// Create upload ID for chunk upload
-	uploadID := fmt.Sprintf("profile_photo_%d_%d", req.UserId, time.Now().UnixNano())
+	uploadID := fmt.Sprintf("profile_photo_%d_%d", userID, time.Now().UnixNano())
 
 	// Upload file using ChunkUpload (single chunk since file is small)
 	chunkReq := &storagepb.ChunkUploadRequest{
@@ -180,7 +182,7 @@ func (h *ProfilePhotoHandler) UploadProfilePhoto(ctx context.Context, req *pb.Up
 	fullPath := strings.TrimSuffix(dirPath, "/") + "/" + filename
 
 	// Create database record with the full file path from storage-service
-	photo, err := h.ProfilePhotoService.CreateProfilePhotoRecord(ctx, req.UserId, fullPath)
+	photo, err := h.ProfilePhotoService.CreateProfilePhotoRecord(ctx, userID, fullPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", lang.Tf(locale, "failed to create profile photo record: %v", err))
 	}
@@ -229,15 +231,16 @@ func (h *ProfilePhotoHandler) GetProfilePhoto(ctx context.Context, req *pb.GetPr
 // DeleteProfilePhoto deletes a profile photo (with ownership check)
 func (h *ProfilePhotoHandler) DeleteProfilePhoto(ctx context.Context, req *pb.DeleteProfilePhotoRequest) (*emptypb.Empty, error) {
 	locale := getProjectLocale()
-	if req.UserId == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.T(locale, "user_id is required"))
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if req.ProfilePhotoId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "%s", lang.T(locale, "profile_photo_id is required"))
 	}
 
-	err := h.ProfilePhotoService.DeleteProfilePhoto(ctx, req.UserId, req.ProfilePhotoId)
+	err = h.ProfilePhotoService.DeleteProfilePhoto(ctx, userID, req.ProfilePhotoId)
 	if err != nil {
 		switch err {
 		case service.ErrProfilePhotoNotFound:

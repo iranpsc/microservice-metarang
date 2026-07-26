@@ -13,6 +13,7 @@ import (
 
 	"metarang/auth-service/internal/service"
 	pb "metarang/shared/pb/auth"
+	sharedauth "metarang/shared/pkg/auth"
 )
 
 type userHandler struct {
@@ -27,6 +28,10 @@ func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserServic
 }
 
 func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.User, error) {
+	if err := authorizeSelfOrService(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+
 	user, err := h.userService.GetUser(ctx, req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "user not found: %v", err)
@@ -62,27 +67,16 @@ func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 		response.PhoneVerifiedAt = timestamppb.New(user.PhoneVerifiedAt.Time)
 	}
 
-	if user.AccessToken.Valid {
-		response.AccessToken = user.AccessToken.String
-	}
-
-	if user.RefreshToken.Valid {
-		response.RefreshToken = user.RefreshToken.String
-	}
-
-	if user.TokenType.Valid {
-		response.TokenType = user.TokenType.String
-	}
-
-	if user.ExpiresIn.Valid {
-		response.ExpiresIn = user.ExpiresIn.Int64
-	}
-
 	return response, nil
 }
 
 func (h *userHandler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.User, error) {
-	user, err := h.userService.UpdateProfile(ctx, req.UserId, req.Name, req.Email, req.Phone)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := h.userService.UpdateProfile(ctx, userID, req.Name, req.Email, req.Phone)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update profile: %v", err)
 	}
@@ -183,7 +177,12 @@ func (h *userHandler) GetUserLevel(ctx context.Context, req *pb.GetUserLevelRequ
 }
 
 func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProfileLimitationsRequest) (*pb.GetProfileLimitationsResponse, error) {
-	limitation, err := h.profileLimitationService.GetBetweenUsers(ctx, req.CallerUserId, req.TargetUserId)
+	callerUserID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limitation, err := h.profileLimitationService.GetBetweenUsers(ctx, callerUserID, req.TargetUserId)
 	if err != nil {
 		if errors.Is(err, service.ErrUserNotFound) {
 			return nil, status.Errorf(codes.NotFound, "%s", err.Error())
@@ -197,7 +196,7 @@ func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProf
 	}
 
 	return &pb.GetProfileLimitationsResponse{
-		Data: convertProfileLimitationToProto(limitation, req.CallerUserId),
+		Data: convertProfileLimitationToProto(limitation, callerUserID),
 	}, nil
 }
 
@@ -304,8 +303,8 @@ func (h *userHandler) GetUserLevels(ctx context.Context, req *pb.GetUserLevelsRe
 // GetUserProfile handles GET /api/users/{user}/profile
 func (h *userHandler) GetUserProfile(ctx context.Context, req *pb.GetUserProfileRequest) (*pb.GetUserProfileResponse, error) {
 	var viewerUserID *uint64
-	if req.ViewerUserId > 0 {
-		viewerUserID = &req.ViewerUserId
+	if userCtx, err := sharedauth.GetUserFromContext(ctx); err == nil && userCtx != nil && userCtx.UserID > 0 {
+		viewerUserID = &userCtx.UserID
 	}
 
 	profileData, err := h.userService.GetUserProfile(ctx, req.UserId, viewerUserID)

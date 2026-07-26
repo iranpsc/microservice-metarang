@@ -271,7 +271,7 @@ func main() {
 
 	// User routes - register /api/users FIRST before any other user routes
 	mux.Handle("/api/users", optionalAuthMiddleware(http.HandlerFunc(authHandler.ListUsers)))
-	mux.Handle("/api/user", optionalAuthMiddleware(http.HandlerFunc(authHandler.GetUser)))
+	mux.Handle("/api/user", authMiddleware(http.HandlerFunc(authHandler.GetUser)))
 	mux.Handle("/api/user/wallet", authMiddleware(http.HandlerFunc(authHandler.GetAuthenticatedUserWallet)))
 	mux.Handle("/api/user/profile", authMiddleware(http.HandlerFunc(authHandler.UpdateProfile)))
 

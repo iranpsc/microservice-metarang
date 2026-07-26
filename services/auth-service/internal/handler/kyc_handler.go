@@ -23,6 +23,10 @@ import (
 )
 
 func (h *kycHandler) GetKYC(ctx context.Context, req *pb.GetKYCRequest) (*pb.KYCResponse, error) {
+	if err := authorizeSelfOrService(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+
 	kyc, err := h.kycService.GetKYC(ctx, req.UserId)
 	if err != nil {
 		return nil, mapKYCServiceError(err, getProjectLocale())
@@ -38,6 +42,11 @@ func (h *kycHandler) GetKYC(ctx context.Context, req *pb.GetKYCRequest) (*pb.KYC
 
 func (h *kycHandler) UpdateKYC(ctx context.Context, req *pb.UpdateKYCRequest) (*pb.KYCResponse, error) {
 	locale := getProjectLocale()
+
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Validate melli_card file
 	if len(req.MelliCardData) == 0 {
@@ -73,7 +82,7 @@ func (h *kycHandler) UpdateKYC(ctx context.Context, req *pb.UpdateKYCRequest) (*
 	// Upload melli_card to storage-service
 	var melliCardURL string
 	if h.storageClient != nil {
-		uploadID := fmt.Sprintf("kyc_melli_card_%d_%d", req.UserId, time.Now().UnixNano())
+		uploadID := fmt.Sprintf("kyc_melli_card_%d_%d", userID, time.Now().UnixNano())
 
 		chunkReq := &storagepb.ChunkUploadRequest{
 			UploadId:    uploadID,
@@ -131,7 +140,7 @@ func (h *kycHandler) UpdateKYC(ctx context.Context, req *pb.UpdateKYCRequest) (*
 
 	kyc, err := h.kycService.UpdateKYC(
 		ctx,
-		req.UserId,
+		userID,
 		req.Fname,
 		req.Lname,
 		req.MelliCode,
@@ -394,7 +403,12 @@ func convertBankAccountToProto(bankAccount *models.BankAccount) *pb.BankAccountR
 }
 
 func (h *kycHandler) ListBankAccounts(ctx context.Context, req *pb.ListBankAccountsRequest) (*pb.ListBankAccountsResponse, error) {
-	accounts, err := h.kycService.ListBankAccounts(ctx, req.UserId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts, err := h.kycService.ListBankAccounts(ctx, userID)
 	if err != nil {
 		return nil, mapServiceError(err, getProjectLocale())
 	}
@@ -410,7 +424,12 @@ func (h *kycHandler) ListBankAccounts(ctx context.Context, req *pb.ListBankAccou
 }
 
 func (h *kycHandler) CreateBankAccount(ctx context.Context, req *pb.CreateBankAccountRequest) (*pb.BankAccountResponse, error) {
-	bankAccount, err := h.kycService.CreateBankAccount(ctx, req.UserId, req.BankName, req.ShabaNum, req.CardNum)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bankAccount, err := h.kycService.CreateBankAccount(ctx, userID, req.BankName, req.ShabaNum, req.CardNum)
 	if err != nil {
 		return nil, mapServiceError(err, getProjectLocale())
 	}
@@ -419,7 +438,12 @@ func (h *kycHandler) CreateBankAccount(ctx context.Context, req *pb.CreateBankAc
 }
 
 func (h *kycHandler) GetBankAccount(ctx context.Context, req *pb.GetBankAccountRequest) (*pb.BankAccountResponse, error) {
-	bankAccount, err := h.kycService.GetBankAccount(ctx, req.UserId, req.BankAccountId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bankAccount, err := h.kycService.GetBankAccount(ctx, userID, req.BankAccountId)
 	if err != nil {
 		return nil, mapServiceError(err, getProjectLocale())
 	}
@@ -428,7 +452,12 @@ func (h *kycHandler) GetBankAccount(ctx context.Context, req *pb.GetBankAccountR
 }
 
 func (h *kycHandler) UpdateBankAccount(ctx context.Context, req *pb.UpdateBankAccountRequest) (*pb.BankAccountResponse, error) {
-	bankAccount, err := h.kycService.UpdateBankAccount(ctx, req.UserId, req.BankAccountId, req.BankName, req.ShabaNum, req.CardNum)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bankAccount, err := h.kycService.UpdateBankAccount(ctx, userID, req.BankAccountId, req.BankName, req.ShabaNum, req.CardNum)
 	if err != nil {
 		return nil, mapServiceError(err, getProjectLocale())
 	}
@@ -437,7 +466,12 @@ func (h *kycHandler) UpdateBankAccount(ctx context.Context, req *pb.UpdateBankAc
 }
 
 func (h *kycHandler) DeleteBankAccount(ctx context.Context, req *pb.DeleteBankAccountRequest) (*emptypb.Empty, error) {
-	err := h.kycService.DeleteBankAccount(ctx, req.UserId, req.BankAccountId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = h.kycService.DeleteBankAccount(ctx, userID, req.BankAccountId)
 	if err != nil {
 		return nil, mapServiceError(err, getProjectLocale())
 	}

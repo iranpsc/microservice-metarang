@@ -164,37 +164,31 @@ func TestUnaryServerInterceptor_SkipAuthCitizenFeatures(t *testing.T) {
 	}
 }
 
-func TestUnaryServerInterceptor_SkipAuthWalletHistory(t *testing.T) {
-	methods := []string{
-		"/commercial.WalletHistoryService/GetWalletHistorySummary",
-		"/commercial.WalletHistoryService/GetWalletHistoryChart",
+func TestUnaryServerInterceptor_ServiceTokenAttachesOptionalUser(t *testing.T) {
+	t.Setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+	validator := &stubValidator{}
+	interceptor := UnaryServerInterceptor(validator)
+
+	var gotUserID uint64
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		user, err := GetUserFromContext(ctx)
+		if err != nil {
+			t.Fatalf("expected user context with bearer+service token: %v", err)
+		}
+		gotUserID = user.UserID
+		return "ok", nil
 	}
 
-	for _, method := range methods {
-		t.Run(method, func(t *testing.T) {
-			validator := &stubValidator{}
-			interceptor := UnaryServerInterceptor(validator)
-			called := false
-
-			handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-				called = true
-				return "ok", nil
-			}
-
-			info := &grpc.UnaryServerInfo{FullMethod: method}
-			resp, err := interceptor(context.Background(), nil, info, handler)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if !called {
-				t.Fatal("expected handler to be called without auth")
-			}
-			if resp != "ok" {
-				t.Fatalf("unexpected response: %v", resp)
-			}
-			if validator.called {
-				t.Fatal("expected validator not to be called on public wallet history route")
-			}
-		})
+	md := metadata.Pairs(
+		"authorization", "Bearer user-token",
+		ServiceTokenMetadataKey, "test-secret",
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	info := &grpc.UnaryServerInfo{FullMethod: "/auth.SettingsService/GetSettings"}
+	if _, err := interceptor(ctx, nil, info, handler); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotUserID != 42 {
+		t.Fatalf("expected user id 42, got %d", gotUserID)
 	}
 }

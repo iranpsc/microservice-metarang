@@ -29,11 +29,16 @@ func RegisterWalletConnectionHandler(grpcServer *grpc.Server, walletService serv
 }
 
 func (h *walletConnectionHandler) GetLinkNonce(ctx context.Context, req *pb.GetWalletLinkNonceRequest) (*pb.GetWalletNonceResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := validateWalletAddressField(req.Address, h.locale); err != nil {
 		return nil, err
 	}
 
-	nonce, err := h.walletService.GetLinkNonce(ctx, req.UserId, req.Address)
+	nonce, err := h.walletService.GetLinkNonce(ctx, userID, req.Address)
 	if err != nil {
 		return nil, mapWalletConnectionError(err, h.locale)
 	}
@@ -42,11 +47,16 @@ func (h *walletConnectionHandler) GetLinkNonce(ctx context.Context, req *pb.GetW
 }
 
 func (h *walletConnectionHandler) LinkWallet(ctx context.Context, req *pb.LinkWalletRequest) (*pb.LinkWalletResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := validateWalletLinkRequest(req, h.locale); err != nil {
 		return nil, err
 	}
 
-	address, err := h.walletService.LinkWallet(ctx, req.UserId, req.Address, req.Signature, req.Ip)
+	address, err := h.walletService.LinkWallet(ctx, userID, req.Address, req.Signature, req.Ip)
 	if err != nil {
 		return nil, mapWalletConnectionError(err, h.locale)
 	}
@@ -58,11 +68,16 @@ func (h *walletConnectionHandler) LinkWallet(ctx context.Context, req *pb.LinkWa
 }
 
 func (h *walletConnectionHandler) GetSecurityNonce(ctx context.Context, req *pb.GetWalletSecurityNonceRequest) (*pb.GetWalletNonceResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := validateWalletAddressField(req.Address, h.locale); err != nil {
 		return nil, err
 	}
 
-	nonce, err := h.walletService.GetSecurityNonce(ctx, req.UserId, req.Address)
+	nonce, err := h.walletService.GetSecurityNonce(ctx, userID, req.Address)
 	if err != nil {
 		return nil, mapWalletConnectionError(err, h.locale)
 	}
@@ -71,13 +86,18 @@ func (h *walletConnectionHandler) GetSecurityNonce(ctx context.Context, req *pb.
 }
 
 func (h *walletConnectionHandler) VerifySecuritySignature(ctx context.Context, req *pb.VerifyWalletSecuritySignatureRequest) (*pb.VerifyWalletSecuritySignatureResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := validateWalletSecurityVerifyRequest(req, h.locale); err != nil {
 		return nil, err
 	}
 
 	until, err := h.walletService.VerifySecuritySignature(
 		ctx,
-		req.UserId,
+		userID,
 		req.Address,
 		req.Signature,
 		req.Duration,

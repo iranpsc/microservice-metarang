@@ -76,7 +76,7 @@ func (m *mockKYCService) UpdateKYC(ctx context.Context, userID uint64, fname, ln
 }
 
 func TestKYCHandler_ListBankAccounts(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful list", func(t *testing.T) {
 		mockService := &mockKYCService{}
@@ -167,7 +167,7 @@ func TestKYCHandler_ListBankAccounts(t *testing.T) {
 }
 
 func TestKYCHandler_CreateBankAccount(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful creation", func(t *testing.T) {
 		mockService := &mockKYCService{}
@@ -304,7 +304,7 @@ func TestKYCHandler_CreateBankAccount(t *testing.T) {
 }
 
 func TestKYCHandler_GetBankAccount(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful get", func(t *testing.T) {
 		mockService := &mockKYCService{}
@@ -432,7 +432,7 @@ func TestKYCHandler_GetBankAccount(t *testing.T) {
 }
 
 func TestKYCHandler_UpdateBankAccount(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful update", func(t *testing.T) {
 		mockService := &mockKYCService{}
@@ -537,7 +537,7 @@ func TestKYCHandler_UpdateBankAccount(t *testing.T) {
 }
 
 func TestKYCHandler_DeleteBankAccount(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful deletion", func(t *testing.T) {
 		mockService := &mockKYCService{}
