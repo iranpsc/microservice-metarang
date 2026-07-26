@@ -201,6 +201,8 @@ plugins:
       origins:
         - https://world.metarang.com
         - https://metarang.com
+        - https://dev-reactjs.metarang.com
+        - https://dev-nextjs.metarang.com
         - http://localhost:5173
         - http://localhost:5175
         - 'http://localhost:\d+'
