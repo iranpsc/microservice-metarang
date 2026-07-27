@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -259,4 +260,44 @@ func TestGetFollowers_MethodNotAllowed(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.GetFollowers(w, req)
 	require.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestGetTimings_IncludesZeroAnswerCounts(t *testing.T) {
+	challenge := &testutil.MockChallengeService{}
+	challenge.GetTimingsFunc = func(_ context.Context, req *socialpb.GetTimingsRequest) (*socialpb.GetTimingsResponse, error) {
+		require.Equal(t, uint64(42), req.UserId)
+		return &socialpb.GetTimingsResponse{
+			Data: &socialpb.TimingsData{
+				DisplayAdInterval:       15,
+				DisplayQuestionInterval: 15,
+				DisplayAnswerInterval:   15,
+				Participants:            2,
+				CorrectAnswers:          0,
+				WrongAnswers:            0,
+			},
+		}, nil
+	}
+
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		socialpb.RegisterChallengeServiceServer(s, challenge)
+	})
+	defer cleanup()
+
+	h := handler.NewSocialHandler(conn, conn)
+	req := testutil.RequestWithUser(httptest.NewRequest(http.MethodGet, "/api/challenge/timings", nil), 42)
+	w := httptest.NewRecorder()
+	h.GetTimings(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	data := body["data"].(map[string]interface{})
+	assert.EqualValues(t, 15, data["display_ad_interval"])
+	assert.EqualValues(t, 15, data["display_question_interval"])
+	assert.EqualValues(t, 15, data["display_answer_interval"])
+	assert.EqualValues(t, 2, data["participants"])
+	assert.EqualValues(t, 0, data["correct_answers"])
+	assert.EqualValues(t, 0, data["wrong_answers"])
 }

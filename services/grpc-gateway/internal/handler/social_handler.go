@@ -296,7 +296,26 @@ func (h *SocialHandler) GetTimings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp.Data})
+	writeJSON(w, http.StatusOK, buildTimingsHTTPResponse(resp.Data))
+}
+
+func buildTimingsHTTPResponse(data *socialpb.TimingsData) map[string]interface{} {
+	if data == nil {
+		return map[string]interface{}{
+			"data": map[string]interface{}{},
+		}
+	}
+
+	return map[string]interface{}{
+		"data": map[string]interface{}{
+			"display_ad_interval":       data.DisplayAdInterval,
+			"display_question_interval": data.DisplayQuestionInterval,
+			"display_answer_interval":   data.DisplayAnswerInterval,
+			"participants":              data.Participants,
+			"correct_answers":           data.CorrectAnswers,
+			"wrong_answers":             data.WrongAnswers,
+		},
+	}
 }
 
 // GetQuestion handles GET /api/challenge/question

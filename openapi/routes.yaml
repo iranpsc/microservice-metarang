@@ -750,8 +750,43 @@ routes:
   - path: /api/challenge/timings
     methods: [get]
     tag: Social
-    summary: Get challenge timings
+    summary: Get challenge timings and user answer statistics
     security: bearer
+    responses:
+      "200":
+        description: Challenge timing intervals and statistics
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  properties:
+                    display_ad_interval:
+                      type: integer
+                      description: Seconds between challenge advertisements
+                      example: 15
+                    display_question_interval:
+                      type: integer
+                      description: Seconds to display each question
+                      example: 15
+                    display_answer_interval:
+                      type: integer
+                      description: Seconds to display the answer reveal
+                      example: 15
+                    participants:
+                      type: integer
+                      description: Total distinct users who have submitted at least one answer
+                      example: 2
+                    correct_answers:
+                      type: integer
+                      description: Number of correct answers by the authenticated user
+                      example: 0
+                    wrong_answers:
+                      type: integer
+                      description: Number of wrong answers by the authenticated user
+                      example: 0
   - path: /api/challenge/advertisement
     methods: [get]
     tag: Social

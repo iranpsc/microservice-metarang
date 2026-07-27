@@ -54,6 +54,7 @@ type QuestionResource struct {
 	Title        string
 	Image        string
 	Prize        int32
+	PrizeType    string
 	Participants uint64
 	Views        uint64
 	CreatorCode  string

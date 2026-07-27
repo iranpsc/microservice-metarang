@@ -68,6 +68,7 @@ func TestChallengeService_GetQuestion_OK(t *testing.T) {
 	q, err := svc.GetQuestion(context.Background(), 1)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), q.ID)
+	require.Equal(t, "psc", q.PrizeType)
 	require.Len(t, q.Answers, 1)
 	require.False(t, q.Answers[0].IsCorrect) // stripped for GET question
 }

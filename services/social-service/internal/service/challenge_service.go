@@ -16,6 +16,8 @@ import (
 	"metarang/social-service/internal/repository"
 )
 
+const challengePrizeAsset = "psc"
+
 var (
 	ErrQuestionNotFound      = errors.New("question not found")
 	ErrAnswerNotFound        = errors.New("answer not found")
@@ -188,6 +190,7 @@ func (s *challengeService) GetQuestion(ctx context.Context, userID uint64) (*mod
 		Title:        question.Title,
 		Image:        question.Image,
 		Prize:        question.Prize,
+		PrizeType:    challengePrizeAsset,
 		Participants: question.Participants,
 		Views:        question.Views,
 		CreatorCode:  question.CreatorCode,
@@ -249,7 +252,7 @@ func (s *challengeService) SubmitAnswer(ctx context.Context, userID, questionID,
 	if selectedAnswer.IsCorrect {
 		if s.commercialClient != nil {
 			prizeAmount := float64(question.Prize)
-			if err := s.commercialClient.AddBalance(ctx, userID, "psc", prizeAmount); err != nil {
+			if err := s.commercialClient.AddBalance(ctx, userID, challengePrizeAsset, prizeAmount); err != nil {
 				// Log error but don't fail the answer submission
 				fmt.Printf("failed to credit prize to wallet: %v\n", err)
 			}
@@ -297,6 +300,7 @@ func (s *challengeService) SubmitAnswer(ctx context.Context, userID, questionID,
 		Title:        updatedQuestion.Title,
 		Image:        updatedQuestion.Image,
 		Prize:        updatedQuestion.Prize,
+		PrizeType:    challengePrizeAsset,
 		Participants: updatedQuestion.Participants,
 		Views:        updatedQuestion.Views,
 		CreatorCode:  updatedQuestion.CreatorCode,

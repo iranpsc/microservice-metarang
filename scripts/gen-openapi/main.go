@@ -17,12 +17,13 @@ type routesFile struct {
 }
 
 type routeDef struct {
-	Path     string     `yaml:"path"`
-	Methods  []string   `yaml:"methods"`
-	Tag      string     `yaml:"tag"`
-	Summary  string     `yaml:"summary"`
-	Security string     `yaml:"security"`
-	Params   []paramDef `yaml:"params,omitempty"`
+	Path      string                            `yaml:"path"`
+	Methods   []string                          `yaml:"methods"`
+	Tag       string                            `yaml:"tag"`
+	Summary   string                            `yaml:"summary"`
+	Security  string                            `yaml:"security"`
+	Params    []paramDef                        `yaml:"params,omitempty"`
+	Responses map[string]map[string]interface{} `yaml:"responses,omitempty"`
 }
 
 type paramDef struct {
@@ -170,27 +171,7 @@ func buildSpec(routes []routeDef, discovered map[string]discoveredEndpoint, appU
 				"tags":        []string{route.Tag},
 				"summary":     route.Summary,
 				"operationId": operationID(route.Path, method),
-				"responses": map[string]interface{}{
-					"200": map[string]interface{}{
-						"description": "Successful response",
-					},
-					"401": map[string]interface{}{
-						"description": "Unauthenticated",
-						"content": map[string]interface{}{
-							"application/json": map[string]interface{}{
-								"schema": map[string]string{"$ref": "#/components/schemas/Error"},
-							},
-						},
-					},
-					"422": map[string]interface{}{
-						"description": "Validation error",
-						"content": map[string]interface{}{
-							"application/json": map[string]interface{}{
-								"schema": map[string]string{"$ref": "#/components/schemas/ValidationError"},
-							},
-						},
-					},
-				},
+				"responses":   buildResponses(route),
 			}
 
 			if params := buildParameters(route, method, discovered); len(params) > 0 {
@@ -271,6 +252,36 @@ func buildSpec(routes []routeDef, discovered map[string]discoveredEndpoint, appU
 			},
 		},
 	}
+}
+
+func buildResponses(route routeDef) map[string]interface{} {
+	responses := map[string]interface{}{
+		"200": map[string]interface{}{
+			"description": "Successful response",
+		},
+		"401": map[string]interface{}{
+			"description": "Unauthenticated",
+			"content": map[string]interface{}{
+				"application/json": map[string]interface{}{
+					"schema": map[string]string{"$ref": "#/components/schemas/Error"},
+				},
+			},
+		},
+		"422": map[string]interface{}{
+			"description": "Validation error",
+			"content": map[string]interface{}{
+				"application/json": map[string]interface{}{
+					"schema": map[string]string{"$ref": "#/components/schemas/ValidationError"},
+				},
+			},
+		},
+	}
+
+	for code, response := range route.Responses {
+		responses[code] = response
+	}
+
+	return responses
 }
 
 func securityRequirement(security string) []map[string][]string {

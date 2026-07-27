@@ -133,6 +133,7 @@ func convertQuestionResourceToProto(resource *models.QuestionResource) *pb.Quest
 		Title:        resource.Title,
 		Image:        resource.Image,
 		Prize:        resource.Prize,
+		PrizeType:    resource.PrizeType,
 		Participants: int32(resource.Participants),
 		Views:        int32(resource.Views),
 		CreatorCode:  resource.CreatorCode,

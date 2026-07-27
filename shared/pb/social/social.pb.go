@@ -884,6 +884,7 @@ type QuestionResource struct {
 	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
 	Image         string                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`
 	Prize         int32                  `protobuf:"varint,4,opt,name=prize,proto3" json:"prize,omitempty"`
+	PrizeType     string                 `protobuf:"bytes,9,opt,name=prize_type,json=prizeType,proto3" json:"prize_type,omitempty"`
 	Participants  int32                  `protobuf:"varint,5,opt,name=participants,proto3" json:"participants,omitempty"`
 	Views         int32                  `protobuf:"varint,6,opt,name=views,proto3" json:"views,omitempty"`
 	CreatorCode   string                 `protobuf:"bytes,7,opt,name=creator_code,json=creatorCode,proto3" json:"creator_code,omitempty"`
@@ -948,6 +949,13 @@ func (x *QuestionResource) GetPrize() int32 {
 		return x.Prize
 	}
 	return 0
+}
+
+func (x *QuestionResource) GetPrizeType() string {
+	if x != nil {
+		return x.PrizeType
+	}
+	return ""
 }
 
 func (x *QuestionResource) GetParticipants() int32 {
@@ -1298,12 +1306,14 @@ const file_social_proto_rawDesc = "" +
 	"questionId\x12\x1b\n" +
 	"\tanswer_id\x18\x03 \x01(\x04R\banswerId\"D\n" +
 	"\x14SubmitAnswerResponse\x12,\n" +
-	"\x04data\x18\x01 \x01(\v2\x18.social.QuestionResourceR\x04data\"\xf3\x01\n" +
+	"\x04data\x18\x01 \x01(\v2\x18.social.QuestionResourceR\x04data\"\x92\x02\n" +
 	"\x10QuestionResource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x14\n" +
 	"\x05image\x18\x03 \x01(\tR\x05image\x12\x14\n" +
-	"\x05prize\x18\x04 \x01(\x05R\x05prize\x12\"\n" +
+	"\x05prize\x18\x04 \x01(\x05R\x05prize\x12\x1d\n" +
+	"\n" +
+	"prize_type\x18\t \x01(\tR\tprizeType\x12\"\n" +
 	"\fparticipants\x18\x05 \x01(\x05R\fparticipants\x12\x14\n" +
 	"\x05views\x18\x06 \x01(\x05R\x05views\x12!\n" +
 	"\fcreator_code\x18\a \x01(\tR\vcreatorCode\x120\n" +

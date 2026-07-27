@@ -115,6 +115,7 @@ message QuestionResource {
   string title = 2;
   string image = 3;
   int32 prize = 4;
+  string prize_type = 9;
   int32 participants = 5;
   int32 views = 6;
   string creator_code = 7;

@@ -188,6 +188,19 @@ func (m *MockFollowService) Remove(ctx context.Context, req *socialpb.RemoveRequ
 	return &emptypb.Empty{}, nil
 }
 
+// MockChallengeService implements socialpb.ChallengeServiceServer for tests.
+type MockChallengeService struct {
+	socialpb.UnimplementedChallengeServiceServer
+	GetTimingsFunc func(ctx context.Context, req *socialpb.GetTimingsRequest) (*socialpb.GetTimingsResponse, error)
+}
+
+func (m *MockChallengeService) GetTimings(ctx context.Context, req *socialpb.GetTimingsRequest) (*socialpb.GetTimingsResponse, error) {
+	if m.GetTimingsFunc != nil {
+		return m.GetTimingsFunc(ctx, req)
+	}
+	return &socialpb.GetTimingsResponse{}, nil
+}
+
 // DialSocialConn returns a client connection with FollowService + UserService mocks
 // registered (same conn can be passed as both socialConn and authConn).
 func DialSocialConn(follow *MockFollowService, user *MockUserService) (*grpc.ClientConn, func()) {
