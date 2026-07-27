@@ -15,13 +15,33 @@ x-grpc-tls: &grpc-tls
   GRPC_TLS_CLIENT_CERT_FILE: ${GRPC_TLS_CLIENT_CERT_FILE:-/certs/grpc/client.crt}
   GRPC_TLS_CLIENT_KEY_FILE: ${GRPC_TLS_CLIENT_KEY_FILE:-/certs/grpc/client.key}
 
-# Host certs from scripts/generate-grpc-certs.sh (./certs/grpc) → container /certs/grpc
-x-grpc-certs-mount: &grpc-certs-mount ./certs:/certs:ro
+# Container path /certs/grpc (populated by grpc-certs-init into the grpc_certs volume)
+x-grpc-certs-mount: &grpc-certs-mount grpc_certs:/certs:ro
+
+x-grpc-certs-depends: &grpc-certs-depends
+  grpc-certs-init:
+    condition: service_completed_successfully
 
 services:
   # ============================================================================
   # Infrastructure Services
   # ============================================================================
+
+  # Populates the grpc_certs volume from ./certs/grpc on the host, or generates
+  # new certificates when GRPC_TLS_ENABLED=true and none are present.
+  grpc-certs-init:
+    image: alpine:3.21
+    container_name: metarang-grpc-certs-init
+    environment:
+      GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
+    volumes:
+      - grpc_certs:/certs
+      - ${GRPC_CERTS_HOST_DIR:-./certs}:/host-certs:ro
+      - ./scripts/docker/generate-grpc-certs.sh:/generate-grpc-certs.sh:ro
+    entrypoint: ["/bin/sh", "-c", "tr -d '\\r' < /generate-grpc-certs.sh > /tmp/generate-grpc-certs.sh && exec /bin/sh /tmp/generate-grpc-certs.sh"]
+    restart: "no"
+    networks:
+      - metarang-network
   
   # MySQL Database (shared)
   mysql:
@@ -93,6 +113,7 @@ services:
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       redis:
@@ -145,6 +166,7 @@ services:
       STORAGE_SERVICE_ADDR: storage-service:8059
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       auth-service:
         condition: service_started
       commercial-service:
@@ -200,6 +222,7 @@ services:
       AUTH_SERVICE_ADDR: auth-service:50051
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     healthcheck:
@@ -248,6 +271,7 @@ services:
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       redis:
@@ -296,6 +320,7 @@ services:
       DB_PASSWORD: metarang_password
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     volumes:
@@ -336,6 +361,7 @@ services:
       FEATURES_SERVICE_ADDR: features-service:50053
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     volumes:
@@ -375,6 +401,7 @@ services:
       DB_PASSWORD: metarang_password
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       auth-service:
@@ -420,6 +447,7 @@ services:
       NOTIFICATION_SERVICE_ADDR: notifications-service:50058
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       notifications-service:
@@ -466,6 +494,7 @@ services:
       LEVELS_SERVICE_ADDR: levels-service:50054
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       auth-service:
@@ -514,6 +543,7 @@ services:
       AUTH_SERVICE_ADDR: auth-service:50051
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       auth-service:
@@ -562,6 +592,7 @@ services:
       REDIS_DB: 0
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       redis:
@@ -608,6 +639,7 @@ services:
       NOTIFICATIONS_SERVICE_ADDR: notifications-service:50058
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     volumes:
@@ -656,6 +688,7 @@ services:
       TEMP_DIR: /tmp/storage-chunks
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     networks:
@@ -693,6 +726,7 @@ services:
       AUTH_SERVICE_ADDR: auth-service:50051
       <<: [*sentry-environment, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       redis:
         condition: service_healthy
       auth-service:
@@ -903,6 +937,8 @@ services:
 
 volumes:
   mysql_data:
+    driver: local
+  grpc_certs:
     driver: local
   prometheus_data:
     driver: local
