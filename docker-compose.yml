@@ -9,14 +9,14 @@ x-internal-auth: &internal-auth
 
 x-grpc-tls: &grpc-tls
   GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
-  GRPC_TLS_CERT_FILE: ${GRPC_TLS_CERT_FILE:-/certs/server.crt}
-  GRPC_TLS_KEY_FILE: ${GRPC_TLS_KEY_FILE:-/certs/server.key}
-  GRPC_TLS_CA_FILE: ${GRPC_TLS_CA_FILE:-/certs/ca.crt}
-  GRPC_TLS_CLIENT_CERT_FILE: ${GRPC_TLS_CLIENT_CERT_FILE:-/certs/client.crt}
-  GRPC_TLS_CLIENT_KEY_FILE: ${GRPC_TLS_CLIENT_KEY_FILE:-/certs/client.key}
+  GRPC_TLS_CERT_FILE: ${GRPC_TLS_CERT_FILE:-/certs/grpc/server.crt}
+  GRPC_TLS_KEY_FILE: ${GRPC_TLS_KEY_FILE:-/certs/grpc/server.key}
+  GRPC_TLS_CA_FILE: ${GRPC_TLS_CA_FILE:-/certs/grpc/ca.crt}
+  GRPC_TLS_CLIENT_CERT_FILE: ${GRPC_TLS_CLIENT_CERT_FILE:-/certs/grpc/client.crt}
+  GRPC_TLS_CLIENT_KEY_FILE: ${GRPC_TLS_CLIENT_KEY_FILE:-/certs/grpc/client.key}
 
-# Host certs from scripts/generate-grpc-certs.sh → container /certs
-x-grpc-certs-mount: &grpc-certs-mount ./certs/grpc:/certs:ro
+# Host certs from scripts/generate-grpc-certs.sh (./certs/grpc) → container /certs/grpc
+x-grpc-certs-mount: &grpc-certs-mount ./certs:/certs:ro
 
 services:
   # ============================================================================
