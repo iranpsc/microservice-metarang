@@ -6,6 +6,13 @@ set -eu
 OUT_DIR="/certs/grpc"
 HOST_DIR="/host-certs/grpc"
 
+fix_cert_permissions() {
+  dir="$1"
+  chmod 644 "$dir"/*.crt
+  chmod 640 "$dir"/*.key
+  chown -R 1000:1000 "$dir"
+}
+
 if [ "${GRPC_TLS_ENABLED:-false}" != "true" ]; then
   echo "gRPC TLS disabled, skipping certificate setup"
   exit 0
@@ -13,6 +20,7 @@ fi
 
 if [ -f "$OUT_DIR/server.crt" ] && [ -f "$OUT_DIR/server.key" ] && [ -f "$OUT_DIR/ca.crt" ]; then
   echo "gRPC TLS certificates already present in $OUT_DIR"
+  fix_cert_permissions "$OUT_DIR"
   exit 0
 fi
 
@@ -20,6 +28,7 @@ if [ -f "$HOST_DIR/server.crt" ] && [ -f "$HOST_DIR/server.key" ] && [ -f "$HOST
   mkdir -p "$OUT_DIR"
   cp "$HOST_DIR/ca.crt" "$HOST_DIR/ca.key" "$HOST_DIR/server.crt" "$HOST_DIR/server.key" \
     "$HOST_DIR/client.crt" "$HOST_DIR/client.key" "$OUT_DIR/"
+  fix_cert_permissions "$OUT_DIR"
   echo "Copied gRPC TLS certificates from $HOST_DIR to $OUT_DIR"
   exit 0
 fi
@@ -57,4 +66,5 @@ openssl x509 -req -in "$OUT_DIR/client.csr" -CA "$CA_CERT" -CAkey "$CA_KEY" -CAc
 
 rm -f "$OUT_DIR/server.csr" "$OUT_DIR/client.csr" "$OUT_DIR/ca.srl" "$SAN_FILE"
 
+fix_cert_permissions "$OUT_DIR"
 echo "Generated gRPC TLS certificates in $OUT_DIR"
