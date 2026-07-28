@@ -12,6 +12,7 @@ on:
     branches:
       - main
       - develop
+      - dev
   pull_request:
     paths:
       - 'services/**'
@@ -21,6 +22,7 @@ on:
     branches:
       - main
       - develop
+      - dev
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
@@ -92,8 +94,15 @@ jobs:
         run: |
           for service in services/*/; do
             if [ -f "$service/go.mod" ]; then
-              echo "Building $(basename "$service")..."
-              (cd "$service" && go build -o ./bin/server ./cmd/server/main.go)
+              name=$(basename "$service")
+              echo "Building $name..."
+              if [ -f "$service/cmd/server/main.go" ]; then
+                (cd "$service" && go build -o ./bin/server ./cmd/server/main.go)
+              elif [ -f "$service/main.go" ]; then
+                (cd "$service" && go build -o ./bin/server .)
+              else
+                echo "::warning::No known entrypoint for $name, skipping"
+              fi
             fi
           done
 

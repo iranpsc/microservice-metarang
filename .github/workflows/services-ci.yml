@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - dev
     paths:
       - 'services/**'
       - 'tests/**'
@@ -17,6 +18,7 @@ on:
     branches:
       - main
       - develop
+      - dev
     paths:
       - 'services/**'
       - 'tests/**'
@@ -73,7 +75,6 @@ jobs:
               - 'tests/commercial-service/**'
             dynasty-service:
               - 'services/dynasty-service/**'
-              - 'tests/dynasty-service/**'
             features-service:
               - 'services/features-service/**'
               - 'tests/features-service/**'

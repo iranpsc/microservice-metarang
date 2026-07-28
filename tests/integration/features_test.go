@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	pb "github.com/metarang/shared/proto/features"
+	pb "metarang/shared/pb/features"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

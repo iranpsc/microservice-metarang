@@ -1,3 +1,4 @@
+// Package auth provides token validation helpers for auth-service.
 package auth
 
 import (

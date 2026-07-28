@@ -8,12 +8,14 @@ on:
     branches:
       - main
       - develop
+      - dev
   pull_request:
     paths:
       - 'shared/**'
     branches:
       - main
       - develop
+      - dev
   workflow_dispatch:
 
 permissions:
