@@ -35,6 +35,7 @@ Microservices implementation for the Metarang platform migration from Laravel mo
 - **Go** 1.21+ (`go version`)
 - **Protocol Buffers** (`protoc --version`)
 - **Docker & Docker Compose** (`docker --version`)
+- **Node.js** 18+ (for WebSocket gateway)
 - **Make** (`make --version`)
 
 External APIs needed: OAuth server, Kavenegar (SMS), Parsian (payments), FTP (storage).
@@ -62,7 +63,7 @@ cp services/auth-service/config.env.sample services/auth-service/config.env
 # services/financial-service/config.env
 # services/storage-service/config.env
 # services/grpc-gateway/config.env
-# services/websocket-gateway/config.env
+# websocket-gateway/config.env
 # etc.
 ```
 
@@ -132,7 +133,7 @@ make kong-reload      # Reload Kong
 ```bash
 cd services/auth-service && go run cmd/server/main.go
 cd services/commercial-service && go run cmd/server/main.go
-cd services/websocket-gateway && go run ./cmd/server
+cd websocket-gateway && npm install && npm start
 # etc.
 ```
 
@@ -159,7 +160,8 @@ metarang-microservices/
 
 ```bash
 make test-unit        # Unit tests
-make test-services    # Dedicated service test modules
+make test-integration # Integration tests
+make test-golden      # Golden JSON (Laravel compatibility)
 make test-database    # Database tests
 make test-all         # Full suite
 ```
@@ -172,7 +174,7 @@ Shared schema in `scripts/schema.sql`. Notes: `transactions.id` is VARCHAR; `fea
 
 ## API Compatibility
 
-**CRITICAL**: All services MUST maintain 100% API compatibility with the Laravel monolith (JSON fields, status codes, validation format, Jalali dates, URLs).
+**CRITICAL**: All services MUST maintain 100% API compatibility with the Laravel monolith (JSON fields, status codes, validation format, Jalali dates, URLs). Golden tests enforce this.
 
 ## Troubleshooting
 

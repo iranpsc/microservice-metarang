@@ -155,7 +155,9 @@ services:
     environment:
       HTTP_PORT: 8080
       AUTH_SERVICE_ADDR: auth-service:50051
+      CALENDAR_SERVICE_ADDR: calendar-service:50059
       DYNASTY_SERVICE_ADDR: dynasty-service:50055
+      FEATURES_SERVICE_ADDR: features-service:50053
       FINANCIAL_SERVICE_ADDR: financial-service:50062
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       LEVELS_SERVICE_ADDR: levels-service:50054
@@ -253,14 +255,11 @@ services:
       context: .
       dockerfile: ./services/features-service/Dockerfile
     container_name: metarang-features-service
-    # gRPC/HTTP are internal-only; public API is via Kong on :8000
+    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
     env_file:
       - ./services/features-service/config.env
     environment:
       GRPC_PORT: 50053
-      HTTP_PORT: 8062
-      AUTH_SERVICE_ADDR: auth-service:50051
-      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -278,19 +277,11 @@ services:
         condition: service_healthy
       commercial-service:
         condition: service_started
-      auth-service:
-        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
       - metarang-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8062/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 15s
     develop:
       watch:
         - action: rebuild
@@ -380,20 +371,17 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Calendar Service - Events Management (gRPC internal + HTTP for Kong /api/calendar)
+  # Calendar Service - Events Management
   calendar-service:
     build:
       context: .
       dockerfile: ./services/calendar-service/Dockerfile
     container_name: metarang-calendar-service
-    # gRPC/HTTP are internal-only; public API is via Kong on :8000
+    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
     env_file:
       - ./services/calendar-service/config.env
     environment:
       GRPC_PORT: 50059
-      HTTP_PORT: 8060
-      AUTH_SERVICE_ADDR: auth-service:50051
-      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -404,19 +392,11 @@ services:
       <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
-      auth-service:
-        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
       - metarang-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8060/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 15s
     develop:
       watch:
         - action: rebuild
@@ -819,7 +799,7 @@ services:
       commercial-service:
         condition: service_started
       features-service:
-        condition: service_healthy
+        condition: service_started
       levels-service:
         condition: service_started
       dynasty-service:

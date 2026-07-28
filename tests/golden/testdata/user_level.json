@@ -1,0 +1,28 @@
+{
+  "data": {
+    "latest_level": {
+      "id": 3,
+      "name": "Gold",
+      "score": 150,
+      "slug": "gold",
+      "fbx_file": "/uploads/levels/gold.fbx"
+    },
+    "previous_levels": [
+      {
+        "id": 1,
+        "name": "Bronze",
+        "score": 10,
+        "slug": "bronze",
+        "fbx_file": "/uploads/levels/bronze.fbx"
+      },
+      {
+        "id": 2,
+        "name": "Silver",
+        "score": 70,
+        "slug": "silver",
+        "fbx_file": "/uploads/levels/silver.fbx"
+      }
+    ],
+    "score_percentage_to_next_level": 45
+  }
+}

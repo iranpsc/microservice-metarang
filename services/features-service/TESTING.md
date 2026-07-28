@@ -1,6 +1,6 @@
 # Testing Guide for Features Service
 
-This document describes how to test the Features Service, including unit tests and service test modules.
+This document describes how to test the Features Service, including unit tests, integration tests, and end-to-end tests.
 
 ## Test Structure
 
@@ -9,7 +9,7 @@ tests/
 ├── features-service/
 │   ├── internal/
 │   │   ├── repository/      # Repository unit tests
-│   │   ├── service/         # Service tests
+│   │   ├── service/         # Service integration tests
 │   │   └── handler/         # Handler end-to-end tests
 ```
 
@@ -27,10 +27,10 @@ make test-all
 make test-unit
 ```
 
-### Features Service Test Module
+### Integration Tests Only
 
 ```bash
-cd tests/features-service && GOWORK=off go test ./... -v
+make test-integration
 ```
 
 ## Repository Tests
