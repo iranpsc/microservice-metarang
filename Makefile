@@ -1,4 +1,4 @@
-.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up
+.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up kong-validate kong-reload
 
 # Proto generation
 PROTO_DIR=shared/proto
@@ -68,6 +68,8 @@ help:
 	@echo "  build            - Build all services"
 	@echo "  clean            - Stop services and remove volumes"
 	@echo "  clean-runtime    - Full local cleanup (containers, volumes, images, build cache)"
+	@echo "  kong-validate    - Validate kong/kong.yml inside the Kong container"
+	@echo "  kong-reload      - Restart Kong (required after kong/kong.yml changes in DB-less mode)"
 	@echo ""
 	@echo "Docker Compose Watch:"
 	@echo "  dev-up           - Start with watch mode (auto-rebuild/restart)"
@@ -243,11 +245,21 @@ endif
 # Docker Compose Management
 # =============================================================================
 
-.PHONY: up down restart logs ps build clean import-schema import-database dev-up dev-down dev-build dev-logs dev-restart dev-ps
+.PHONY: up down restart logs ps build clean import-schema import-database dev-up dev-down dev-build dev-logs dev-restart dev-ps kong-validate kong-reload
+
+kong-validate:
+	@echo "🔍 Validating Kong declarative config..."
+	$(DOCKER_COMPOSE) exec -T kong kong config parse /kong/kong.yml
+
+# DB-less Kong loads kong.yml only at startup — restart after route changes.
+kong-reload:
+	@echo "🔄 Restarting Kong to apply kong/kong.yml..."
+	$(DOCKER_COMPOSE) restart kong
 
 up: init-storage-uploads
 	@echo "🚀 Starting all microservices..."
 	$(DOCKER_COMPOSE) up -d
+	@$(MAKE) kong-reload
 	@echo "✅ All services started!"
 	@echo ""
 	@echo "Services available at:"

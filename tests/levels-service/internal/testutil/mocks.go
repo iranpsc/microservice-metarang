@@ -1,5 +1,5 @@
-// Package mocks provides test doubles for the levels service.
-package mocks
+// Package testutil provides test doubles for the levels service.
+package testutil
 
 import (
 	"context"
@@ -108,7 +108,10 @@ type MockUserLogRepository struct {
 }
 
 func (m *MockUserLogRepository) GetUserScore(ctx context.Context, userID uint64) (int32, error) {
-	return m.GetUserScoreFunc(ctx, userID)
+	if m.GetUserScoreFunc != nil {
+		return m.GetUserScoreFunc(ctx, userID)
+	}
+	return 0, nil
 }
 func (m *MockUserLogRepository) GetUserLog(ctx context.Context, userID uint64) (*pb.UserLog, error) {
 	return m.GetUserLogFunc(ctx, userID)

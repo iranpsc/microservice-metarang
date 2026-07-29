@@ -308,11 +308,13 @@ services:
       context: .
       dockerfile: ./services/levels-service/Dockerfile
     container_name: metarang-levels-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/levels-service/config.env
     environment:
       GRPC_PORT: 50054
+      HTTP_PORT: 8061
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -328,6 +330,12 @@ services:
     networks:
       - metarang-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8061/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     develop:
       watch:
         - action: rebuild
@@ -821,7 +829,7 @@ services:
       features-service:
         condition: service_healthy
       levels-service:
-        condition: service_started
+        condition: service_healthy
       dynasty-service:
         condition: service_started
       calendar-service:
@@ -846,6 +854,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    develop:
+      watch:
+        # DB-less Kong only reads kong.yml at startup — restart when routes change.
+        - action: sync+restart
+          path: ./kong/kong.yml
+          target: /kong/kong.yml
 
   # ============================================================================
   # Monitoring Stack

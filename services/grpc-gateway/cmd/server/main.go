@@ -198,11 +198,6 @@ func main() {
 		}
 	}
 
-	var levelsHandler *handler.LevelsHandler
-	if levelsConn != nil {
-		levelsHandler = handler.NewLevelsHandler(levelsConn, cfg.AppURL)
-	}
-
 	var trainingHandler *handler.TrainingHandler
 	if trainingConn != nil {
 		trainingHandler = handler.NewTrainingHandler(trainingConn, authConn)
@@ -630,12 +625,6 @@ func main() {
 	if commercialHandler != nil {
 		mux.Handle("/api/user/transactions/latest", authMiddleware(http.HandlerFunc(commercialHandler.GetLatestTransaction)))
 		mux.Handle("/api/user/transactions", authMiddleware(http.HandlerFunc(commercialHandler.ListTransactions)))
-	}
-
-	// Levels routes - using router function to handle all nested routes
-	if levelsHandler != nil {
-		mux.Handle("/api/levels", http.HandlerFunc(levelsHandler.GetAllLevels))        // Public
-		mux.Handle("/api/levels/", http.HandlerFunc(levelsHandler.HandleLevelsRoutes)) // Public
 	}
 
 	// Training routes

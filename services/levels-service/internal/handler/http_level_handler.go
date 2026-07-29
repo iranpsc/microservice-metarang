@@ -1,36 +1,70 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
-	"google.golang.org/grpc"
-
 	levelspb "metarang/shared/pb/levels"
+	"metarang/shared/pkg/sentry"
 )
 
-type LevelsHandler struct {
-	levelClient levelspb.LevelServiceClient
-	appURL      string
+// levelAPI is the subset of level RPCs used by the HTTP layer.
+type levelAPI interface {
+	GetAllLevels(context.Context, *levelspb.GetAllLevelsRequest) (*levelspb.LevelsResponse, error)
+	GetLevel(context.Context, *levelspb.GetLevelRequest) (*levelspb.LevelResponse, error)
+	GetLevelGeneralInfo(context.Context, *levelspb.GetLevelGeneralInfoRequest) (*levelspb.LevelGeneralInfoResponse, error)
+	GetLevelGem(context.Context, *levelspb.GetLevelGemRequest) (*levelspb.LevelGemResponse, error)
+	GetLevelGift(context.Context, *levelspb.GetLevelGiftRequest) (*levelspb.LevelGiftResponse, error)
+	GetLevelLicenses(context.Context, *levelspb.GetLevelLicensesRequest) (*levelspb.LevelLicensesResponse, error)
+	GetLevelPrizes(context.Context, *levelspb.GetLevelPrizesRequest) (*levelspb.LevelPrizesResponse, error)
 }
 
-func NewLevelsHandler(conn *grpc.ClientConn, appURL string) *LevelsHandler {
-	return &LevelsHandler{
-		levelClient: levelspb.NewLevelServiceClient(conn),
-		appURL:      strings.TrimSuffix(appURL, "/"),
+// HTTPLevelHandler serves Kong-facing REST routes for levels-service.
+type HTTPLevelHandler struct {
+	api    levelAPI
+	appURL string
+}
+
+// NewHTTPLevelHandler wraps the gRPC level handler for local HTTP use.
+func NewHTTPLevelHandler(api levelAPI, appURL string) *HTTPLevelHandler {
+	return &HTTPLevelHandler{
+		api:    api,
+		appURL: strings.TrimSuffix(appURL, "/"),
 	}
 }
 
-// prefixImageURL prefixes an image/file URL with APP_URL/uploads/ if it's not already a full URL
-func (h *LevelsHandler) prefixImageURL(url string) string {
+// RegisterHTTPRoutes registers levels REST routes and /health.
+func (h *HTTPLevelHandler) RegisterHTTPRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	mux.Handle("/api/levels", http.HandlerFunc(h.GetAllLevels))
+	mux.Handle("/api/levels/", http.HandlerFunc(h.HandleLevelsRoutes))
+}
+
+// StartHTTPServer starts the public HTTP server (behind Kong).
+func StartHTTPServer(httpHandler *HTTPLevelHandler, port string) error {
+	mux := http.NewServeMux()
+	httpHandler.RegisterHTTPRoutes(mux)
+
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: sentry.HTTPMiddleware(mux),
+	}
+	return server.ListenAndServe()
+}
+
+func (h *HTTPLevelHandler) prefixImageURL(url string) string {
 	if url == "" {
 		return url
 	}
-	// If already a full URL (starts with http:// or https://), return as-is
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
 		return url
 	}
-	// If APP_URL is not configured, return relative path with /uploads/ prefix
 	if h.appURL == "" {
 		path := strings.TrimPrefix(url, "/")
 		if !strings.HasPrefix(path, "uploads/") {
@@ -38,7 +72,6 @@ func (h *LevelsHandler) prefixImageURL(url string) string {
 		}
 		return "/" + path
 	}
-	// Prefix with APP_URL/uploads/
 	path := strings.TrimPrefix(url, "/")
 	if !strings.HasPrefix(path, "uploads/") {
 		path = "uploads/" + path
@@ -47,20 +80,18 @@ func (h *LevelsHandler) prefixImageURL(url string) string {
 }
 
 // GetAllLevels handles GET /api/levels
-func (h *LevelsHandler) GetAllLevels(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) GetAllLevels(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	grpcReq := &levelspb.GetAllLevelsRequest{}
-	resp, err := h.levelClient.GetAllLevels(r.Context(), grpcReq)
+	resp, err := h.api.GetAllLevels(r.Context(), &levelspb.GetAllLevelsRequest{})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Format response according to Laravel LevelResource collection
 	levels := make([]map[string]interface{}, 0, len(resp.Levels))
 	for _, level := range resp.Levels {
 		levelMap := map[string]interface{}{
@@ -68,17 +99,12 @@ func (h *LevelsHandler) GetAllLevels(w http.ResponseWriter, r *http.Request) {
 			"name": level.Name,
 			"slug": level.Slug,
 		}
-
-		// Add image URL if present (prefixed with APP_URL/uploads/)
 		if level.ImageUrl != "" {
 			levelMap["image"] = h.prefixImageURL(level.ImageUrl)
 		}
-
-		// Add background_image if present (prefixed with APP_URL/uploads/)
 		if level.BackgroundImage != "" {
 			levelMap["background_image"] = h.prefixImageURL(level.BackgroundImage)
 		}
-
 		levels = append(levels, levelMap)
 	}
 
@@ -86,7 +112,7 @@ func (h *LevelsHandler) GetAllLevels(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLevel handles GET /api/levels/{slug}
-func (h *LevelsHandler) GetLevel(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) GetLevel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -98,22 +124,17 @@ func (h *LevelsHandler) GetLevel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grpcReq := &levelspb.GetLevelRequest{
-		LevelSlug: slug,
-	}
-
-	resp, err := h.levelClient.GetLevel(r.Context(), grpcReq)
+	resp, err := h.api.GetLevel(r.Context(), &levelspb.GetLevelRequest{LevelSlug: slug})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	level := h.formatLevelResponse(resp.Level)
-	writeJSON(w, http.StatusOK, level)
+	writeJSON(w, http.StatusOK, h.formatLevelResponse(resp.Level))
 }
 
 // GetLevelGeneralInfo handles GET /api/levels/{slug}/general-info
-func (h *LevelsHandler) GetLevelGeneralInfo(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) GetLevelGeneralInfo(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -124,21 +145,14 @@ func (h *LevelsHandler) GetLevelGeneralInfo(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
 	}
-
-	// Remove "/general-info" suffix if present
 	slug = strings.TrimSuffix(slug, "/general-info")
 
-	grpcReq := &levelspb.GetLevelGeneralInfoRequest{
-		LevelSlug: slug,
-	}
-
-	resp, err := h.levelClient.GetLevelGeneralInfo(r.Context(), grpcReq)
+	resp, err := h.api.GetLevelGeneralInfo(r.Context(), &levelspb.GetLevelGeneralInfoRequest{LevelSlug: slug})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Format response according to Laravel GeneralInfoResource
 	var generalInfo map[string]interface{}
 	if resp.GeneralInfo != nil {
 		generalInfo = map[string]interface{}{
@@ -161,15 +175,13 @@ func (h *LevelsHandler) GetLevelGeneralInfo(w http.ResponseWriter, r *http.Reque
 			"fbx_file":       h.prefixImageURL(resp.GeneralInfo.FbxFile),
 			"gif_file":       h.prefixImageURL(resp.GeneralInfo.GifFile),
 		}
-	} else {
-		generalInfo = nil
 	}
 
 	writeJSON(w, http.StatusOK, generalInfo)
 }
 
 // GetLevelGem handles GET /api/levels/{slug}/gem
-func (h *LevelsHandler) GetLevelGem(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) GetLevelGem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -180,21 +192,14 @@ func (h *LevelsHandler) GetLevelGem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
 	}
-
-	// Remove "/gem" suffix if present
 	slug = strings.TrimSuffix(slug, "/gem")
 
-	grpcReq := &levelspb.GetLevelGemRequest{
-		LevelSlug: slug,
-	}
-
-	resp, err := h.levelClient.GetLevelGem(r.Context(), grpcReq)
+	resp, err := h.api.GetLevelGem(r.Context(), &levelspb.GetLevelGemRequest{LevelSlug: slug})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Format response according to Laravel GemResource (all non-hidden columns)
 	var gem map[string]interface{}
 	if resp.Gem != nil {
 		gem = map[string]interface{}{
@@ -213,16 +218,13 @@ func (h *LevelsHandler) GetLevelGem(w http.ResponseWriter, r *http.Request) {
 			"encryption":    resp.Gem.Encryption,
 			"designer":      resp.Gem.Designer,
 		}
-		// Note: ImageUrl field not available in LevelGem proto
-	} else {
-		gem = nil
 	}
 
 	writeJSON(w, http.StatusOK, gem)
 }
 
 // GetLevelGift handles GET /api/levels/{slug}/gift
-func (h *LevelsHandler) GetLevelGift(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) GetLevelGift(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -233,21 +235,14 @@ func (h *LevelsHandler) GetLevelGift(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
 	}
-
-	// Remove "/gift" suffix if present
 	slug = strings.TrimSuffix(slug, "/gift")
 
-	grpcReq := &levelspb.GetLevelGiftRequest{
-		LevelSlug: slug,
-	}
-
-	resp, err := h.levelClient.GetLevelGift(r.Context(), grpcReq)
+	resp, err := h.api.GetLevelGift(r.Context(), &levelspb.GetLevelGiftRequest{LevelSlug: slug})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Format response according to Laravel GiftResource (all non-hidden columns)
 	var gift map[string]interface{}
 	if resp.Gift != nil {
 		gift = map[string]interface{}{
@@ -275,15 +270,13 @@ func (h *LevelsHandler) GetLevelGift(w http.ResponseWriter, r *http.Request) {
 			"start_vod_id":              resp.Gift.StartVodId,
 			"end_vod_id":                resp.Gift.EndVodId,
 		}
-	} else {
-		gift = nil
 	}
 
 	writeJSON(w, http.StatusOK, gift)
 }
 
 // GetLevelLicenses handles GET /api/levels/{slug}/licenses
-func (h *LevelsHandler) GetLevelLicenses(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) GetLevelLicenses(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -294,21 +287,14 @@ func (h *LevelsHandler) GetLevelLicenses(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
 	}
-
-	// Remove "/licenses" suffix if present
 	slug = strings.TrimSuffix(slug, "/licenses")
 
-	grpcReq := &levelspb.GetLevelLicensesRequest{
-		LevelSlug: slug,
-	}
-
-	resp, err := h.levelClient.GetLevelLicenses(r.Context(), grpcReq)
+	resp, err := h.api.GetLevelLicenses(r.Context(), &levelspb.GetLevelLicensesRequest{LevelSlug: slug})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Format response according to Laravel LicensesResource (all non-hidden columns)
 	var licenses map[string]interface{}
 	if resp.Licenses != nil {
 		licenses = map[string]interface{}{
@@ -332,15 +318,13 @@ func (h *LevelsHandler) GetLevelLicenses(w http.ResponseWriter, r *http.Request)
 			"create_challenge_questions":             resp.Licenses.CreateChallengeQuestions,
 			"upload_music":                           resp.Licenses.UploadMusic,
 		}
-	} else {
-		licenses = nil
 	}
 
 	writeJSON(w, http.StatusOK, licenses)
 }
 
 // GetLevelPrize handles GET /api/levels/{slug}/prize
-func (h *LevelsHandler) GetLevelPrize(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) GetLevelPrize(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -351,21 +335,14 @@ func (h *LevelsHandler) GetLevelPrize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "level slug is required")
 		return
 	}
-
-	// Remove "/prize" suffix if present
 	slug = strings.TrimSuffix(slug, "/prize")
 
-	grpcReq := &levelspb.GetLevelPrizesRequest{
-		LevelSlug: slug,
-	}
-
-	resp, err := h.levelClient.GetLevelPrizes(r.Context(), grpcReq)
+	resp, err := h.api.GetLevelPrizes(r.Context(), &levelspb.GetLevelPrizesRequest{LevelSlug: slug})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Format response according to Laravel PrizeResource
 	var prize map[string]interface{}
 	if resp.Prize != nil {
 		prize = map[string]interface{}{
@@ -378,19 +355,15 @@ func (h *LevelsHandler) GetLevelPrize(w http.ResponseWriter, r *http.Request) {
 			"effect":       resp.Prize.Effect,
 			"satisfaction": resp.Prize.Satisfaction,
 		}
-		// created_at is formatted in Jalali format in Laravel, but we'll return it as-is for now
 		if resp.Prize.CreatedAt != "" {
 			prize["created_at"] = resp.Prize.CreatedAt
 		}
-	} else {
-		prize = nil
 	}
 
 	writeJSON(w, http.StatusOK, prize)
 }
 
-// formatLevelResponse formats a Level proto message to match Laravel LevelResource format
-func (h *LevelsHandler) formatLevelResponse(level *levelspb.Level) map[string]interface{} {
+func (h *HTTPLevelHandler) formatLevelResponse(level *levelspb.Level) map[string]interface{} {
 	if level == nil {
 		return nil
 	}
@@ -400,18 +373,12 @@ func (h *LevelsHandler) formatLevelResponse(level *levelspb.Level) map[string]in
 		"name": level.Name,
 		"slug": level.Slug,
 	}
-
-	// Add image URL if present (prefixed with APP_URL/uploads/)
 	if level.ImageUrl != "" {
 		levelMap["image"] = h.prefixImageURL(level.ImageUrl)
 	}
-
-	// Add background_image if present (prefixed with APP_URL/uploads/)
 	if level.BackgroundImage != "" {
 		levelMap["background_image"] = h.prefixImageURL(level.BackgroundImage)
 	}
-
-	// Add general_info if loaded (only in show endpoint)
 	if level.GeneralInfo != nil {
 		levelMap["general_info"] = map[string]interface{}{
 			"score":       level.GeneralInfo.Score,
@@ -427,7 +394,7 @@ func (h *LevelsHandler) formatLevelResponse(level *levelspb.Level) map[string]in
 }
 
 // HandleLevelsRoutes is the main router for levels endpoints under /api/levels
-func (h *LevelsHandler) HandleLevelsRoutes(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPLevelHandler) HandleLevelsRoutes(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	const basePrefix = "/api/levels"
 
@@ -443,7 +410,6 @@ func (h *LevelsHandler) HandleLevelsRoutes(w http.ResponseWriter, r *http.Reques
 
 	suffix := strings.TrimPrefix(path, basePrefix)
 	suffix = strings.TrimPrefix(suffix, "/")
-
 	if suffix == "" {
 		h.GetAllLevels(w, r)
 		return
@@ -453,8 +419,7 @@ func (h *LevelsHandler) HandleLevelsRoutes(w http.ResponseWriter, r *http.Reques
 	slug := parts[0]
 
 	if len(parts) == 2 {
-		resource := parts[1]
-		switch resource {
+		switch parts[1] {
 		case "general-info":
 			r.URL.Path = basePrefix + "/" + slug + "/general-info"
 			h.GetLevelGeneralInfo(w, r)

@@ -146,24 +146,33 @@ func main() {
 		log.Fatal("Failed to listen", "error", err, "port", port)
 	}
 
-	log.Info("Levels Service started", "port", port, "metrics_port", metricsPort)
+	appURL := getEnv("APP_URL", adminPanelURL)
+	httpHandler := handler.NewHTTPLevelHandler(levelHandler, appURL)
+	httpPort := getEnv("HTTP_PORT", "8061")
 
-	// Graceful shutdown
+	log.Info("Levels Service started", "grpc_port", port, "http_port", httpPort, "metrics_port", metricsPort)
+
 	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		<-sigChan
-
-		log.Info("Shutting down gracefully...")
-		grpcServer.GracefulStop()
-		_ = database.Close()
-		log.Info("Shutdown complete")
+		log.Info("HTTP server listening", "port", httpPort)
+		if err := handler.StartHTTPServer(httpHandler, httpPort); err != nil {
+			log.Fatal("Failed to serve HTTP", "error", err)
+		}
 	}()
 
-	// Start serving
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatal("Failed to serve", "error", err)
-	}
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatal("Failed to serve gRPC", "error", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	log.Info("Shutting down gracefully...")
+	grpcServer.GracefulStop()
+	_ = database.Close()
+	log.Info("Shutdown complete")
 }
 
 func getEnv(key, defaultValue string) string {

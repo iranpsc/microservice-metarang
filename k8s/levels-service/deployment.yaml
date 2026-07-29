@@ -33,6 +33,9 @@ spec:
         - containerPort: 50054
           name: grpc
           protocol: TCP
+        - containerPort: 8061
+          name: http
+          protocol: TCP
         - containerPort: 9090
           name: metrics
           protocol: TCP
@@ -61,6 +64,14 @@ spec:
               key: db.database
         - name: GRPC_PORT
           value: "50054"
+        - name: HTTP_PORT
+          value: "8061"
+        - name: APP_URL
+          valueFrom:
+            configMapKeyRef:
+              name: metarang-config
+              key: app.url
+              optional: true
         - name: METRICS_PORT
           value: "9090"
         - name: COMMERCIAL_SERVICE_ADDR
@@ -95,16 +106,18 @@ spec:
             memory: "256Mi"
             cpu: "300m"
         livenessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50054"]
-          initialDelaySeconds: 60
+          httpGet:
+            path: /health
+            port: 8061
+          initialDelaySeconds: 30
           periodSeconds: 30
           timeoutSeconds: 3
           failureThreshold: 5
         readinessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50054"]
-          initialDelaySeconds: 30
+          httpGet:
+            path: /health
+            port: 8061
+          initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 3
           failureThreshold: 10
@@ -124,6 +137,10 @@ spec:
     targetPort: 50054
     protocol: TCP
     name: grpc
+  - port: 8061
+    targetPort: 8061
+    protocol: TCP
+    name: http
   - port: 9090
     targetPort: 9090
     protocol: TCP
