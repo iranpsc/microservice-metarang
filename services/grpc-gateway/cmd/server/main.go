@@ -61,7 +61,7 @@ func main() {
 	log.Printf("✅ Created auth service client for %s (connection will be established on first RPC call)", cfg.AuthServiceAddr)
 
 	// Create connections to other services (with fallback if not configured)
-	var dynastyConn, financialConn, commercialConn, socialConn, levelsConn, trainingConn, supportConn, notificationConn *grpc.ClientConn
+	var dynastyConn, financialConn, commercialConn, socialConn, levelsConn, trainingConn, supportConn *grpc.ClientConn
 
 	if cfg.DynastyServiceAddr != "" {
 		dynastyConn, err = grpcutil.NewClient(
@@ -155,18 +155,6 @@ func main() {
 		}
 	}
 
-	if cfg.NotificationServiceAddr != "" {
-		notificationConn, err = grpcutil.NewClient(
-			cfg.NotificationServiceAddr,
-		)
-		if err != nil {
-			log.Printf("⚠️  Failed to connect to notification service: %v", err)
-		} else {
-			defer func() { _ = notificationConn.Close() }()
-			log.Printf("✅ Connected to notification service at %s", cfg.NotificationServiceAddr)
-		}
-	}
-
 	// Create auth client for middleware
 	authClient := pb.NewAuthServiceClient(authConn)
 
@@ -217,11 +205,6 @@ func main() {
 		log.Printf("✅ Social handler created")
 	} else {
 		log.Printf("⚠️  Social handler NOT created - socialConn is nil (check SOCIAL_SERVICE_ADDR config)")
-	}
-
-	var notificationHandler *handler.NotificationHandler
-	if notificationConn != nil {
-		notificationHandler = handler.NewNotificationHandler(notificationConn, authConn)
 	}
 
 	// Create storage handler (HTTP reverse proxy, no gRPC connection needed)
@@ -957,22 +940,6 @@ func main() {
 				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 			}
 		})))
-	}
-
-	// Notification routes
-	if notificationHandler != nil {
-		mux.Handle("/api/notifications", authMiddleware(http.HandlerFunc(notificationHandler.GetNotifications)))
-		mux.Handle("/api/notifications/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.Path
-			if strings.Contains(path, "/read/") && !strings.Contains(path, "/read/all") {
-				notificationHandler.MarkAsRead(w, r)
-			} else {
-				notificationHandler.GetNotification(w, r)
-			}
-		})))
-		mux.Handle("/api/notifications/mark-read", authMiddleware(http.HandlerFunc(notificationHandler.MarkAsRead)))
-		mux.Handle("/api/notifications/read/all", authMiddleware(http.HandlerFunc(notificationHandler.MarkAllAsRead)))
-		mux.Handle("/api/notifications/mark-all-read", authMiddleware(http.HandlerFunc(notificationHandler.MarkAllAsRead)))
 	}
 
 	// Storage routes (public endpoint, no authentication required)

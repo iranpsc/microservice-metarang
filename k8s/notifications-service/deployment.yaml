@@ -34,6 +34,9 @@ spec:
         - containerPort: 50058
           name: grpc
           protocol: TCP
+        - containerPort: 8063
+          name: http
+          protocol: TCP
         - containerPort: 9090
           name: metrics
           protocol: TCP
@@ -68,6 +71,10 @@ spec:
           value: "5m"
         - name: GRPC_PORT
           value: "50058"
+        - name: HTTP_PORT
+          value: "8063"
+        - name: AUTH_SERVICE_ADDR
+          value: "auth-service:50051"
         - name: METRICS_PORT
           value: "9090"
         - name: REDIS_ADDR
@@ -123,15 +130,17 @@ spec:
             memory: "512Mi"
             cpu: "500m"
         livenessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50058"]
+          httpGet:
+            path: /health
+            port: 8063
           initialDelaySeconds: 60
           periodSeconds: 30
           timeoutSeconds: 3
           failureThreshold: 5
         readinessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50058"]
+          httpGet:
+            path: /health
+            port: 8063
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 3
@@ -152,6 +161,10 @@ spec:
     targetPort: 50058
     protocol: TCP
     name: grpc
+  - port: 8063
+    targetPort: 8063
+    protocol: TCP
+    name: http
   - port: 9090
     targetPort: 9090
     protocol: TCP

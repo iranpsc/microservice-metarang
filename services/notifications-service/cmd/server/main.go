@@ -17,8 +17,10 @@ import (
 	"google.golang.org/grpc"
 
 	"metarang/notifications-service/internal/handler"
+	"metarang/notifications-service/internal/middleware"
 	"metarang/notifications-service/internal/repository"
 	"metarang/notifications-service/internal/service"
+	authpb "metarang/shared/pb/auth"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
 	"metarang/shared/pkg/sentry"
@@ -97,9 +99,20 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
-	handler.RegisterNotificationHandler(grpcServer, notificationService)
+	notificationHandler := handler.RegisterNotificationHandler(grpcServer, notificationService)
 	handler.RegisterSMSHandler(grpcServer, smsService)
 	handler.RegisterEmailHandler(grpcServer, emailService)
+
+	var authClient authpb.AuthServiceClient
+	authAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, err := grpcutil.NewClient(authAddr)
+	if err != nil {
+		log.Printf("Warning: failed to connect to auth service at %s: %v", authAddr, err)
+	} else {
+		defer func() { _ = authConn.Close() }()
+		authClient = authpb.NewAuthServiceClient(authConn)
+		log.Printf("Created auth service client for %s", authAddr)
+	}
 
 	port := getEnv("GRPC_PORT", "50058")
 	listener, err := net.Listen("tcp", ":"+port)
@@ -107,11 +120,22 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Notification service listening on port %s", port)
+	log.Printf("gRPC server listening on port %s", port)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPNotificationHandler(notificationHandler)
+	httpPort := getEnv("HTTP_PORT", "8063")
+	authMW := middleware.AuthMiddleware(authClient)
+
+	log.Printf("HTTP server listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

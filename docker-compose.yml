@@ -162,7 +162,6 @@ services:
       TRAINING_SERVICE_ADDR: training-service:50057
       SUPPORT_SERVICE_ADDR: support-service:50056
       SOCIAL_SERVICE_ADDR: social-service:50061
-      NOTIFICATION_SERVICE_ADDR: notifications-service:50058
       STORAGE_SERVICE_ADDR: storage-service:8059
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
@@ -583,11 +582,13 @@ services:
       context: .
       dockerfile: ./services/notifications-service/Dockerfile
     container_name: metarang-notifications-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/notifications-service/config.env
     environment:
       GRPC_PORT: 50058
+      HTTP_PORT: 8063
+      AUTH_SERVICE_ADDR: auth-service:50051
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -605,13 +606,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      auth-service:
+        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50058"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8063/health"]
       interval: 30s
       timeout: 3s
       retries: 3

@@ -136,13 +136,13 @@ test-unit:
 	@echo "✅ All unit tests passed"
 
 # Dedicated service test modules under tests/ (excludes database)
-SERVICE_TEST_MODULES=auth-service calendar-service commercial-service dynasty-service features-service financial-service grpc-gateway social-service storage-service support-service
+SERVICE_TEST_MODULES=auth-service calendar-service commercial-service dynasty-service features-service financial-service grpc-gateway notifications-service social-service storage-service support-service
 
 test-services:
 	@echo "🧪 Running dedicated service test modules..."
 ifeq ($(OS),Windows_NT)
 	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
-		@('auth-service','calendar-service','commercial-service','dynasty-service','features-service','financial-service','grpc-gateway','social-service','storage-service','support-service') | ForEach-Object { \
+		@('auth-service','calendar-service','commercial-service','dynasty-service','features-service','financial-service','grpc-gateway','notifications-service','social-service','storage-service','support-service') | ForEach-Object { \
 			Write-Host ('Testing ' + $$_ + '...'); \
 			Set-Location ('tests/' + $$_); \
 			$$env:GOWORK='off'; \
@@ -185,6 +185,15 @@ test-coverage-social:
 	echo "social-service handler+service statements coverage: $${pct}%"; \
 	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
 	@echo "✅ social-service coverage OK"
+
+# Notifications-service internal coverage gate (≥70%)
+test-coverage-notifications:
+	@echo "🧪 notifications-service internal coverage (min 70%)..."
+	cd tests/notifications-service && GOWORK=off go test ./... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=metarang/notifications-service/internal/handler,metarang/notifications-service/internal/middleware,metarang/notifications-service/internal/repository,metarang/notifications-service/internal/service
+	@pct=$$(cd tests/notifications-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
+	echo "notifications-service internal statements coverage: $${pct}%"; \
+	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
+	@echo "✅ notifications-service coverage OK"
 
 # Database tests
 test-database:
