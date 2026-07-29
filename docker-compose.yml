@@ -118,8 +118,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      notifications-service:
-        condition: service_started
       commercial-service:
         condition: service_healthy
     volumes:
@@ -161,7 +159,6 @@ services:
       LEVELS_SERVICE_ADDR: levels-service:50054
       TRAINING_SERVICE_ADDR: training-service:50057
       SUPPORT_SERVICE_ADDR: support-service:50056
-      SOCIAL_SERVICE_ADDR: social-service:50061
       STORAGE_SERVICE_ADDR: storage-service:8059
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
@@ -177,8 +174,6 @@ services:
       storage-service:
         condition: service_started
       levels-service:
-        condition: service_started
-      social-service:
         condition: service_started
     volumes:
       - *grpc-certs-mount
@@ -480,23 +475,25 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Social Service - Challenge quiz & user follow graph
+  # Social Service - Challenge quiz & user follow graph (gRPC internal + HTTP for Kong)
   social-service:
     build:
       context: .
       dockerfile: ./services/social-service/Dockerfile
     container_name: metarang-social-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/social-service/config.env
     environment:
       GRPC_PORT: 50061
+      HTTP_PORT: 8064
+      AUTH_SERVICE_ADDR: auth-service:50051
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
       DB_USER: metarang_user
       DB_PASSWORD: metarang_password
-      AUTH_SERVICE_ADDR: auth-service:50051
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       LEVELS_SERVICE_ADDR: levels-service:50054
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
@@ -516,10 +513,11 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50061"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8064/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 15s
     develop:
       watch:
         - action: rebuild
@@ -857,12 +855,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    develop:
-      watch:
-        # DB-less Kong only reads kong.yml at startup — restart when routes change.
-        - action: sync+restart
-          path: ./kong/kong.yml
-          target: /kong/kong.yml
 
   # ============================================================================
   # Monitoring Stack

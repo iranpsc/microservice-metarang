@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -162,6 +163,57 @@ func TestFollowHandler_Remove_OK(t *testing.T) {
 	_, err := cli.Remove(context.Background(), &pb.RemoveRequest{UserId: 1, TargetUserId: 2})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFollowHandler_Follow_UserNotFound(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterFollowHandler(gs, &stubFollowSvc{
+			follow: func(ctx context.Context, userID, targetUserID uint64) error {
+				return service.ErrUserNotFound
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewFollowServiceClient(conn)
+	_, err := cli.Follow(context.Background(), &pb.FollowRequest{UserId: 1, TargetUserId: 2})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.NotFound {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestFollowHandler_Follow_InternalError(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterFollowHandler(gs, &stubFollowSvc{
+			follow: func(ctx context.Context, userID, targetUserID uint64) error {
+				return errors.New("db")
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewFollowServiceClient(conn)
+	_, err := cli.Follow(context.Background(), &pb.FollowRequest{UserId: 1, TargetUserId: 2})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestFollowHandler_GetFollowers_Error(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterFollowHandler(gs, &stubFollowSvc{
+			getFollowers: func(ctx context.Context, uid uint64) ([]*models.FollowResource, error) {
+				return nil, errors.New("db")
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewFollowServiceClient(conn)
+	_, err := cli.GetFollowers(context.Background(), &pb.GetFollowersRequest{UserId: 1})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
 	}
 }
 

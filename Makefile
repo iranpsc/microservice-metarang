@@ -52,7 +52,7 @@ help:
 	@echo "  test-all         - Run all test suites (unit, services, database)"
 	@echo "  test-coverage-features  - features-service handler coverage ≥70%"
 	@echo "  test-coverage-financial - financial-service handler coverage ≥70%"
-	@echo "  test-coverage-social    - social-service handler+service coverage ≥70%"
+	@echo "  test-coverage-social    - social-service internal coverage ≥70%"
 	@echo ""
 	@echo "Local uploads:"
 	@echo "  link-uploads           - Symlink ./uploads -> $(UPLOADS_SRC)"
@@ -159,40 +159,94 @@ else
 endif
 	@echo "✅ All service test modules passed"
 
+COVERAGE_MIN ?= 70
+
 # Features-service handler coverage gate (≥70%, no MySQL required; uses GOWORK=off for local replace)
 test-coverage-features:
-	@echo "🧪 features-service handler coverage (min 70%)..."
+	@echo "🧪 features-service handler coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/features-service'; \
+		$$env:GOWORK='off'; \
+		go test ./internal/handler/... -coverprofile=coverage.out -covermode=atomic; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('handler statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
 	cd tests/features-service && GOWORK=off go test ./internal/handler/... -race -coverprofile=coverage.out -covermode=atomic
 	@pct=$$(cd tests/features-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
 	echo "handler statements coverage: $${pct}%"; \
-	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
 	@echo "✅ features-service handler coverage OK"
 
 # Financial-service handler coverage gate (≥70%)
 test-coverage-financial:
-	@echo "🧪 financial-service handler coverage (min 70%)..."
+	@echo "🧪 financial-service handler coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/financial-service'; \
+		$$env:GOWORK='off'; \
+		go test ./internal/handler/... -coverprofile=coverage.out -covermode=atomic; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('financial-service handler statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
 	cd tests/financial-service && GOWORK=off go test ./internal/handler/... -race -coverprofile=coverage.out -covermode=atomic
 	@pct=$$(cd tests/financial-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
 	echo "financial-service handler statements coverage: $${pct}%"; \
-	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
 	@echo "✅ financial-service handler coverage OK"
 
-# Social-service handler + service coverage gate (≥70%, combined packages)
+# Social-service internal coverage gate (≥70%: handler, middleware, repository, service, lang)
 test-coverage-social:
-	@echo "🧪 social-service handler+service coverage (min 70%)..."
-	cd tests/social-service && GOWORK=off go test ./internal/handler/... ./internal/service/... -race -coverprofile=coverage.out -covermode=atomic
+	@echo "🧪 social-service internal coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/social-service'; \
+		$$env:GOWORK='off'; \
+		go test ./... -coverprofile=coverage.out -covermode=atomic -coverpkg='metarang/social-service/internal/handler,metarang/social-service/internal/middleware,metarang/social-service/internal/repository,metarang/social-service/internal/service,metarang/social-service/internal/lang'; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('social-service internal statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
+	cd tests/social-service && GOWORK=off go test ./... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=metarang/social-service/internal/handler,metarang/social-service/internal/middleware,metarang/social-service/internal/repository,metarang/social-service/internal/service,metarang/social-service/internal/lang
 	@pct=$$(cd tests/social-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
-	echo "social-service handler+service statements coverage: $${pct}%"; \
-	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
+	echo "social-service internal statements coverage: $${pct}%"; \
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
 	@echo "✅ social-service coverage OK"
 
 # Notifications-service internal coverage gate (≥70%)
 test-coverage-notifications:
-	@echo "🧪 notifications-service internal coverage (min 70%)..."
+	@echo "🧪 notifications-service internal coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/notifications-service'; \
+		$$env:GOWORK='off'; \
+		go test ./... -coverprofile=coverage.out -covermode=atomic -coverpkg='metarang/notifications-service/internal/handler,metarang/notifications-service/internal/middleware,metarang/notifications-service/internal/repository,metarang/notifications-service/internal/service'; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('notifications-service internal statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
 	cd tests/notifications-service && GOWORK=off go test ./... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=metarang/notifications-service/internal/handler,metarang/notifications-service/internal/middleware,metarang/notifications-service/internal/repository,metarang/notifications-service/internal/service
 	@pct=$$(cd tests/notifications-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
 	echo "notifications-service internal statements coverage: $${pct}%"; \
-	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
 	@echo "✅ notifications-service coverage OK"
 
 # Database tests
@@ -268,7 +322,6 @@ kong-reload:
 up: init-storage-uploads
 	@echo "🚀 Starting all microservices..."
 	$(DOCKER_COMPOSE) up -d
-	@$(MAKE) kong-reload
 	@echo "✅ All services started!"
 	@echo ""
 	@echo "Services available at:"

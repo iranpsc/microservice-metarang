@@ -46,8 +46,6 @@ spec:
           value: "training-service:50057"
         - name: SUPPORT_SERVICE_ADDR
           value: "support-service:50056"
-        - name: SOCIAL_SERVICE_ADDR
-          value: "social-service:50061"
         - name: STORAGE_SERVICE_ADDR
           value: "storage-service:8059"
         - name: INTERNAL_SERVICE_SECRET

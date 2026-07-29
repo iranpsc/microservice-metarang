@@ -16,12 +16,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	authpb "metarang/shared/pb/auth"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/logger"
 	"metarang/shared/pkg/metrics"
 	"metarang/shared/pkg/sentry"
 	"metarang/social-service/internal/client"
 	"metarang/social-service/internal/handler"
+	"metarang/social-service/internal/middleware"
 	"metarang/social-service/internal/repository"
 	"metarang/social-service/internal/service"
 )
@@ -140,9 +142,20 @@ func main() {
 		structLog.Fatal("Failed to configure gRPC server", "error", err)
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
-	handler.RegisterChallengeHandler(grpcServer, challengeService)
-	handler.RegisterFollowHandler(grpcServer, followService)
+	followHandler := handler.RegisterFollowHandler(grpcServer, followService)
+	challengeHandler := handler.RegisterChallengeHandler(grpcServer, challengeService)
 	reflection.Register(grpcServer)
+
+	var authMiddlewareClient authpb.AuthServiceClient
+	authMiddlewareAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authMiddlewareConn, err := grpcutil.NewClient(authMiddlewareAddr)
+	if err != nil {
+		structLog.Warn("Failed to connect to auth service for HTTP middleware", "error", err)
+	} else {
+		defer func() { _ = authMiddlewareConn.Close() }()
+		authMiddlewareClient = authpb.NewAuthServiceClient(authMiddlewareConn)
+		structLog.Info("Created auth service client for HTTP middleware", "addr", authMiddlewareAddr)
+	}
 
 	port := getEnv("GRPC_PORT", "50061")
 	listener, err := net.Listen("tcp", ":"+port)
@@ -155,6 +168,17 @@ func main() {
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			structLog.Fatal("Failed to serve", "error", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPSocialHandler(followHandler, challengeHandler)
+	httpPort := getEnv("HTTP_PORT", "8064")
+	authMW := middleware.AuthMiddleware(authMiddlewareClient)
+
+	structLog.Info("HTTP server listening", "port", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW); err != nil {
+			structLog.Fatal("Failed to serve HTTP", "error", err)
 		}
 	}()
 

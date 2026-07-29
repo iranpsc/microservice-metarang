@@ -14,18 +14,20 @@ import (
 	"metarang/social-service/internal/service"
 )
 
-type challengeHandler struct {
+// ChallengeHandler implements the gRPC ChallengeService.
+type ChallengeHandler struct {
 	pb.UnimplementedChallengeServiceServer
 	challengeService service.ChallengeService
 }
 
-func RegisterChallengeHandler(grpcServer *grpc.Server, challengeService service.ChallengeService) {
-	pb.RegisterChallengeServiceServer(grpcServer, &challengeHandler{
-		challengeService: challengeService,
-	})
+// RegisterChallengeHandler registers the challenge handler with the gRPC server.
+func RegisterChallengeHandler(grpcServer *grpc.Server, challengeService service.ChallengeService) *ChallengeHandler {
+	handler := &ChallengeHandler{challengeService: challengeService}
+	pb.RegisterChallengeServiceServer(grpcServer, handler)
+	return handler
 }
 
-func (h *challengeHandler) GetTimings(ctx context.Context, req *pb.GetTimingsRequest) (*pb.GetTimingsResponse, error) {
+func (h *ChallengeHandler) GetTimings(ctx context.Context, req *pb.GetTimingsRequest) (*pb.GetTimingsResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
 	}
@@ -47,7 +49,7 @@ func (h *challengeHandler) GetTimings(ctx context.Context, req *pb.GetTimingsReq
 	}, nil
 }
 
-func (h *challengeHandler) GetQuestion(ctx context.Context, req *pb.GetQuestionRequest) (*pb.GetQuestionResponse, error) {
+func (h *ChallengeHandler) GetQuestion(ctx context.Context, req *pb.GetQuestionRequest) (*pb.GetQuestionResponse, error) {
 	// Use user ID from request (set by gateway from authenticated user)
 	userID := req.UserId
 	if userID == 0 {
@@ -67,7 +69,7 @@ func (h *challengeHandler) GetQuestion(ctx context.Context, req *pb.GetQuestionR
 	}, nil
 }
 
-func (h *challengeHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequest) (*pb.SubmitAnswerResponse, error) {
+func (h *ChallengeHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerRequest) (*pb.SubmitAnswerResponse, error) {
 	// Validate required fields
 	if req.QuestionId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "question_id is required")
@@ -92,7 +94,7 @@ func (h *challengeHandler) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswe
 	}, nil
 }
 
-func (h *challengeHandler) GetAdvertisement(ctx context.Context, _ *pb.GetAdvertisementRequest) (*pb.GetAdvertisementResponse, error) {
+func (h *ChallengeHandler) GetAdvertisement(ctx context.Context, _ *pb.GetAdvertisementRequest) (*pb.GetAdvertisementResponse, error) {
 	advertisements, err := h.challengeService.GetAdvertisement(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get advertisements: %v", err)

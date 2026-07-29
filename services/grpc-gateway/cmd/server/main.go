@@ -61,7 +61,7 @@ func main() {
 	log.Printf("✅ Created auth service client for %s (connection will be established on first RPC call)", cfg.AuthServiceAddr)
 
 	// Create connections to other services (with fallback if not configured)
-	var dynastyConn, financialConn, commercialConn, socialConn, levelsConn, trainingConn, supportConn *grpc.ClientConn
+	var dynastyConn, financialConn, commercialConn, levelsConn, trainingConn, supportConn *grpc.ClientConn
 
 	if cfg.DynastyServiceAddr != "" {
 		dynastyConn, err = grpcutil.NewClient(
@@ -97,22 +97,6 @@ func main() {
 			defer func() { _ = commercialConn.Close() }()
 			log.Printf("✅ Connected to commercial service at %s", cfg.CommercialServiceAddr)
 		}
-	}
-
-	if cfg.SocialServiceAddr != "" {
-		socialConn, err = grpcutil.NewClient(
-			cfg.SocialServiceAddr,
-		)
-		if err != nil {
-			log.Printf("⚠️  Failed to connect to social service: %v", err)
-			log.Printf("⚠️  Social routes will not be available until service is running")
-			socialConn = nil
-		} else {
-			defer func() { _ = socialConn.Close() }()
-			log.Printf("✅ Connected to social service at %s", cfg.SocialServiceAddr)
-		}
-	} else {
-		log.Printf("⚠️  SOCIAL_SERVICE_ADDR not set - social routes will not be available")
 	}
 
 	if cfg.LevelsServiceAddr != "" {
@@ -197,14 +181,6 @@ func main() {
 	var supportHandler *handler.SupportHandler
 	if supportConn != nil {
 		supportHandler = handler.NewSupportHandler(supportConn, authConn, cfg.StorageServiceAddr, cfg.AppURL)
-	}
-
-	var socialHandler *handler.SocialHandler
-	if socialConn != nil {
-		socialHandler = handler.NewSocialHandler(socialConn, authConn)
-		log.Printf("✅ Social handler created")
-	} else {
-		log.Printf("⚠️  Social handler NOT created - socialConn is nil (check SOCIAL_SERVICE_ADDR config)")
 	}
 
 	// Create storage handler (HTTP reverse proxy, no gRPC connection needed)
@@ -826,20 +802,6 @@ func main() {
 		log.Printf("   Check if TRAINING_SERVICE_ADDR is set and training service is running")
 		log.Printf("   Current TRAINING_SERVICE_ADDR: %s", cfg.TrainingServiceAddr)
 		log.Printf("   trainingConn value: %v", trainingConn)
-	}
-
-	// Social service — challenge + follow (Laravel-compatible paths)
-	if socialHandler != nil {
-		mux.Handle("/api/challenge/timings", authMiddleware(http.HandlerFunc(socialHandler.GetTimings)))
-		mux.Handle("/api/challenge/question", authMiddleware(http.HandlerFunc(socialHandler.GetQuestion)))
-		mux.Handle("/api/challenge/answer", authMiddleware(http.HandlerFunc(socialHandler.SubmitAnswer)))
-		mux.Handle("/api/challenge/advertisement", authMiddleware(http.HandlerFunc(socialHandler.GetAdvertisement)))
-		mux.Handle("/api/followers", authMiddleware(http.HandlerFunc(socialHandler.GetFollowers)))
-		mux.Handle("/api/following", authMiddleware(http.HandlerFunc(socialHandler.GetFollowing)))
-		mux.Handle("/api/follow/", authMiddleware(http.HandlerFunc(socialHandler.Follow)))
-		mux.Handle("/api/unfollow/", authMiddleware(http.HandlerFunc(socialHandler.Unfollow)))
-		mux.Handle("/api/remove/", authMiddleware(http.HandlerFunc(socialHandler.Remove)))
-		log.Printf("✅ Social service routes registered")
 	}
 
 	// Support routes
