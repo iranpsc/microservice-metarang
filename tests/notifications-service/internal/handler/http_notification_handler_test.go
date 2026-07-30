@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -149,6 +150,22 @@ func TestHTTP_GetNotification_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
+func TestHTTP_MarkAsRead_ViaReadPath(t *testing.T) {
+	called := false
+	svc := &testutil.MockNotificationService{
+		MarkAsReadFunc: func(_ context.Context, id string, userID uint64) error {
+			called = true
+			assert.Equal(t, "notif-1", id)
+			assert.Equal(t, uint64(42), userID)
+			return nil
+		},
+	}
+	mux := newHTTPHandler(t, svc, 42)
+	rr := serveRequest(mux, http.MethodPost, "/api/notifications/read/notif-1", 42)
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+	assert.True(t, called)
+}
+
 func TestHTTP_MarkAsRead_Success(t *testing.T) {
 	called := false
 	svc := &testutil.MockNotificationService{
@@ -194,6 +211,57 @@ func TestHTTP_HandlerErrorMapping(t *testing.T) {
 	mux := newHTTPHandler(t, svc, 42)
 	rr := serveRequest(mux, http.MethodGet, "/api/notifications/missing-id", 42)
 	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestHTTP_GetNotifications_ServiceError(t *testing.T) {
+	svc := &testutil.MockNotificationService{
+		GetNotificationsFunc: func(context.Context, uint64, models.NotificationFilter) ([]models.Notification, int64, error) {
+			return nil, 0, errors.New("service down")
+		},
+	}
+	mux := newHTTPHandler(t, svc, 42)
+	rr := serveRequest(mux, http.MethodGet, "/api/notifications", 42)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestHTTP_GetNotification_MethodNotAllowed(t *testing.T) {
+	mux := newHTTPHandler(t, &testutil.MockNotificationService{}, 42)
+	rr := serveRequest(mux, http.MethodPost, "/api/notifications/notif-1", 42)
+	assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+}
+
+func TestHTTP_GetNotification_MissingID(t *testing.T) {
+	mux := newHTTPHandler(t, &testutil.MockNotificationService{}, 42)
+	rr := serveRequest(mux, http.MethodGet, "/api/notifications/", 42)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestHTTP_MarkAsRead_ServiceError(t *testing.T) {
+	svc := &testutil.MockNotificationService{
+		MarkAsReadFunc: func(context.Context, string, uint64) error {
+			return errors.New("mark failed")
+		},
+	}
+	mux := newHTTPHandler(t, svc, 42)
+	rr := serveRequest(mux, http.MethodPost, "/api/notifications/read/notif-1", 42)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestHTTP_MarkAllAsRead_ServiceError(t *testing.T) {
+	svc := &testutil.MockNotificationService{
+		MarkAllAsReadFunc: func(context.Context, uint64) error {
+			return errors.New("mark all failed")
+		},
+	}
+	mux := newHTTPHandler(t, svc, 42)
+	rr := serveRequest(mux, http.MethodPost, "/api/notifications/read/all", 42)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestHTTP_MarkAllAsRead_MethodNotAllowed(t *testing.T) {
+	mux := newHTTPHandler(t, &testutil.MockNotificationService{}, 42)
+	rr := serveRequest(mux, http.MethodGet, "/api/notifications/read/all", 42)
+	assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
 }
 
 func TestHTTP_TransformNotificationDefaults(t *testing.T) {

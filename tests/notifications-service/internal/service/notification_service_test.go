@@ -215,6 +215,22 @@ func TestNotificationService_GetNotificationByID(t *testing.T) {
 		assert.ErrorIs(t, err, errs.ErrNotificationNotFound)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("repository error", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+		require.NoError(t, err)
+		defer db.Close()
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+
+		mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE id = ? AND notifiable_type = ? AND notifiable_id = ? LIMIT 1`).
+			WithArgs("broken", "App\\User", uint64(123)).
+			WillReturnError(errors.New("db unavailable"))
+
+		_, err = svc.GetNotificationByID(ctx, "broken", 123)
+		assert.Error(t, err)
+		assert.NotErrorIs(t, err, errs.ErrNotificationNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestNotificationService_MarkAsRead(t *testing.T) {
@@ -257,6 +273,12 @@ func TestEmailService_SendEmail(t *testing.T) {
 	id, err := svc.SendEmail(context.Background(), models.EmailPayload{To: "a@b.com", Subject: "s", Body: "b"})
 	require.NoError(t, err)
 	assert.Equal(t, "msg-1", id)
+}
+
+func TestNewSMSService_NilChannelUsesNoop(t *testing.T) {
+	svc := service.NewSMSService(nil)
+	_, err := svc.SendSMS(context.Background(), models.SMSPayload{Phone: "09120000000", Message: "hi"})
+	assert.ErrorIs(t, err, errs.ErrNotImplemented)
 }
 
 func TestSMSService_SendSMSAndOTP(t *testing.T) {
