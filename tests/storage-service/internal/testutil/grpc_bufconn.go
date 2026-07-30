@@ -36,7 +36,7 @@ func (s *BufGRPCTestServer) BufDialContext(context.Context, string) (net.Conn, e
 
 func (s *BufGRPCTestServer) GRPCClientConn(t *testing.T) *grpc.ClientConn {
 	t.Helper()
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
+	conn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(s.BufDialContext),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

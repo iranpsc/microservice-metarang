@@ -36,7 +36,7 @@ func newBufServer(t *testing.T, register func(*grpc.Server)) *grpc.ClientConn {
 	go func() { _ = s.Serve(lis) }()
 	t.Cleanup(func() { s.Stop() })
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
+	conn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
