@@ -22,7 +22,7 @@ The reusable pipeline per service:
 
 ```
 lint (golangci-lint)
-  └─ test (unit tests + govulncheck + Codecov, against MySQL/Redis containers)
+  └─ test (unit + integration tests, govulncheck, coverage summary + Codecov, against MySQL/Redis containers)
        └─ build (Docker build → Trivy scan → push on non-PR events)
             └─ deploy (main only, production environment: kubectl set image + rollout + rollback on failure)
 ```
@@ -52,6 +52,8 @@ Use **Actions → Services CI/CD → Run workflow**:
 ## Shared building blocks
 
 - `.github/actions/setup-test-db/` — composite action that installs the MySQL client and loads `scripts/schema.sql` into the MySQL service container. Used by `service-ci.yml`.
+- `.github/scripts/go-test-checklist.sh` — runs `go test -json` and writes a package checklist to the job summary.
+- `.github/scripts/go-coverage-summary.sh` — merges unit/integration coverage profiles and writes total + per-package coverage to the job summary.
 - All third-party actions are pinned to commit SHAs; Dependabot (`.github/dependabot.yml`) keeps them updated weekly.
 
 ## Branch protection

@@ -90,7 +90,7 @@ jobs:
           bash .github/scripts/go-test-checklist.sh \
             "Shared Package Tests (shared/pkg/...)" \
             "shared" \
-            -- ./pkg/... -race -coverprofile=coverage.out -covermode=atomic
+            -- ./pkg/... -race -cover -coverprofile=coverage-unit.out -covermode=atomic
 
       # Keep later suites running after a failure so the checklist is complete.
       # Prefer if: always() over continue-on-error so failed steps stay red.
@@ -106,11 +106,28 @@ jobs:
             "Security Scan (govulncheck)" \
             "shared"
 
+      - name: Report coverage
+        id: coverage
+        if: always() && !cancelled()
+        run: |
+          bash .github/scripts/go-coverage-summary.sh \
+            "Code Coverage (shared packages)" \
+            "shared/coverage.out" \
+            "shared/coverage-unit.out"
+
+          if [ -f shared/coverage.out ] && [ -s shared/coverage.out ]; then
+            total="$(go tool cover -func=shared/coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+%' | tail -1 || true)"
+            echo "total=${total:-unknown}" >> "$GITHUB_OUTPUT"
+          else
+            echo "total=unknown" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Finalize test checklist
         if: always() && !cancelled()
         run: |
           unit_outcome="${{ steps.unit_tests.outcome }}"
           vuln_outcome="${{ steps.govulncheck.outcome }}"
+          coverage_total="${{ steps.coverage.outputs.total }}"
 
           case "$unit_outcome" in
             success) unit_status="✅ Passed" ;;
@@ -131,6 +148,7 @@ jobs:
             echo "|------------|--------|"
             echo "| Shared package tests | ${unit_status} |"
             echo "| govulncheck | ${vuln_status} |"
+            echo "| Statement coverage | ${coverage_total} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           failed=0
@@ -139,7 +157,7 @@ jobs:
           exit "$failed"
 
       - name: Upload coverage
-        if: always() && !cancelled()
+        if: always() && !cancelled() && steps.coverage.outputs.total != 'unknown'
         uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073 # v5.5.5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

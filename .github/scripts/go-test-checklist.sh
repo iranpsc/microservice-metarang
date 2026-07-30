@@ -134,12 +134,18 @@ jq -rs '
   | (map(select(.Action == "fail" and .Test != null)) | length) as $fails
   | (map(select(.Action == "skip" and .Test != null)) | length) as $skips
   | (any(.Action == "fail" and (.Test == null or .Test == ""))) as $pkg_fail
+  | ([.[] | select(.Action == "output" and (.Output | test("coverage: [0-9.]+%"))) | .Output
+      | capture("coverage: (?<pct>[0-9.]+)%").pct] | first) as $coverage
   | if $pkg_fail or $fails > 0 then
       "- [ ] `\(.[0].Package)` ❌ failed (\($fails) tests)"
     elif $tests == 0 then
       "- [x] `\(.[0].Package)` (no test functions)"
+    elif $skips > 0 and $coverage != null then
+      "- [x] `\(.[0].Package)` (\($tests) tests, \($skips) skipped, \($coverage)% coverage)"
     elif $skips > 0 then
       "- [x] `\(.[0].Package)` (\($tests) tests, \($skips) skipped)"
+    elif $coverage != null then
+      "- [x] `\(.[0].Package)` (\($tests) tests, \($coverage)% coverage)"
     else
       "- [x] `\(.[0].Package)` (\($tests) tests)"
     end
