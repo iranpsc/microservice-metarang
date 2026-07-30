@@ -19,9 +19,11 @@ import (
 	"metarang/financial-service/internal/config"
 	"metarang/financial-service/internal/grpcclients"
 	"metarang/financial-service/internal/handler"
+	"metarang/financial-service/internal/middleware"
 	"metarang/financial-service/internal/repository"
 	"metarang/financial-service/internal/sadad"
 	"metarang/financial-service/internal/service"
+	authpb "metarang/shared/pb/auth"
 	commercialpb "metarang/shared/pb/commercial"
 	notificationspb "metarang/shared/pb/notifications"
 	"metarang/shared/pkg/auth"
@@ -224,9 +226,13 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
-	// Register handlers
-	handler.RegisterOrderHandler(grpcServer, orderService)
-	handler.RegisterStoreHandler(grpcServer, storeService)
+	orderHandler := handler.RegisterOrderHandler(grpcServer, orderService)
+	storeHandler := handler.RegisterStoreHandler(grpcServer, storeService)
+
+	var authClient authpb.AuthServiceClient
+	if authConn != nil {
+		authClient = authpb.NewAuthServiceClient(authConn)
+	}
 
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50062")
@@ -235,12 +241,23 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Financial service listening on port %s", port)
+	log.Printf("Financial service gRPC listening on port %s", port)
 
-	// Graceful shutdown
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPFinancialHandler(orderHandler, storeHandler)
+	httpPort := getEnv("HTTP_PORT", "8065")
+	authMW := middleware.AuthMiddleware(authClient)
+	optionalAuthMW := middleware.OptionalAuthMiddleware(authClient)
+
+	log.Printf("Financial service HTTP listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW, optionalAuthMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

@@ -51,7 +51,7 @@ help:
 	@echo "  test-services    - Run dedicated service test modules (tests/*-service/)"
 	@echo "  test-all         - Run all test suites (unit, services, database)"
 	@echo "  test-coverage-features  - features-service handler coverage ≥70%"
-	@echo "  test-coverage-financial - financial-service handler coverage ≥70%"
+	@echo "  test-coverage-financial - financial-service internal coverage ≥70%"
 	@echo "  test-coverage-social    - social-service internal coverage ≥70%"
 	@echo ""
 	@echo "Local uploads:"
@@ -185,25 +185,25 @@ endif
 
 # Financial-service handler coverage gate (≥70%)
 test-coverage-financial:
-	@echo "🧪 financial-service handler coverage (min $(COVERAGE_MIN)%)..."
+	@echo "🧪 financial-service internal coverage (min $(COVERAGE_MIN)%)..."
 ifeq ($(OS),Windows_NT)
 	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
 		Set-Location 'tests/financial-service'; \
 		$$env:GOWORK='off'; \
-		go test ./internal/handler/... -coverprofile=coverage.out -covermode=atomic; \
+		go test ./internal/... -coverprofile=coverage.out -covermode=atomic -coverpkg='metarang/financial-service/internal/handler,metarang/financial-service/internal/middleware,metarang/financial-service/internal/repository,metarang/financial-service/internal/service,metarang/financial-service/internal/grpcclients,metarang/financial-service/internal/config,metarang/financial-service/internal/sadad,metarang/financial-service/cmd/server'; \
 		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
 		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
 		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
 		$$pct = [double]$$matches[1]; \
-		Write-Host ('financial-service handler statements coverage: ' + $$pct + '%'); \
+		Write-Host ('financial-service internal statements coverage: ' + $$pct + '%'); \
 		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
 else
-	cd tests/financial-service && GOWORK=off go test ./internal/handler/... -race -coverprofile=coverage.out -covermode=atomic
+	cd tests/financial-service && GOWORK=off go test ./internal/... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=metarang/financial-service/internal/handler,metarang/financial-service/internal/middleware,metarang/financial-service/internal/repository,metarang/financial-service/internal/service,metarang/financial-service/internal/grpcclients,metarang/financial-service/internal/config,metarang/financial-service/internal/sadad,metarang/financial-service/cmd/server
 	@pct=$$(cd tests/financial-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
-	echo "financial-service handler statements coverage: $${pct}%"; \
+	echo "financial-service internal statements coverage: $${pct}%"; \
 	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
 endif
-	@echo "✅ financial-service handler coverage OK"
+	@echo "✅ financial-service coverage OK"
 
 # Social-service internal coverage gate (≥70%: handler, middleware, repository, service, lang)
 test-coverage-social:

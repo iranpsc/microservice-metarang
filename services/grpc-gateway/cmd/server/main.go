@@ -61,7 +61,7 @@ func main() {
 	log.Printf("✅ Created auth service client for %s (connection will be established on first RPC call)", cfg.AuthServiceAddr)
 
 	// Create connections to other services (with fallback if not configured)
-	var dynastyConn, financialConn, commercialConn, levelsConn, trainingConn, supportConn *grpc.ClientConn
+	var dynastyConn, commercialConn, levelsConn, trainingConn, supportConn *grpc.ClientConn
 
 	if cfg.DynastyServiceAddr != "" {
 		dynastyConn, err = grpcutil.NewClient(
@@ -72,18 +72,6 @@ func main() {
 		} else {
 			defer func() { _ = dynastyConn.Close() }()
 			log.Printf("✅ Connected to dynasty service at %s", cfg.DynastyServiceAddr)
-		}
-	}
-
-	if cfg.FinancialServiceAddr != "" {
-		financialConn, err = grpcutil.NewClient(
-			cfg.FinancialServiceAddr,
-		)
-		if err != nil {
-			log.Printf("⚠️  Failed to connect to financial service: %v", err)
-		} else {
-			defer func() { _ = financialConn.Close() }()
-			log.Printf("✅ Connected to financial service at %s", cfg.FinancialServiceAddr)
 		}
 	}
 
@@ -154,11 +142,6 @@ func main() {
 	var dynastyHandler *handler.DynastyHandler
 	if dynastyConn != nil {
 		dynastyHandler = handler.NewDynastyHandler(dynastyConn, authConn)
-	}
-
-	var financialHandler *handler.FinancialHandler
-	if financialConn != nil {
-		financialHandler = handler.NewFinancialHandler(financialConn, authConn, cfg.Locale)
 	}
 
 	var commercialHandler *handler.CommercialHandler
@@ -564,20 +547,6 @@ func main() {
 				http.NotFound(w, r)
 			}
 		})))
-	}
-
-	// Financial routes — register callback paths before /api/order (more specific first).
-	if financialHandler != nil {
-		callbackHandler := http.HandlerFunc(financialHandler.HandleCallback)
-		registerExactAndTrailingSlash(mux, callbackHandler,
-			"/api/order/callback",
-			"/api/payment/callback", // legacy Sadad ReturnUrl
-		)
-		mux.Handle("/api/order", authMiddleware(http.HandlerFunc(financialHandler.CreateOrder)))
-		mux.Handle("/api/store", optionalAuthMiddleware(http.HandlerFunc(financialHandler.GetStorePackages)))
-		log.Printf("✅ Registered financial routes: POST /api/order, GET|POST /api/order/callback, GET|POST /api/payment/callback, POST /api/store")
-	} else {
-		log.Printf("⚠️  Financial routes NOT registered - financialHandler is nil (check FINANCIAL_SERVICE_ADDR)")
 	}
 
 	// Commercial routes (wallet + transactions for authenticated user)

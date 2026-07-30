@@ -84,6 +84,50 @@ services:
           - name: grpc-gateway
           - name: cors
 
+  # Financial Service (HTTP REST — migrated off grpc-gateway)
+  - name: financial-service
+    url: http://financial-service.metarang.svc.cluster.local:8065
+    protocol: http
+    routes:
+      - name: order-create
+        paths:
+          - /api/order
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: cors
+          - name: rate-limiting
+            config:
+              minute: 10
+              hour: 100
+              policy: local
+
+      - name: payment-callback
+        paths:
+          - /api/order/callback
+          - /api/payment/callback
+        methods:
+          - POST
+          - GET
+        strip_path: false
+        plugins:
+          - name: cors
+
+      - name: store-packages
+        paths:
+          - /api/store
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: cors
+          - name: rate-limiting
+            config:
+              minute: 60
+              hour: 1000
+              policy: local
+
   # Commercial Service
   - name: commercial-service
     url: grpc://commercial-service.metarang.svc.cluster.local:50052
@@ -131,33 +175,6 @@ services:
           - name: grpc-gateway
           - name: cors
       
-      - name: order-create
-        paths:
-          - /api/order
-        methods:
-          - POST
-        strip_path: false
-        plugins:
-          - name: grpc-gateway
-          - name: cors
-          - name: rate-limiting
-            config:
-              minute: 10
-              hour: 100
-              policy: local
-      
-      - name: payment-callback
-        paths:
-          - /api/order/callback
-        methods:
-          - POST
-          - GET
-        strip_path: false
-        plugins:
-          - name: grpc-gateway
-          - name: cors
-
-plugins:
   # Prometheus metrics (required for Grafana golden signals / API traffic dashboards)
   - name: prometheus
     config:

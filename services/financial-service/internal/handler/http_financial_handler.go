@@ -5,55 +5,111 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"metarang/grpc-gateway/internal/middleware"
-	pb "metarang/shared/pb/auth"
+	"metarang/financial-service/internal/middleware"
 	financialpb "metarang/shared/pb/financial"
 	"metarang/shared/pkg/helpers"
+	"metarang/shared/pkg/sentry"
 )
 
-func appendAcceptLanguage(ctx context.Context, r *http.Request) context.Context {
+type orderAPI interface {
+	CreateOrder(context.Context, *financialpb.CreateOrderRequest) (*financialpb.CreateOrderResponse, error)
+	HandleCallback(context.Context, *financialpb.HandleCallbackRequest) (*financialpb.HandleCallbackResponse, error)
+}
+
+type storeAPI interface {
+	GetStorePackages(context.Context, *financialpb.GetStorePackagesRequest) (*financialpb.GetStorePackagesResponse, error)
+}
+
+// HTTPFinancialHandler serves Kong-facing REST routes for financial-service.
+type HTTPFinancialHandler struct {
+	order  orderAPI
+	store  storeAPI
+	locale string
+}
+
+// NewHTTPFinancialHandler wraps local gRPC handlers for HTTP use.
+func NewHTTPFinancialHandler(order orderAPI, store storeAPI) *HTTPFinancialHandler {
+	locale := strings.ToLower(os.Getenv("PROJECT_LOCALE"))
+	if locale == "" {
+		locale = "en"
+	}
+	return &HTTPFinancialHandler{order: order, store: store, locale: locale}
+}
+
+// RegisterHTTPRoutes registers financial REST routes and /health.
+func (h *HTTPFinancialHandler) RegisterHTTPRoutes(
+	mux *http.ServeMux,
+	authMiddleware func(http.Handler) http.Handler,
+	optionalAuthMiddleware func(http.Handler) http.Handler,
+) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	callbackHandler := http.HandlerFunc(h.HandleCallback)
+	registerExactAndTrailingSlash(mux, callbackHandler,
+		"/api/order/callback",
+		"/api/payment/callback",
+	)
+	mux.Handle("/api/order", authMiddleware(http.HandlerFunc(h.CreateOrder)))
+	mux.Handle("/api/store", optionalAuthMiddleware(http.HandlerFunc(h.GetStorePackages)))
+}
+
+// StartHTTPServer starts the public HTTP server (behind Kong).
+func StartHTTPServer(
+	httpHandler *HTTPFinancialHandler,
+	port string,
+	authMiddleware func(http.Handler) http.Handler,
+	optionalAuthMiddleware func(http.Handler) http.Handler,
+) error {
+	mux := http.NewServeMux()
+	httpHandler.RegisterHTTPRoutes(mux, authMiddleware, optionalAuthMiddleware)
+
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: sentry.HTTPMiddleware(mux),
+	}
+	return server.ListenAndServe()
+}
+
+func registerExactAndTrailingSlash(mux *http.ServeMux, handler http.Handler, paths ...string) {
+	for _, path := range paths {
+		mux.Handle(path, handler)
+		if !strings.HasSuffix(path, "/") {
+			mux.Handle(path+"/", handler)
+		}
+	}
+}
+
+func contextWithAcceptLanguage(r *http.Request) context.Context {
 	al := r.Header.Get("Accept-Language")
 	if al == "" {
-		return ctx
+		return r.Context()
 	}
-	return metadata.AppendToOutgoingContext(ctx, "accept-language", al, "grpcgateway-accept-language", al)
-}
-
-type FinancialHandler struct {
-	orderClient financialpb.OrderServiceClient
-	storeClient financialpb.StoreServiceClient
-	authClient  pb.AuthServiceClient
-	locale      string
-}
-
-func NewFinancialHandler(financialConn, authConn *grpc.ClientConn, locale string) *FinancialHandler {
-	return &FinancialHandler{
-		orderClient: financialpb.NewOrderServiceClient(financialConn),
-		storeClient: financialpb.NewStoreServiceClient(financialConn),
-		authClient:  pb.NewAuthServiceClient(authConn),
-		locale:      locale,
-	}
+	md := metadata.Pairs("accept-language", al, "grpcgateway-accept-language", al)
+	return metadata.NewIncomingContext(r.Context(), md)
 }
 
 // CreateOrder handles POST /api/order
-func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPFinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	// Get user from context (set by auth middleware)
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-	userID := userCtx.UserID
 
 	var req struct {
 		Amount int32  `json:"amount"`
@@ -69,7 +125,6 @@ func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate amount
 	if req.Amount < 1 {
 		helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
 			"amount": "The amount field must be at least 1",
@@ -77,7 +132,6 @@ func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate asset
 	validAssets := map[string]bool{"psc": true, "irr": true, "red": true, "blue": true, "yellow": true}
 	if !validAssets[req.Asset] {
 		helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
@@ -87,14 +141,14 @@ func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grpcReq := &financialpb.CreateOrderRequest{
-		UserId: userID,
+		UserId: userCtx.UserID,
 		Amount: req.Amount,
 		Asset:  req.Asset,
 	}
 
-	resp, err := h.orderClient.CreateOrder(appendAcceptLanguage(r.Context(), r), grpcReq)
+	resp, err := h.order.CreateOrder(contextWithAcceptLanguage(r), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err, h.locale)
 		return
 	}
 
@@ -103,14 +157,13 @@ func (h *FinancialHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}, true)
 }
 
-// HandleCallback handles POST /api/order/callback
-func (h *FinancialHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
+// HandleCallback handles GET|POST /api/order/callback and /api/payment/callback
+func (h *HTTPFinancialHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost && r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	// Sadad sends form-encoded POST data; order_id is embedded in ReturnUrl query params.
 	if err := r.ParseForm(); err != nil {
 		writeError(w, http.StatusBadRequest, "failed to parse form data")
 		return
@@ -144,7 +197,6 @@ func (h *FinancialHandler) HandleCallback(w http.ResponseWriter, r *http.Request
 		resCode = r.FormValue("resCode")
 	}
 
-	// Collect all additional parameters
 	additionalParams := make(map[string]string)
 	for k, v := range r.Form {
 		switch k {
@@ -163,18 +215,17 @@ func (h *FinancialHandler) HandleCallback(w http.ResponseWriter, r *http.Request
 		AdditionalParams: additionalParams,
 	}
 
-	resp, err := h.orderClient.HandleCallback(appendAcceptLanguage(r.Context(), r), grpcReq)
+	resp, err := h.order.HandleCallback(contextWithAcceptLanguage(r), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err, h.locale)
 		return
 	}
 
-	// Redirect to the project payment verification page.
 	http.Redirect(w, r, resp.RedirectUrl, http.StatusFound)
 }
 
 // GetStorePackages handles POST /api/store
-func (h *FinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPFinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -193,7 +244,6 @@ func (h *FinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Validation: at least 2 codes required
 	if len(req.Codes) < 2 {
 		helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
 			"codes": "The codes field must contain at least 2 items",
@@ -201,7 +251,6 @@ func (h *FinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Validate each code
 	for i, code := range req.Codes {
 		if len(code) < 2 {
 			helpers.WriteValidationErrorResponseFromMap(w, map[string]string{
@@ -215,13 +264,12 @@ func (h *FinancialHandler) GetStorePackages(w http.ResponseWriter, r *http.Reque
 		Codes: req.Codes,
 	}
 
-	resp, err := h.storeClient.GetStorePackages(appendAcceptLanguage(r.Context(), r), grpcReq)
+	resp, err := h.store.GetStorePackages(contextWithAcceptLanguage(r), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err, h.locale)
 		return
 	}
 
-	// Convert to JSON format matching Laravel PackageResource
 	packages := make([]map[string]interface{}, 0, len(resp.Packages))
 	for _, pkg := range resp.Packages {
 		pkgData := map[string]interface{}{

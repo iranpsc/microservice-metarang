@@ -26,9 +26,10 @@ func NewOrderHandler(orderService service.OrderService) *OrderHandler {
 	}
 }
 
-func RegisterOrderHandler(grpcServer *grpc.Server, orderService service.OrderService) {
+func RegisterOrderHandler(grpcServer *grpc.Server, orderService service.OrderService) *OrderHandler {
 	handler := NewOrderHandler(orderService)
 	pb.RegisterOrderServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *OrderHandler) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (*pb.CreateOrderResponse, error) {

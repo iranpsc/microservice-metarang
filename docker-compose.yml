@@ -154,7 +154,6 @@ services:
       HTTP_PORT: 8080
       AUTH_SERVICE_ADDR: auth-service:50051
       DYNASTY_SERVICE_ADDR: dynasty-service:50055
-      FINANCIAL_SERVICE_ADDR: financial-service:50062
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       LEVELS_SERVICE_ADDR: levels-service:50054
       TRAINING_SERVICE_ADDR: training-service:50057
@@ -166,8 +165,6 @@ services:
       auth-service:
         condition: service_started
       commercial-service:
-        condition: service_started
-      financial-service:
         condition: service_started
       training-service:
         condition: service_started
@@ -638,6 +635,7 @@ services:
       - ./services/financial-service/config.env
     environment:
       GRPC_PORT: 50062
+      HTTP_PORT: 8065
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -657,7 +655,7 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50062"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8065/health"]
       interval: 30s
       timeout: 3s
       retries: 3

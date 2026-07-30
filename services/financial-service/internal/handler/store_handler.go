@@ -25,9 +25,10 @@ func NewStoreHandler(storeService service.StoreService) *StoreHandler {
 	}
 }
 
-func RegisterStoreHandler(grpcServer *grpc.Server, storeService service.StoreService) {
+func RegisterStoreHandler(grpcServer *grpc.Server, storeService service.StoreService) *StoreHandler {
 	handler := NewStoreHandler(storeService)
 	pb.RegisterStoreServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *StoreHandler) GetStorePackages(ctx context.Context, req *pb.GetStorePackagesRequest) (*pb.GetStorePackagesResponse, error) {
