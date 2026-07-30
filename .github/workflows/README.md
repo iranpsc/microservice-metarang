@@ -4,7 +4,7 @@
 
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
-| Services CI/CD | `services-ci.yml` | Push/PR to `main`/`develop` (service, shared, or schema changes), manual | Detects changed services and runs the full CI/CD pipeline for each |
+| Services CI/CD | `services-ci.yml` | Push/PR to `main`/`dev` (service, shared, or schema changes), manual | Detects changed services and runs the full CI/CD pipeline for each |
 | Service CI (Reusable) | `service-ci.yml` | Called by `services-ci.yml` | Lint → Test → Build/Scan → Deploy for a single service |
 | Shared Packages CI | `shared-packages.yml` | Push/PR touching `shared/**`, manual | Lint, test, and vulnerability-check shared Go packages |
 
@@ -56,7 +56,7 @@ Use **Actions → Services CI/CD → Run workflow**:
 
 ## Branch protection
 
-Recommended required checks for `main`/`develop`:
+Recommended required checks for `main`/`dev`:
 
 - **Services CI/CD** (covers lint/test/build of changed services)
 - **Shared Packages CI** (for shared-only changes)

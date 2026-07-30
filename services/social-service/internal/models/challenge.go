@@ -91,4 +91,5 @@ type TimingsData struct {
 	Participants            int32
 	CorrectAnswers          int32
 	WrongAnswers            int32
+	Views                   int32
 }

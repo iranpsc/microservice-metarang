@@ -24,6 +24,9 @@ func TestChallengeService_GetTimings(t *testing.T) {
 	repo.GetTotalParticipantsCountFunc = func(ctx context.Context) (int32, error) {
 		return 100, nil
 	}
+	repo.GetTotalViewsCountFunc = func(ctx context.Context) (int32, error) {
+		return 250, nil
+	}
 	repo.GetUserAnswerCountFunc = func(ctx context.Context, userID uint64, isCorrect bool) (int32, error) {
 		if isCorrect {
 			return 3, nil
@@ -39,6 +42,7 @@ func TestChallengeService_GetTimings(t *testing.T) {
 	require.Equal(t, int32(100), out.Participants)
 	require.Equal(t, int32(3), out.CorrectAnswers)
 	require.Equal(t, int32(7), out.WrongAnswers)
+	require.Equal(t, int32(250), out.Views)
 }
 
 func TestChallengeService_GetQuestion_NoQuestions(t *testing.T) {

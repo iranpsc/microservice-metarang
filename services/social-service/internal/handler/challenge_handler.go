@@ -45,6 +45,7 @@ func (h *ChallengeHandler) GetTimings(ctx context.Context, req *pb.GetTimingsReq
 			Participants:            timings.Participants,
 			CorrectAnswers:          timings.CorrectAnswers,
 			WrongAnswers:            timings.WrongAnswers,
+			Views:                   timings.Views,
 		},
 	}, nil
 }

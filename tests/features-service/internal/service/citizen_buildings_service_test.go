@@ -147,7 +147,7 @@ func TestCitizenBuildingsService_GetBuildings_MapsAttributesAndPagination(t *tes
 			{
 				FeaturePropertiesID: "h0-00991",
 				Karbari:             "m",
-				AttributesJSON:      `[{"slug":"area","value":85},{"slug":"floors","value":2}]`,
+				AttributesJSON:      `[{"slug":"length","value":17},{"slug":"width","value":5},{"slug":"floors","value":2}]`,
 				ConstructionEndDate: endDate,
 			},
 		}, nil
@@ -161,7 +161,7 @@ func TestCitizenBuildingsService_GetBuildings_MapsAttributesAndPagination(t *tes
 	assert.Equal(t, "H0-00991", item.FeaturePropertiesID)
 	assert.Equal(t, "m", item.Karbari)
 	require.NotNil(t, item.Area)
-	assert.Equal(t, 85.0, *item.Area)
+	assert.Equal(t, 85.0, *item.Area) // length * width
 	assert.Nil(t, item.Visitors)
 	require.NotNil(t, item.Floors)
 	assert.Equal(t, 2.0, *item.Floors)

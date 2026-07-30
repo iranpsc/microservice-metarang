@@ -8,7 +8,7 @@ on:
       - '.github/scripts/**'
     branches:
       - main
-      - develop
+      - dev
   pull_request:
     paths:
       - 'shared/**'
@@ -16,7 +16,7 @@ on:
       - '.github/scripts/**'
     branches:
       - main
-      - develop
+      - dev
   workflow_dispatch:
 
 permissions:

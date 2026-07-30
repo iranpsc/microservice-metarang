@@ -269,7 +269,7 @@ func (h *HTTPSocialHandler) GetQuestion(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp.Data)
+	writeJSON(w, http.StatusOK, buildQuestionHTTPResponse(resp.Data, false))
 }
 
 // SubmitAnswer handles POST /api/challenge/answer
@@ -318,7 +318,7 @@ func (h *HTTPSocialHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp.Data)
+	writeJSON(w, http.StatusOK, buildQuestionHTTPResponse(resp.Data, true))
 }
 
 // GetAdvertisement handles GET /api/challenge/advertisement
@@ -474,7 +474,42 @@ func buildTimingsHTTPResponse(data *socialpb.TimingsData) map[string]interface{}
 			"participants":              data.Participants,
 			"correct_answers":           data.CorrectAnswers,
 			"wrong_answers":             data.WrongAnswers,
+			"views":                     data.Views,
 		},
+	}
+}
+
+// buildQuestionHTTPResponse maps a QuestionResource for HTTP JSON.
+// Proto json tags use omitempty, which drops zero participants/views; always emit them.
+func buildQuestionHTTPResponse(resource *socialpb.QuestionResource, includeAnswerReveal bool) map[string]interface{} {
+	if resource == nil {
+		return map[string]interface{}{}
+	}
+
+	answers := make([]map[string]interface{}, 0, len(resource.Answers))
+	for _, answer := range resource.Answers {
+		item := map[string]interface{}{
+			"id":    answer.Id,
+			"title": answer.Title,
+			"image": answer.Image,
+		}
+		if includeAnswerReveal {
+			item["is_correct"] = answer.IsCorrect
+			item["vote_percentage"] = answer.VotePercentage
+		}
+		answers = append(answers, item)
+	}
+
+	return map[string]interface{}{
+		"id":           resource.Id,
+		"title":        resource.Title,
+		"image":        resource.Image,
+		"prize":        resource.Prize,
+		"prize_type":   resource.PrizeType,
+		"participants": resource.Participants,
+		"views":        resource.Views,
+		"creator_code": resource.CreatorCode,
+		"answers":      answers,
 	}
 }
 

@@ -57,7 +57,7 @@ func TestChallengeHandler_GetTimings_OK(t *testing.T) {
 			getTimings: func(ctx context.Context, uid uint64) (*models.TimingsData, error) {
 				return &models.TimingsData{
 					DisplayAdInterval: 1, DisplayQuestionInterval: 2, DisplayAnswerInterval: 3,
-					Participants: 4, CorrectAnswers: 5, WrongAnswers: 6,
+					Participants: 4, CorrectAnswers: 5, WrongAnswers: 6, Views: 7,
 				}, nil
 			},
 		})
@@ -65,7 +65,7 @@ func TestChallengeHandler_GetTimings_OK(t *testing.T) {
 	defer cleanup()
 	cli := pb.NewChallengeServiceClient(conn)
 	resp, err := cli.GetTimings(context.Background(), &pb.GetTimingsRequest{UserId: 42})
-	if err != nil || resp.Data.Participants != 4 {
+	if err != nil || resp.Data.Participants != 4 || resp.Data.Views != 7 {
 		t.Fatalf("err=%v resp=%+v", err, resp)
 	}
 }

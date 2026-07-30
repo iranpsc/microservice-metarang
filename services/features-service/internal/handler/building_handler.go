@@ -98,7 +98,6 @@ func (h *BuildingHandler) GetBuildings(ctx context.Context, req *pb.GetBuildings
 }
 
 // UpdateBuilding updates an existing building
-// Implements Laravel's BuildFeatureController@updateBuilding
 func (h *BuildingHandler) UpdateBuilding(ctx context.Context, req *pb.UpdateBuildingRequest) (*pb.BuildingResponse, error) {
 	locale := GetProjectLocale()
 	if req.FeatureId == 0 {

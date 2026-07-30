@@ -132,6 +132,12 @@ func (s *challengeService) GetTimings(ctx context.Context, userID uint64) (*mode
 		return nil, fmt.Errorf("failed to get participants count: %w", err)
 	}
 
+	// Get sum of views across all questions
+	views, err := s.challengeRepo.GetTotalViewsCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get views count: %w", err)
+	}
+
 	// Get user's correct and wrong answers
 	correctAnswers, err := s.challengeRepo.GetUserAnswerCount(ctx, userID, true)
 	if err != nil {
@@ -150,6 +156,7 @@ func (s *challengeService) GetTimings(ctx context.Context, userID uint64) (*mode
 		Participants:            participants,
 		CorrectAnswers:          correctAnswers,
 		WrongAnswers:            wrongAnswers,
+		Views:                   views,
 	}, nil
 }
 

@@ -610,6 +610,7 @@ type TimingsData struct {
 	Participants            int32                  `protobuf:"varint,4,opt,name=participants,proto3" json:"participants,omitempty"`
 	CorrectAnswers          int32                  `protobuf:"varint,5,opt,name=correct_answers,json=correctAnswers,proto3" json:"correct_answers,omitempty"`
 	WrongAnswers            int32                  `protobuf:"varint,6,opt,name=wrong_answers,json=wrongAnswers,proto3" json:"wrong_answers,omitempty"`
+	Views                   int32                  `protobuf:"varint,7,opt,name=views,proto3" json:"views,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -682,6 +683,13 @@ func (x *TimingsData) GetCorrectAnswers() int32 {
 func (x *TimingsData) GetWrongAnswers() int32 {
 	if x != nil {
 		return x.WrongAnswers
+	}
+	return 0
+}
+
+func (x *TimingsData) GetViews() int32 {
+	if x != nil {
+		return x.Views
 	}
 	return 0
 }
@@ -1288,14 +1296,15 @@ const file_social_proto_rawDesc = "" +
 	"\x11GetTimingsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\"=\n" +
 	"\x12GetTimingsResponse\x12'\n" +
-	"\x04data\x18\x01 \x01(\v2\x13.social.TimingsDataR\x04data\"\xa3\x02\n" +
+	"\x04data\x18\x01 \x01(\v2\x13.social.TimingsDataR\x04data\"\xb9\x02\n" +
 	"\vTimingsData\x12.\n" +
 	"\x13display_ad_interval\x18\x01 \x01(\x05R\x11displayAdInterval\x12:\n" +
 	"\x19display_question_interval\x18\x02 \x01(\x05R\x17displayQuestionInterval\x126\n" +
 	"\x17display_answer_interval\x18\x03 \x01(\x05R\x15displayAnswerInterval\x12\"\n" +
 	"\fparticipants\x18\x04 \x01(\x05R\fparticipants\x12'\n" +
 	"\x0fcorrect_answers\x18\x05 \x01(\x05R\x0ecorrectAnswers\x12#\n" +
-	"\rwrong_answers\x18\x06 \x01(\x05R\fwrongAnswers\"-\n" +
+	"\rwrong_answers\x18\x06 \x01(\x05R\fwrongAnswers\x12\x14\n" +
+	"\x05views\x18\a \x01(\x05R\x05views\"-\n" +
 	"\x12GetQuestionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\"C\n" +
 	"\x13GetQuestionResponse\x12,\n" +

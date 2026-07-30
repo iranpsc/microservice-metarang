@@ -305,6 +305,32 @@ func TestChallengeRepository_CountsAndVariables(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("total views", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(`SELECT COALESCE\(SUM\(views\), 0\) FROM questions`).
+			WillReturnRows(sqlmock.NewRows([]string{"COALESCE(SUM(views), 0)"}).AddRow(123))
+
+		repo := repository.NewChallengeRepository(db)
+		n, err := repo.GetTotalViewsCount(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, int32(123), n)
+	})
+
+	t.Run("total views error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(`SELECT COALESCE\(SUM\(views\), 0\) FROM questions`).WillReturnError(sql.ErrConnDone)
+
+		repo := repository.NewChallengeRepository(db)
+		_, err = repo.GetTotalViewsCount(context.Background())
+		assert.Error(t, err)
+	})
+
 	t.Run("system variable found", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
 		require.NoError(t, err)

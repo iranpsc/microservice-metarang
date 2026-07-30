@@ -18,6 +18,7 @@ type MockChallengeRepository struct {
 	HasUserAnsweredFunc               func(ctx context.Context, userID, questionID uint64) (bool, error)
 	GetUserAnswerCountFunc            func(ctx context.Context, userID uint64, isCorrect bool) (int32, error)
 	GetTotalParticipantsCountFunc     func(ctx context.Context) (int32, error)
+	GetTotalViewsCountFunc            func(ctx context.Context) (int32, error)
 	GetSystemVariableFunc             func(ctx context.Context, slug string) (float64, error)
 	GetAnswerVoteCountFunc            func(ctx context.Context, answerID uint64) (int32, error)
 	GetQuestionTotalAnswersFunc       func(ctx context.Context, questionID uint64) (int32, error)
@@ -82,6 +83,13 @@ func (m *MockChallengeRepository) GetUserAnswerCount(ctx context.Context, userID
 func (m *MockChallengeRepository) GetTotalParticipantsCount(ctx context.Context) (int32, error) {
 	if m.GetTotalParticipantsCountFunc != nil {
 		return m.GetTotalParticipantsCountFunc(ctx)
+	}
+	return 0, nil
+}
+
+func (m *MockChallengeRepository) GetTotalViewsCount(ctx context.Context) (int32, error) {
+	if m.GetTotalViewsCountFunc != nil {
+		return m.GetTotalViewsCountFunc(ctx)
 	}
 	return 0, nil
 }

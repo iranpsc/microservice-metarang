@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -168,7 +169,13 @@ func (s *CitizenBuildingsService) GetBuildings(
 }
 
 func mapCitizenBuildingRow(row models.CitizenBuildingRow) models.CitizenBuildingListItem {
-	area := extractBuildingAttributeFloat(row.AttributesJSON, "area")
+	length := extractBuildingAttributeFloat(row.AttributesJSON, "length")
+	width := extractBuildingAttributeFloat(row.AttributesJSON, "width")
+	var area *float64
+	if length != nil && width != nil {
+		a := (*length) * (*width)
+		area = &a
+	}
 	visitors := extractBuildingAttributeFloat(row.AttributesJSON, "visitors")
 	emptyUnits := extractBuildingAttributeFloat(row.AttributesJSON, "empty_units")
 	floors := extractBuildingAttributeFloat(row.AttributesJSON, "floors")
@@ -216,6 +223,10 @@ func extractBuildingAttributeFloat(attributesJSON, slug string) *float64 {
 			return &f
 		case json.Number:
 			if f, err := v.Float64(); err == nil {
+				return &f
+			}
+		case string:
+			if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
 				return &f
 			}
 		}

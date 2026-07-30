@@ -330,6 +330,7 @@ func TestHTTPGetTimings_IncludesZeroAnswerCounts(t *testing.T) {
 				Participants:            2,
 				CorrectAnswers:          0,
 				WrongAnswers:            0,
+				Views:                   42,
 			},
 		}, nil
 	}
@@ -348,6 +349,7 @@ func TestHTTPGetTimings_IncludesZeroAnswerCounts(t *testing.T) {
 	assert.EqualValues(t, 15, data["display_ad_interval"])
 	assert.EqualValues(t, 0, data["correct_answers"])
 	assert.EqualValues(t, 0, data["wrong_answers"])
+	assert.EqualValues(t, 42, data["views"])
 }
 
 func TestHTTPGetTimings_NilDataAndErrors(t *testing.T) {
@@ -382,7 +384,11 @@ func TestHTTPGetQuestion(t *testing.T) {
 	challenge := &mockChallengeAPI{
 		GetQuestionFunc: func(_ context.Context, req *socialpb.GetQuestionRequest) (*socialpb.GetQuestionResponse, error) {
 			return &socialpb.GetQuestionResponse{
-				Data: &socialpb.QuestionResource{Id: 1, Title: "Q"},
+				Data: &socialpb.QuestionResource{
+					Id: 1, Title: "Q", Prize: 5, PrizeType: "psc",
+					Participants: 0, Views: 0, CreatorCode: "c-1",
+					Answers: []*socialpb.AnswerResource{{Id: 10, Title: "A", Image: "img"}},
+				},
 			}, nil
 		},
 	}
@@ -392,6 +398,9 @@ func TestHTTPGetQuestion(t *testing.T) {
 	h.GetQuestion(w, requestWithUser(httptest.NewRequest(http.MethodGet, "/api/challenge/question", nil), 1))
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"title":"Q"`)
+	assert.Contains(t, w.Body.String(), `"participants":0`)
+	assert.Contains(t, w.Body.String(), `"views":0`)
+	assert.NotContains(t, w.Body.String(), `"is_correct"`)
 
 	w = httptest.NewRecorder()
 	h.GetQuestion(w, httptest.NewRequest(http.MethodGet, "/api/challenge/question", nil))
@@ -412,7 +421,13 @@ func TestHTTPSubmitAnswer(t *testing.T) {
 			require.Equal(t, uint64(10), req.QuestionId)
 			require.Equal(t, uint64(20), req.AnswerId)
 			return &socialpb.SubmitAnswerResponse{
-				Data: &socialpb.QuestionResource{Id: 10, Title: "done"},
+				Data: &socialpb.QuestionResource{
+					Id: 10, Title: "done", Participants: 3, Views: 7,
+					Answers: []*socialpb.AnswerResource{
+						{Id: 20, Title: "A", IsCorrect: false, VotePercentage: 0},
+						{Id: 21, Title: "B", IsCorrect: true, VotePercentage: 100},
+					},
+				},
 			}, nil
 		},
 	}
@@ -422,6 +437,10 @@ func TestHTTPSubmitAnswer(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.SubmitAnswer(w, requestWithUser(httptest.NewRequest(http.MethodPost, "/api/challenge/answer", strings.NewReader(body)), 1))
 	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"participants":3`)
+	assert.Contains(t, w.Body.String(), `"views":7`)
+	assert.Contains(t, w.Body.String(), `"is_correct":false`)
+	assert.Contains(t, w.Body.String(), `"vote_percentage":0`)
 
 	w = httptest.NewRecorder()
 	h.SubmitAnswer(w, requestWithUser(httptest.NewRequest(http.MethodGet, "/api/challenge/answer", nil), 1))

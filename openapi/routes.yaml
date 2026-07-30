@@ -787,6 +787,10 @@ routes:
                       type: integer
                       description: Number of wrong answers by the authenticated user
                       example: 0
+                    views:
+                      type: integer
+                      description: Sum of views across all challenge questions
+                      example: 0
   - path: /api/challenge/advertisement
     methods: [get]
     tag: Social

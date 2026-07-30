@@ -970,6 +970,10 @@ paths:
                                                 description: Number of wrong answers by the authenticated user
                                                 example: 0
                                                 type: integer
+                                            views:
+                                                description: Sum of views across all challenge questions
+                                                example: 0
+                                                type: integer
                                         type: object
                                 type: object
                     description: Challenge timing intervals and statistics
