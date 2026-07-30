@@ -1,10 +1,11 @@
-package handler
+package handler_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"metarang/commercial-service/internal/handler"
 	"metarang/commercial-service/internal/models"
 	pb "metarang/shared/pb/commercial"
 
@@ -29,7 +30,7 @@ func (s *stubReferralService) ProcessReferralCommission(ctx context.Context, use
 func TestReferralHandler_ProcessReferral(t *testing.T) {
 	t.Run("maps request and returns empty on success", func(t *testing.T) {
 		stub := &stubReferralService{}
-		h := NewReferralHandler(stub)
+		h := handler.NewReferralHandler(stub)
 		_, err := h.ProcessReferral(context.Background(), &pb.ProcessReferralRequest{
 			BuyerUserId: 7,
 			OrderId:     42,
@@ -45,7 +46,7 @@ func TestReferralHandler_ProcessReferral(t *testing.T) {
 	})
 
 	t.Run("nil request", func(t *testing.T) {
-		h := NewReferralHandler(&stubReferralService{})
+		h := handler.NewReferralHandler(&stubReferralService{})
 		_, err := h.ProcessReferral(context.Background(), nil)
 		if err == nil {
 			t.Fatal("expected error")
@@ -57,7 +58,7 @@ func TestReferralHandler_ProcessReferral(t *testing.T) {
 
 	t.Run("service error becomes internal", func(t *testing.T) {
 		stub := &stubReferralService{err: errors.New("boom")}
-		h := NewReferralHandler(stub)
+		h := handler.NewReferralHandler(stub)
 		_, err := h.ProcessReferral(context.Background(), &pb.ProcessReferralRequest{
 			BuyerUserId: 1,
 			OrderId:     1,
