@@ -3,6 +3,7 @@ package repository_test
 import (
 	"context"
 	"database/sql"
+	"regexp"
 	"testing"
 	"time"
 
@@ -158,6 +159,120 @@ func TestLevelRepository_GetLevelPrize_SatisfactionFormatting(t *testing.T) {
 			assert.Equal(t, tc.expected, prize.Satisfaction)
 		})
 	}
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLevelRepository_GetNextLevel(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := repository.NewLevelRepository(db, "https://admin.example.com")
+	ctx := context.Background()
+
+	t.Run("Found", func(t *testing.T) {
+		mock.ExpectQuery("SELECT l.id, l.name, l.slug, CAST\\(l.score AS UNSIGNED\\) as score").
+			WithArgs(int32(100)).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "background_image", "image_url"}).
+				AddRow(2, "Level 2", "level-2", 200, "bg2.jpg", "img2.jpg"))
+
+		level, err := repo.GetNextLevel(ctx, 100)
+		require.NoError(t, err)
+		require.NotNil(t, level)
+		assert.Equal(t, uint64(2), level.Id)
+		assert.Equal(t, "https://admin.example.com/uploads/img2.jpg", level.ImageUrl)
+	})
+
+	t.Run("NoNextLevel", func(t *testing.T) {
+		mock.ExpectQuery("SELECT l.id, l.name, l.slug, CAST\\(l.score AS UNSIGNED\\) as score").
+			WithArgs(int32(9999)).
+			WillReturnError(sql.ErrNoRows)
+
+		level, err := repo.GetNextLevel(ctx, 9999)
+		require.NoError(t, err)
+		assert.Nil(t, level)
+	})
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLevelRepository_GetNextLevelForScore(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := repository.NewLevelRepository(db, "")
+	ctx := context.Background()
+
+	t.Run("Found", func(t *testing.T) {
+		mock.ExpectQuery("SELECT l.id, l.name, l.slug, CAST\\(l.score AS UNSIGNED\\) as score").
+			WithArgs(int32(150), uint64(10)).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "background_image", "image_url"}).
+				AddRow(3, "Level 3", "level-3", 150, "", "uploads/existing.jpg"))
+
+		level, err := repo.GetNextLevelForScore(ctx, 10, 150)
+		require.NoError(t, err)
+		require.NotNil(t, level)
+		assert.Equal(t, "/uploads/existing.jpg", level.ImageUrl)
+	})
+
+	t.Run("NoNewLevel", func(t *testing.T) {
+		mock.ExpectQuery("SELECT l.id, l.name, l.slug, CAST\\(l.score AS UNSIGNED\\) as score").
+			WithArgs(int32(50), uint64(10)).
+			WillReturnError(sql.ErrNoRows)
+
+		level, err := repo.GetNextLevelForScore(ctx, 10, 50)
+		require.NoError(t, err)
+		assert.Nil(t, level)
+	})
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLevelRepository_AttachLevelToUser(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := repository.NewLevelRepository(db, "")
+	ctx := context.Background()
+
+	mock.ExpectExec("INSERT INTO level_user").
+		WithArgs(uint64(5), uint64(2)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo.AttachLevelToUser(ctx, 5, 2)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLevelRepository_GetVariableRate(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := repository.NewLevelRepository(db, "")
+	ctx := context.Background()
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT value FROM system_variables WHERE name = ? LIMIT 1")).
+			WithArgs("significant_trade_irr").
+			WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("5000"))
+
+		rate, err := repo.GetVariableRate(ctx, "significant_trade_irr")
+		require.NoError(t, err)
+		assert.Equal(t, 5000.0, rate)
+	})
+
+	t.Run("ParseError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT value FROM system_variables WHERE name = ? LIMIT 1")).
+			WithArgs("bad").
+			WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("abc"))
+
+		_, err := repo.GetVariableRate(ctx, "bad")
+		assert.Error(t, err)
+	})
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
