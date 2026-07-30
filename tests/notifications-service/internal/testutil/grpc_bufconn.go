@@ -25,9 +25,8 @@ func NewBufGRPCTestServer() *BufGRPCTestServer {
 func (s *BufGRPCTestServer) Start(t *testing.T) {
 	t.Helper()
 	go func() {
-		if err := s.Server.Serve(s.Lis); err != nil {
-			t.Logf("bufconn serve: %v", err)
-		}
+		// Ignore serve error: Server.Stop() in Cleanup causes Serve to return.
+		_ = s.Server.Serve(s.Lis)
 	}()
 	t.Cleanup(func() { s.Server.Stop() })
 }

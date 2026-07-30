@@ -21,13 +21,6 @@ func writeError(w http.ResponseWriter, statusCode int, message string) {
 	writeJSON(w, statusCode, map[string]string{"error": message})
 }
 
-func writeFieldValidationError(w http.ResponseWriter, message string, errors map[string][]string) {
-	writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
-		"message": message,
-		"errors":  errors,
-	})
-}
-
 func writeHandlerError(w http.ResponseWriter, err error) {
 	st, ok := status.FromError(err)
 	if !ok {

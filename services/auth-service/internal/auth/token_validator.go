@@ -1,3 +1,4 @@
+// Package auth provides local token validation for the auth service.
 package auth
 
 import (
