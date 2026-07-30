@@ -143,6 +143,7 @@ message AdvertisementResource {
   string image_url = 7;
   string url = 8;
   string investment_asset = 9;
+  int32 prize_per_question = 10;
 }
 
 message GetAdvertisementResponse {

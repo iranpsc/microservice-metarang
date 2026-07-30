@@ -95,15 +95,16 @@ func (s *challengeService) GetAdvertisement(ctx context.Context) ([]models.Adver
 		}
 
 		advertisements = append(advertisements, models.Advertisement{
-			Code:            seed.code,
-			Title:           lang.T(s.locale, seed.titleKey),
-			Description:     lang.T(s.locale, seed.descriptionKey),
-			InvestmentValue: seed.investmentValue,
-			EndsAt:          endsAt,
-			VideoURL:        s.advertisementAssetURL(seed.code, "mp4"),
-			ImageURL:        s.advertisementAssetURL(seed.code, "jpg"),
-			URL:             "https://metarang.com/fa/citizens/" + seed.code,
-			InvestmentAsset: "red",
+			Code:             seed.code,
+			Title:            lang.T(s.locale, seed.titleKey),
+			Description:      lang.T(s.locale, seed.descriptionKey),
+			InvestmentValue:  seed.investmentValue,
+			EndsAt:           endsAt,
+			VideoURL:         s.advertisementAssetURL(seed.code, "mp4"),
+			ImageURL:         s.advertisementAssetURL(seed.code, "jpg"),
+			URL:              "https://metarang.com/fa/citizens/" + seed.code,
+			InvestmentAsset:  "red",
+			PrizePerQuestion: 1,
 		})
 	}
 	return advertisements, nil

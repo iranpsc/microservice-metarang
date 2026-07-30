@@ -104,15 +104,16 @@ func (h *ChallengeHandler) GetAdvertisement(ctx context.Context, _ *pb.GetAdvert
 	resources := make([]*pb.AdvertisementResource, 0, len(advertisements))
 	for _, advertisement := range advertisements {
 		resources = append(resources, &pb.AdvertisementResource{
-			Code:            advertisement.Code,
-			Title:           advertisement.Title,
-			Description:     advertisement.Description,
-			InvestmentValue: advertisement.InvestmentValue,
-			EndsAt:          advertisement.EndsAt,
-			VideoUrl:        advertisement.VideoURL,
-			ImageUrl:        advertisement.ImageURL,
-			Url:             advertisement.URL,
-			InvestmentAsset: advertisement.InvestmentAsset,
+			Code:             advertisement.Code,
+			Title:            advertisement.Title,
+			Description:      advertisement.Description,
+			InvestmentValue:  advertisement.InvestmentValue,
+			EndsAt:           advertisement.EndsAt,
+			VideoUrl:         advertisement.VideoURL,
+			ImageUrl:         advertisement.ImageURL,
+			Url:              advertisement.URL,
+			InvestmentAsset:  advertisement.InvestmentAsset,
+			PrizePerQuestion: advertisement.PrizePerQuestion,
 		})
 	}
 

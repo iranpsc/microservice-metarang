@@ -228,10 +228,11 @@ func TestChallengeHandler_GetAdvertisement_OK(t *testing.T) {
 		handler.RegisterChallengeHandler(gs, &stubChallengeSvc{
 			getAdvertisement: func(ctx context.Context) ([]models.Advertisement, error) {
 				return []models.Advertisement{{
-					Code:            "bn-1000",
-					Title:           "Matrix exit box",
-					URL:             "https://metarang.com/fa/citizen/bn-1000",
-					InvestmentAsset: "red",
+					Code:             "bn-1000",
+					Title:            "Matrix exit box",
+					URL:              "https://metarang.com/fa/citizen/bn-1000",
+					InvestmentAsset:  "red",
+					PrizePerQuestion: 1,
 				}}, nil
 			},
 		})
@@ -251,5 +252,8 @@ func TestChallengeHandler_GetAdvertisement_OK(t *testing.T) {
 	}
 	if resp.Advertisements[0].InvestmentAsset != "red" {
 		t.Fatalf("unexpected investment_asset: %s", resp.Advertisements[0].InvestmentAsset)
+	}
+	if resp.Advertisements[0].PrizePerQuestion != 1 {
+		t.Fatalf("unexpected prize_per_question: %d", resp.Advertisements[0].PrizePerQuestion)
 	}
 }

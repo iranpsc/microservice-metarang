@@ -72,15 +72,16 @@ type AnswerResource struct {
 
 // Advertisement represents a challenge advertisement.
 type Advertisement struct {
-	Code            string
-	Title           string
-	Description     string
-	InvestmentValue string
-	EndsAt          string
-	VideoURL        string
-	ImageURL        string
-	URL             string
-	InvestmentAsset string
+	Code             string
+	Title            string
+	Description      string
+	InvestmentValue  string
+	EndsAt           string
+	VideoURL         string
+	ImageURL         string
+	URL              string
+	InvestmentAsset  string
+	PrizePerQuestion int32
 }
 
 // TimingsData represents challenge timing configuration and statistics

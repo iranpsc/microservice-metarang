@@ -342,15 +342,16 @@ func (h *HTTPSocialHandler) GetAdvertisement(w http.ResponseWriter, r *http.Requ
 	ads := make([]map[string]interface{}, 0, len(resp.Advertisements))
 	for _, ad := range resp.Advertisements {
 		ads = append(ads, map[string]interface{}{
-			"code":             ad.Code,
-			"title":            ad.Title,
-			"description":      ad.Description,
-			"investment_value": ad.InvestmentValue,
-			"ends_at":          ad.EndsAt,
-			"video_url":        ad.VideoUrl,
-			"image_url":        ad.ImageUrl,
-			"url":              ad.Url,
-			"investment_asset": ad.InvestmentAsset,
+			"code":               ad.Code,
+			"title":              ad.Title,
+			"description":        ad.Description,
+			"investment_value":   ad.InvestmentValue,
+			"ends_at":            ad.EndsAt,
+			"video_url":          ad.VideoUrl,
+			"image_url":          ad.ImageUrl,
+			"url":                ad.Url,
+			"investment_asset":   ad.InvestmentAsset,
+			"prize_per_question": ad.PrizePerQuestion,
 		})
 	}
 

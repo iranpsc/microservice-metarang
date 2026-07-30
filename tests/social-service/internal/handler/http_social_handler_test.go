@@ -483,6 +483,7 @@ func TestHTTPGetAdvertisement(t *testing.T) {
 				Advertisements: []*socialpb.AdvertisementResource{{
 					Code: "ad1", Title: "T", Description: "D", InvestmentValue: "1",
 					EndsAt: "soon", VideoUrl: "v", ImageUrl: "i", Url: "u", InvestmentAsset: "red",
+					PrizePerQuestion: 1,
 				}},
 			}, nil
 		},
@@ -493,6 +494,7 @@ func TestHTTPGetAdvertisement(t *testing.T) {
 	h.GetAdvertisement(w, requestWithUser(httptest.NewRequest(http.MethodGet, "/api/challenge/advertisement", nil), 1))
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"ad1"`)
+	assert.Contains(t, w.Body.String(), `"prize_per_question":1`)
 
 	w = httptest.NewRecorder()
 	h.GetAdvertisement(w, httptest.NewRequest(http.MethodGet, "/api/challenge/advertisement", nil))
