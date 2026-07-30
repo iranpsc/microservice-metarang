@@ -154,7 +154,8 @@ routes:
             port: 6379
 
   # Features API — higher priority than catch-all /api → grpc-gateway.
-  # OPTIONS is intentionally omitted so preflight hits api-preflight (no rate-limit).
+  # Include OPTIONS so preflight always matches this route (PATCH must be allowed).
+  # Kong CORS (priority 2000) answers OPTIONS before rate-limiting (901).
   - name: features-api
     service: features-service
     paths:
@@ -179,6 +180,7 @@ routes:
       - PUT
       - PATCH
       - DELETE
+      - OPTIONS
     plugins:
       - name: rate-limiting
         config:
@@ -334,6 +336,9 @@ plugins:
         - X-Requested-With
         - Origin
         - X-Request-Id
+        - X-CSRF-TOKEN
+        - X-XSRF-TOKEN
+        - X-Locale
         - sentry-trace
         - baggage
         - traceparent
@@ -341,6 +346,7 @@ plugins:
       exposed_headers:
         - X-Auth-Token
       credentials: true
-      max_age: 3600
-      # Kong answers OPTIONS; do not proxy preflight to grpc-gateway (avoids ACAO:* clash).
+      # Keep short so browsers do not stick to a stale preflight that omitted PATCH.
+      max_age: 60
+      # Kong answers OPTIONS; do not proxy preflight to upstream (avoids ACAO:* clash).
       preflight_continue: false

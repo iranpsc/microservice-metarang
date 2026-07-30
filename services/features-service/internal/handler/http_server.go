@@ -17,6 +17,21 @@ type HTTPServerHandlers struct {
 	CitizenBuildings *HTTPCitizenBuildingsHandler
 }
 
+// corsPreflightMiddleware answers OPTIONS when Kong proxies them (defense in depth).
+// ACAO stays Kong-owned; this only supplies Allow-Methods/Headers so PATCH preflights succeed.
+func corsPreflightMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, Origin, X-Request-Id, X-CSRF-TOKEN, X-XSRF-TOKEN, X-Locale, sentry-trace, baggage, traceparent, tracestate")
+			w.Header().Set("Access-Control-Max-Age", "60")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func StartHTTPServer(handlers HTTPServerHandlers, port string, auth func(http.Handler) http.Handler, optionalAuth func(http.Handler) http.Handler) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -56,5 +71,6 @@ func StartHTTPServer(handlers HTTPServerHandlers, port string, auth func(http.Ha
 			http.NotFound(w, r)
 		}
 	}))
-	return (&http.Server{Addr: ":" + port, Handler: sentry.HTTPMiddleware(mux)}).ListenAndServe()
+	handler := corsPreflightMiddleware(sentry.HTTPMiddleware(mux))
+	return (&http.Server{Addr: ":" + port, Handler: handler}).ListenAndServe()
 }
