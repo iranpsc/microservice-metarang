@@ -33,7 +33,7 @@ if [ "${#PROFILES[@]}" -eq 0 ]; then
     echo "_No coverage data was collected._"
     echo ""
     echo "Ensure tests run with \`-coverprofile\` and, for external test modules,"
-    echo "use \`-coverpkg=metarang/<service>/...\` to measure service code."
+    echo "use a service-scoped \`-coverpkg\` from \`go list ./...\` in the service module."
   } >> "$SUMMARY"
   exit 0
 fi
