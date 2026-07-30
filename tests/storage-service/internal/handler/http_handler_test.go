@@ -490,3 +490,78 @@ func TestChunkUpload_CompleteFlow(t *testing.T) {
 		t.Errorf("File content mismatch. Expected %d bytes, got %d bytes", len(expectedContent), len(savedContent))
 	}
 }
+
+func TestHTTPHandler_ServeUploads_EdgeCases(t *testing.T) {
+	tempDir := t.TempDir()
+	uploadRoot := filepath.Join(tempDir, "uploads")
+	chunkManager, _ := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
+	ftpClient := ftp.NewMockFTPClient(filepath.Join(tempDir, "ftp"), "http://example.com")
+	storageService := service.NewStorageService(ftpClient, chunkManager, uploadRoot)
+	h := handler.NewHTTPHandler(storageService, uploadRoot)
+
+	t.Run("method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/uploads/profile/x.jpg", nil)
+		w := httptest.NewRecorder()
+		h.ServeUploads(w, req)
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", w.Code)
+		}
+	})
+
+	t.Run("empty path not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/uploads/", nil)
+		w := httptest.NewRecorder()
+		h.ServeUploads(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", w.Code)
+		}
+	})
+
+	t.Run("path traversal blocked", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/uploads/../secret.txt", nil)
+		w := httptest.NewRecorder()
+		h.ServeUploads(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", w.Code)
+		}
+	})
+
+	t.Run("head request", func(t *testing.T) {
+		profileDir := filepath.Join(uploadRoot, "profile")
+		if err := os.MkdirAll(profileDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(profileDir, "head.jpg"), []byte("jpeg"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodHead, "/uploads/profile/head.jpg", nil)
+		w := httptest.NewRecorder()
+		h.ServeUploads(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+	})
+}
+
+func TestHTTPHandler_RegisterHTTPRoutes(t *testing.T) {
+	tempDir := t.TempDir()
+	chunkManager, _ := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
+	ftpClient := ftp.NewMockFTPClient(filepath.Join(tempDir, "ftp"), "http://example.com")
+	uploadRoot := filepath.Join(tempDir, "uploads")
+	storageService := service.NewStorageService(ftpClient, chunkManager, uploadRoot)
+	h := handler.NewHTTPHandler(storageService, uploadRoot)
+
+	mux := http.NewServeMux()
+	h.RegisterHTTPRoutes(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	resp, err := http.Get(server.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}

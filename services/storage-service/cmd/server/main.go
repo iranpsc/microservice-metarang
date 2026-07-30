@@ -25,22 +25,7 @@ import (
 )
 
 func main() {
-	// Load environment variables from config.env
-	configPaths := []string{
-		"config.env",
-		"./config.env",
-		"../config.env",
-		"../../config.env",
-		"services/storage-service/config.env",
-	}
-	var configLoaded bool
-	for _, configPath := range configPaths {
-		if err := godotenv.Load(configPath); err == nil {
-			configLoaded = true
-			break
-		}
-	}
-	if !configLoaded {
+	if !loadEnvFiles() {
 		log.Printf("Warning: config.env not found, using environment variables only")
 	}
 
@@ -49,15 +34,9 @@ func main() {
 	}
 	defer sentry.Flush(2 * time.Second)
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
-		getEnv("DB_USER", "root"),
-		getEnv("DB_PASSWORD", ""),
-		getEnv("DB_HOST", "localhost"),
-		getEnv("DB_PORT", "3306"),
-		getEnv("DB_DATABASE", "metarang_db"),
-	)
+	dsn := buildDSN()
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := openDatabase(dsn)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -66,47 +45,39 @@ func main() {
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
-	}
 	log.Println("Successfully connected to database")
 
-	// Initialize FTP client
+	cfg := loadRuntimeConfig()
 	ftpClient := ftp.NewFTPClient(
-		getEnv("FTP_HOST", "localhost"),
-		getEnv("FTP_PORT", "21"),
-		getEnv("FTP_USER", ""),
-		getEnv("FTP_PASSWORD", ""),
-		getEnv("FTP_BASE_URL", ""),
+		cfg.FTPHost,
+		cfg.FTPPort,
+		cfg.FTPUser,
+		cfg.FTPPassword,
+		cfg.FTPBaseURL,
 	)
 
 	// Initialize chunk manager
-	tempDir := getEnv("TEMP_DIR", "/tmp/storage-chunks")
-	chunkManager, err := service.NewChunkManager(tempDir)
+	chunkManager, err := service.NewChunkManager(cfg.TempDir)
 	if err != nil {
 		log.Fatalf("Failed to initialize chunk manager: %v", err)
 	}
-	log.Printf("Chunk manager initialized with temp directory: %s", tempDir)
+	log.Printf("Chunk manager initialized with temp directory: %s", cfg.TempDir)
 
 	// Initialize repositories
 	imageRepo := repository.NewImageRepository(db)
 
-	uploadsDir := getEnv("UPLOAD_DIR", "uploads")
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+	if err := ensureUploadsDir(cfg.UploadsDir); err != nil {
 		log.Fatalf("Failed to create uploads directory: %v", err)
 	}
-	log.Printf("✅ Uploads directory initialized: %s", uploadsDir)
+	log.Printf("✅ Uploads directory initialized: %s", cfg.UploadsDir)
 
 	// Initialize services
-	storageService := service.NewStorageService(ftpClient, chunkManager, uploadsDir)
+	storageService := service.NewStorageService(ftpClient, chunkManager, cfg.UploadsDir)
 	imageService := service.NewImageService(imageRepo, ftpClient)
 
 	// Create gRPC server
 	serviceMetrics := metrics.NewMetrics("storage_service")
-	metrics.StartHTTPServer(getEnv("METRICS_PORT", "9090"))
+	metrics.StartHTTPServer(cfg.MetricsPort)
 	serverOpts, err := grpcutil.ServerOptions(
 		grpc.MaxRecvMsgSize(100*1024*1024), // 100MB for file uploads
 		grpc.ChainUnaryInterceptor(
@@ -124,16 +95,15 @@ func main() {
 	handler.RegisterImageHandler(grpcServer, imageService)
 
 	// Create HTTP handler for REST API
-	httpHandler := handler.NewHTTPHandler(storageService, uploadsDir)
+	httpHandler := handler.NewHTTPHandler(storageService, cfg.UploadsDir)
 
 	// Start gRPC server
-	grpcPort := getEnv("GRPC_PORT", "50059")
-	listener, err := net.Listen("tcp", ":"+grpcPort)
+	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
-		log.Fatalf("Failed to listen on gRPC port %s: %v", grpcPort, err)
+		log.Fatalf("Failed to listen on gRPC port %s: %v", cfg.GRPCPort, err)
 	}
 
-	log.Printf("✅ gRPC server listening on port %s", grpcPort)
+	log.Printf("✅ gRPC server listening on port %s", cfg.GRPCPort)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
@@ -142,13 +112,12 @@ func main() {
 	}()
 
 	// Start HTTP server for REST API
-	httpPort := getEnv("HTTP_PORT", "8059")
-	log.Printf("✅ HTTP server listening on port %s", httpPort)
-	log.Printf("📤 Chunk upload endpoint: http://localhost:%s/upload", httpPort)
-	log.Printf("📁 Static uploads: http://localhost:%s/uploads/", httpPort)
+	log.Printf("✅ HTTP server listening on port %s", cfg.HTTPPort)
+	log.Printf("📤 Chunk upload endpoint: http://localhost:%s/upload", cfg.HTTPPort)
+	log.Printf("📁 Static uploads: http://localhost:%s/uploads/", cfg.HTTPPort)
 
 	go func() {
-		if err := handler.StartHTTPServer(httpHandler, httpPort); err != nil {
+		if err := handler.StartHTTPServer(httpHandler, cfg.HTTPPort); err != nil {
 			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
@@ -167,4 +136,78 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func buildDSN() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+		getEnv("DB_USER", "root"),
+		getEnv("DB_PASSWORD", ""),
+		getEnv("DB_HOST", "localhost"),
+		getEnv("DB_PORT", "3306"),
+		getEnv("DB_DATABASE", "metarang_db"),
+	)
+}
+
+type runtimeConfig struct {
+	TempDir     string
+	UploadsDir  string
+	GRPCPort    string
+	HTTPPort    string
+	MetricsPort string
+	FTPHost     string
+	FTPPort     string
+	FTPUser     string
+	FTPPassword string
+	FTPBaseURL  string
+}
+
+func loadRuntimeConfig() runtimeConfig {
+	return runtimeConfig{
+		TempDir:     getEnv("TEMP_DIR", "/tmp/storage-chunks"),
+		UploadsDir:  getEnv("UPLOAD_DIR", "uploads"),
+		GRPCPort:    getEnv("GRPC_PORT", "50059"),
+		HTTPPort:    getEnv("HTTP_PORT", "8059"),
+		MetricsPort: getEnv("METRICS_PORT", "9090"),
+		FTPHost:     getEnv("FTP_HOST", "localhost"),
+		FTPPort:     getEnv("FTP_PORT", "21"),
+		FTPUser:     getEnv("FTP_USER", ""),
+		FTPPassword: getEnv("FTP_PASSWORD", ""),
+		FTPBaseURL:  getEnv("FTP_BASE_URL", ""),
+	}
+}
+
+func ensureUploadsDir(dir string) error {
+	return os.MkdirAll(dir, 0755)
+}
+
+func loadEnvFiles() bool {
+	configPaths := []string{
+		"config.env",
+		"./config.env",
+		"../config.env",
+		"../../config.env",
+		"services/storage-service/config.env",
+	}
+	for _, configPath := range configPaths {
+		if err := godotenv.Load(configPath); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func openDatabase(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return db, nil
 }
