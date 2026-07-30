@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	calendarpb "metarang/shared/pb/calendar"
@@ -352,5 +355,163 @@ func TestAddInteraction_Remove(t *testing.T) {
 	})
 	if err != nil || !removed || resp == nil {
 		t.Fatal(err, removed, resp)
+	}
+}
+
+func TestGetEvents_ServiceError(t *testing.T) {
+	m := &testutil.MockCalendarRepo{}
+	m.GetEventsFunc = func(ctx context.Context, eventType, search, date string, userID uint64, page, perPage int32) ([]*models.Calendar, bool, error) {
+		return nil, false, errors.New("db error")
+	}
+	svc := service.NewCalendarService(m)
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		handler.RegisterCalendarHandler(s, svc)
+	})
+	defer cleanup()
+	client := calendarpb.NewCalendarServiceClient(conn)
+	_, err := client.GetEvents(context.Background(), &calendarpb.GetEventsRequest{
+		Pagination: &commonpb.PaginationRequest{Page: 1, PerPage: 10},
+	})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestGetEvent_InternalError(t *testing.T) {
+	m := &testutil.MockCalendarRepo{}
+	m.GetEventByIDFunc = func(ctx context.Context, id uint64) (*models.Calendar, error) {
+		return nil, errors.New("db error")
+	}
+	svc := service.NewCalendarService(m)
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		handler.RegisterCalendarHandler(s, svc)
+	})
+	defer cleanup()
+	client := calendarpb.NewCalendarServiceClient(conn)
+	_, err := client.GetEvent(context.Background(), &calendarpb.GetEventRequest{EventId: 1})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestFilterByDateRange_Error(t *testing.T) {
+	m := &testutil.MockCalendarRepo{}
+	m.FilterByDateRangeFunc = func(ctx context.Context, startDate, endDate string) ([]*models.Calendar, error) {
+		return nil, errors.New("db error")
+	}
+	svc := service.NewCalendarService(m)
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		handler.RegisterCalendarHandler(s, svc)
+	})
+	defer cleanup()
+	client := calendarpb.NewCalendarServiceClient(conn)
+	_, err := client.FilterByDateRange(context.Background(), &calendarpb.FilterByDateRangeRequest{
+		StartDate: "1403/01/01", EndDate: "1403/01/10",
+	})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestGetLatestVersion_Error(t *testing.T) {
+	m := &testutil.MockCalendarRepo{}
+	m.GetLatestVersionTitleFunc = func(ctx context.Context) (string, error) {
+		return "", errors.New("db error")
+	}
+	svc := service.NewCalendarService(m)
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		handler.RegisterCalendarHandler(s, svc)
+	})
+	defer cleanup()
+	client := calendarpb.NewCalendarServiceClient(conn)
+	_, err := client.GetLatestVersion(context.Background(), &calendarpb.GetLatestVersionRequest{})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestAddInteraction_ServiceError(t *testing.T) {
+	m := setupAddInteractionMock()
+	m.AddInteractionFunc = func(ctx context.Context, eventID, userID uint64, liked int32, ipAddress string) error {
+		return errors.New("db error")
+	}
+	svc := service.NewCalendarService(m)
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		handler.RegisterCalendarHandler(s, svc)
+	})
+	defer cleanup()
+	client := calendarpb.NewCalendarServiceClient(conn)
+	_, err := client.AddInteraction(context.Background(), &calendarpb.AddInteractionRequest{
+		EventId: 1, UserId: 2, Liked: 1,
+	})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestGetEvent_WithClientIP(t *testing.T) {
+	st := time.Now()
+	var capturedIP string
+	m := &testutil.MockCalendarRepo{}
+	m.GetEventByIDFunc = func(ctx context.Context, id uint64) (*models.Calendar, error) {
+		return &models.Calendar{ID: id, Title: "T", Content: "c", StartsAt: st, Color: "#fff"}, nil
+	}
+	m.IncrementViewFunc = func(ctx context.Context, eventID uint64, ipAddress string) error {
+		capturedIP = ipAddress
+		return nil
+	}
+	m.GetEventStatsFunc = func(ctx context.Context, eventID uint64) (*models.CalendarStats, error) {
+		return &models.CalendarStats{}, nil
+	}
+	svc := service.NewCalendarService(m)
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		handler.RegisterCalendarHandler(s, svc)
+	})
+	defer cleanup()
+	client := calendarpb.NewCalendarServiceClient(conn)
+	md := metadata.Pairs("x-real-ip", "10.0.0.5")
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+	_, err := client.GetEvent(ctx, &calendarpb.GetEventRequest{EventId: 1})
+	if err != nil || capturedIP != "10.0.0.5" {
+		t.Fatalf("err=%v ip=%q", err, capturedIP)
+	}
+}
+
+func TestGetEvents_FullEventFields(t *testing.T) {
+	st := time.Now()
+	en := st.Add(time.Hour)
+	btnName := "Go"
+	btnLink := "https://example.com"
+	image := "img.png"
+	m := &testutil.MockCalendarRepo{}
+	m.GetEventsFunc = func(ctx context.Context, eventType, search, date string, userID uint64, page, perPage int32) ([]*models.Calendar, bool, error) {
+		return []*models.Calendar{{
+			ID: 99, Title: "Full", Content: "desc", StartsAt: st, EndsAt: &en,
+			Color: "#123", BtnName: &btnName, BtnLink: &btnLink, Image: &image,
+		}}, false, nil
+	}
+	m.GetEventStatsFunc = func(ctx context.Context, eventID uint64) (*models.CalendarStats, error) {
+		return &models.CalendarStats{ViewsCount: 3, LikesCount: 2, DislikesCount: 1}, nil
+	}
+	svc := service.NewCalendarService(m)
+	conn, cleanup := testutil.DialBufConn(func(s *grpc.Server) {
+		handler.RegisterCalendarHandler(s, svc)
+	})
+	defer cleanup()
+	client := calendarpb.NewCalendarServiceClient(conn)
+	resp, err := client.GetEvents(context.Background(), &calendarpb.GetEventsRequest{
+		Pagination: &commonpb.PaginationRequest{Page: 1, PerPage: 10},
+	})
+	if err != nil || len(resp.Events) != 1 {
+		t.Fatal(err, resp)
+	}
+	ev := resp.Events[0]
+	if ev.Views != 3 || ev.BtnName != btnName || ev.BtnLink != btnLink || ev.Image != image || ev.EndsAt == "" {
+		t.Fatalf("event=%+v", ev)
 	}
 }
