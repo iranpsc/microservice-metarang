@@ -153,7 +153,8 @@ routes:
             host: redis
             port: 6379
 
-  # Features API — higher priority than catch-all /api → grpc-gateway
+  # Features API — higher priority than catch-all /api → grpc-gateway.
+  # OPTIONS is intentionally omitted so preflight hits api-preflight (no rate-limit).
   - name: features-api
     service: features-service
     paths:
@@ -178,7 +179,6 @@ routes:
       - PUT
       - PATCH
       - DELETE
-      - OPTIONS
     plugins:
       - name: rate-limiting
         config:
@@ -310,6 +310,7 @@ plugins:
       origins:
         - https://world.metarang.com
         - https://metarang.com
+        - https://admin.metarang.com
         - https://dev-reactjs.metarang.com
         - https://dev-nextjs.metarang.com
         - http://localhost:5173

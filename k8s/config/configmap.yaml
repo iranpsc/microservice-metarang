@@ -24,9 +24,9 @@ data:
   app.environment: "production"
   app.log.level: "info"
   app.url: "https://api.metarang.com"
-  frontend.url: "https://app.metarang.com"
+  frontend.url: "https://world.metarang.com"
   admin.panel.url: "https://admin.metarang.com"
-  cors.origin: "https://app.metarang.com"
+  cors.origin: "https://world.metarang.com"
 
   # FTP / Storage
   ftp.host: "ftp.metarang.com"
