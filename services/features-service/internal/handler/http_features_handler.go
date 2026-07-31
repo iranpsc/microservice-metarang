@@ -213,13 +213,7 @@ func (h *HTTPFeaturesHandler) GetBuildings(w http.ResponseWriter, r *http.Reques
 		writeGRPCError(w, err)
 		return
 	}
-	out := []map[string]interface{}{}
-	for _, b := range resp.Buildings {
-		if b.Model != nil {
-			out = append(out, map[string]interface{}{"id": b.Model.Id, "model_id": b.Model.ModelId, "name": b.Model.Name, "sku": b.Model.Sku, "images": parseJSONString(b.Model.Images), "attributes": parseJSONString(b.Model.Attributes), "file": parseJSONString(b.Model.File), "required_satisfaction": b.Model.RequiredSatisfaction, "building": map[string]interface{}{"model_id": b.Model.ModelId, "feature_id": id, "construction_start_date": b.ConstructionStartDate, "construction_end_date": b.ConstructionEndDate, "launched_satisfaction": b.LaunchedSatisfaction, "information": parseJSONString(b.Information), "rotation": b.Rotation, "position": b.Position, "bubble_diameter": b.BubbleDiameter}})
-		}
-	}
-	writeJSON(w, 200, map[string]interface{}{"data": out})
+	writeJSON(w, 200, map[string]interface{}{"data": buildingModelsMap(id, resp.Buildings)})
 }
 func (h *HTTPFeaturesHandler) BuildingMutation(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.user(w, r); !ok {
@@ -850,6 +844,80 @@ func listFeatureMap(f *featurespb.Feature, owned, buildings bool) map[string]int
 	}
 	if owned {
 		out["is_owned_by_auth_user"] = f.IsOwnedByAuthUser
+	}
+	// Match main/grpc-gateway: include building_models only when load_buildings=true and feature has buildings.
+	if buildings && len(f.BuildingModels) > 0 {
+		items := make([]map[string]interface{}, 0, len(f.BuildingModels))
+		for _, b := range f.BuildingModels {
+			if b == nil || b.Model == nil {
+				continue
+			}
+			items = append(items, mapListBuildingModel(f.Id, b))
+		}
+		if len(items) > 0 {
+			out["building_models"] = items
+		}
+	}
+	return out
+}
+
+// mapListBuildingModel shapes a building for GET /api/features?load_buildings=1 (main-compatible).
+func mapListBuildingModel(featureID uint64, building *featurespb.Building) map[string]interface{} {
+	modelID := building.Model.Id
+	return map[string]interface{}{
+		"id":       modelID,
+		"model_id": parseNumericOrString(building.Model.ModelId),
+		"file":     parseJSONString(building.Model.File),
+		"building": map[string]interface{}{
+			"feature_id":              featureID,
+			"model_id":                modelID,
+			"construction_start_date": building.ConstructionStartDate,
+			"construction_end_date":   building.ConstructionEndDate,
+			"rotation":                building.Rotation,
+			"position":                parseJSONString(building.Position),
+		},
+	}
+}
+
+// parseNumericOrString returns a uint64 when s is numeric (Laravel JSON number), otherwise the original string.
+func parseNumericOrString(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	if n, err := strconv.ParseUint(s, 10, 64); err == nil {
+		return n
+	}
+	return s
+}
+
+// buildingModelsMap maps buildings for GET /api/features/{id}/build/buildings (full model + pivot).
+func buildingModelsMap(featureID uint64, buildings []*featurespb.Building) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(buildings))
+	for _, b := range buildings {
+		if b == nil || b.Model == nil {
+			continue
+		}
+		out = append(out, map[string]interface{}{
+			"id":                    b.Model.Id,
+			"model_id":              b.Model.ModelId,
+			"name":                  b.Model.Name,
+			"sku":                   b.Model.Sku,
+			"images":                parseJSONString(b.Model.Images),
+			"attributes":            parseJSONString(b.Model.Attributes),
+			"file":                  parseJSONString(b.Model.File),
+			"required_satisfaction": b.Model.RequiredSatisfaction,
+			"building": map[string]interface{}{
+				"model_id":                b.Model.ModelId,
+				"feature_id":              featureID,
+				"construction_start_date": b.ConstructionStartDate,
+				"construction_end_date":   b.ConstructionEndDate,
+				"launched_satisfaction":   b.LaunchedSatisfaction,
+				"information":             parseJSONString(b.Information),
+				"rotation":                b.Rotation,
+				"position":                b.Position,
+				"bubble_diameter":         b.BubbleDiameter,
+			},
+		})
 	}
 	return out
 }

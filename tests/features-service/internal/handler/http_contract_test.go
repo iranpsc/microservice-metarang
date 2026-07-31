@@ -13,13 +13,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"metarang/features-service/internal/handler"
-	authpkg "metarang/shared/pkg/auth"
 	pb "metarang/shared/pb/features"
+	authpkg "metarang/shared/pkg/auth"
 )
 
 type mockHTTPFeatureAPI struct {
-	listFeatures     func(context.Context, *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error)
-	tradeHistory     func(context.Context, *pb.GetFeatureTradeHistoryRequest) (*pb.GetFeatureTradeHistoryResponse, error)
+	listFeatures func(context.Context, *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error)
+	tradeHistory func(context.Context, *pb.GetFeatureTradeHistoryRequest) (*pb.GetFeatureTradeHistoryResponse, error)
 }
 
 func (m *mockHTTPFeatureAPI) ListFeatures(ctx context.Context, req *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error) {
@@ -90,11 +90,11 @@ func (*mockHTTPMarketplaceAPI) UpdateGracePeriod(context.Context, *pb.UpdateGrac
 }
 
 type mockHTTPBuildingAPI struct {
-	getBuildings        func(context.Context, *pb.GetBuildingsRequest) (*pb.BuildingsResponse, error)
-	updateBuilding      func(context.Context, *pb.UpdateBuildingRequest) (*pb.BuildingResponse, error)
-	updateInformation   func(context.Context, *pb.UpdateBuildingInformationRequest) (*pb.UpdateBuildingInformationResponse, error)
-	destroyBuilding     func(context.Context, *pb.DestroyBuildingRequest) (*pb.BuildingResponse, error)
-	completedBuildings  func(context.Context, *pb.ListCompletedBuildingsRequest) (*pb.ListCompletedBuildingsResponse, error)
+	getBuildings       func(context.Context, *pb.GetBuildingsRequest) (*pb.BuildingsResponse, error)
+	updateBuilding     func(context.Context, *pb.UpdateBuildingRequest) (*pb.BuildingResponse, error)
+	updateInformation  func(context.Context, *pb.UpdateBuildingInformationRequest) (*pb.UpdateBuildingInformationResponse, error)
+	destroyBuilding    func(context.Context, *pb.DestroyBuildingRequest) (*pb.BuildingResponse, error)
+	completedBuildings func(context.Context, *pb.ListCompletedBuildingsRequest) (*pb.ListCompletedBuildingsResponse, error)
 }
 
 func (*mockHTTPBuildingAPI) GetBuildPackage(context.Context, *pb.GetBuildPackageRequest) (*pb.BuildPackageResponse, error) {
@@ -189,6 +189,60 @@ func TestHTTPListFeaturesPointsContract(t *testing.T) {
 	})
 }
 
+func TestHTTPListFeaturesBuildingModels(t *testing.T) {
+	feature := &mockHTTPFeatureAPI{listFeatures: func(_ context.Context, req *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error) {
+		assert.True(t, req.LoadBuildings)
+		return &pb.FeaturesResponse{
+			Features: []*pb.Feature{{
+				Id:      7,
+				OwnerId: 3,
+				BuildingModels: []*pb.Building{{
+					ConstructionStartDate: "2026-01-01T00:00:00Z",
+					ConstructionEndDate:   "2026-02-01T00:00:00Z",
+					Rotation:              "45",
+					Position:              `{"x":1,"y":2}`,
+					Model: &pb.BuildingModel{
+						Id:      11,
+						ModelId: "1001",
+						Name:    "Tower",
+						File:    `{"url":"m.glb"}`,
+					},
+				}},
+			}},
+		}, nil
+	}}
+
+	w := httptest.NewRecorder()
+	newHTTPFeaturesHandler(feature, &mockHTTPBuildingAPI{}).ListFeatures(
+		w,
+		httptest.NewRequest(http.MethodGet, "/api/features?points[]=10,20&points[]=30,20&points[]=30,40&points[]=10,40&load_buildings=1", nil),
+	)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	data := body["data"].([]interface{})
+	require.Len(t, data, 1)
+	featureMap := data[0].(map[string]interface{})
+	models := featureMap["building_models"].([]interface{})
+	require.Len(t, models, 1)
+	model := models[0].(map[string]interface{})
+	assert.Equal(t, float64(11), model["id"])
+	assert.Equal(t, float64(1001), model["model_id"]) // numeric catalog id (main-compatible)
+	assert.NotContains(t, model, "name")
+	assert.NotContains(t, model, "sku")
+	file := model["file"].(map[string]interface{})
+	assert.Equal(t, "m.glb", file["url"])
+	building := model["building"].(map[string]interface{})
+	assert.Equal(t, float64(7), building["feature_id"])
+	assert.Equal(t, float64(11), building["model_id"]) // local building_models.id
+	assert.Equal(t, "45", building["rotation"])
+	pos := building["position"].(map[string]interface{})
+	assert.Equal(t, float64(1), pos["x"])
+	assert.NotContains(t, building, "launched_satisfaction")
+	assert.NotContains(t, building, "bubble_diameter")
+}
+
 func TestHTTPBuildingMutationRoutes(t *testing.T) {
 	var updated, patched, destroyed *pb.BuildingInformation
 	building := &mockHTTPBuildingAPI{
@@ -238,7 +292,7 @@ func TestHTTPBuildingMutationRoutes(t *testing.T) {
 func TestHTTPCompletedBuildingsRoutes(t *testing.T) {
 	building := &mockHTTPBuildingAPI{completedBuildings: func(_ context.Context, _ *pb.ListCompletedBuildingsRequest) (*pb.ListCompletedBuildingsResponse, error) {
 		return &pb.ListCompletedBuildingsResponse{
-			Data: []*pb.CompletedBuilding{{Id: 1, FeatureId: 10, FeaturePropertiesId: "QA-1"}},
+			Data:  []*pb.CompletedBuilding{{Id: 1, FeatureId: 10, FeaturePropertiesId: "QA-1"}},
 			Links: &pb.PaginationLinks{}, Meta: &pb.FeatureTradeHistoryPaginationMeta{},
 		}, nil
 	}}
