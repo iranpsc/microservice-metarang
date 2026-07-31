@@ -3,15 +3,42 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"reflect"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+// writeJSON preserves the grpc-gateway contract by wrapping bare values in data.
+func writeJSON(w http.ResponseWriter, statusCode int, value interface{}, skipWrap ...bool) {
+	skip := len(skipWrap) > 0 && skipWrap[0]
+	if value == nil {
+		value = map[string]interface{}{}
+	}
+	if !skip {
+		kind := reflect.TypeOf(value).Kind()
+		if kind == reflect.Map {
+			switch data := value.(type) {
+			case map[string]interface{}:
+				_, hasData := data["data"]
+				_, hasError := data["error"]
+				_, hasMessage := data["message"]
+				_, hasErrors := data["errors"]
+				skip = hasData || hasError || (hasMessage && hasErrors)
+			case map[string]string:
+				_, hasError := data["error"]
+				_, hasURL := data["url"]
+				_, hasLink := data["link"]
+				skip = hasError || hasURL || hasLink
+			}
+		}
+		if !skip {
+			value = map[string]interface{}{"data": value}
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	_ = json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(value)
 }
 
 func writeError(w http.ResponseWriter, statusCode int, message string) {

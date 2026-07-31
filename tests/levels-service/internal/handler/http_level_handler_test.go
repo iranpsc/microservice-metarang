@@ -74,10 +74,12 @@ func TestHTTP_GetAllLevels_Success(t *testing.T) {
 	}, "https://cdn.example.com")
 	rr := doRequest(h, http.MethodGet, "/api/levels")
 	assert.Equal(t, http.StatusOK, rr.Code)
-	var body []map[string]interface{}
+	var body map[string]interface{}
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
-	assert.Len(t, body, 1)
-	assert.Equal(t, "bronze", body[0]["slug"])
+	data, ok := body["data"].([]interface{})
+	require.True(t, ok)
+	assert.Len(t, data, 1)
+	assert.Equal(t, "bronze", data[0].(map[string]interface{})["slug"])
 }
 
 func TestHTTP_GetAllLevels_MethodNotAllowed(t *testing.T) {
@@ -204,9 +206,10 @@ func TestHTTP_PrefixImageURL_AbsoluteURL(t *testing.T) {
 		},
 	}, "https://app.example.com")
 	rr := doRequest(h, http.MethodGet, "/api/levels")
-	var body []map[string]interface{}
+	var body map[string]interface{}
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
-	assert.Equal(t, "https://cdn.example.com/img.png", body[0]["image"])
+	data := body["data"].([]interface{})
+	assert.Equal(t, "https://cdn.example.com/img.png", data[0].(map[string]interface{})["image"])
 }
 
 func TestHTTP_PrefixImageURL_RelativeWithAppURL(t *testing.T) {
@@ -216,9 +219,10 @@ func TestHTTP_PrefixImageURL_RelativeWithAppURL(t *testing.T) {
 		},
 	}, "https://app.example.com")
 	rr := doRequest(h, http.MethodGet, "/api/levels")
-	var body []map[string]interface{}
+	var body map[string]interface{}
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
-	assert.Equal(t, "https://app.example.com/uploads/img.png", body[0]["image"])
+	data := body["data"].([]interface{})
+	assert.Equal(t, "https://app.example.com/uploads/img.png", data[0].(map[string]interface{})["image"])
 }
 
 func TestHTTP_PrefixImageURL_RelativeNoAppURL(t *testing.T) {
@@ -228,7 +232,8 @@ func TestHTTP_PrefixImageURL_RelativeNoAppURL(t *testing.T) {
 		},
 	}, "")
 	rr := doRequest(h, http.MethodGet, "/api/levels")
-	var body []map[string]interface{}
+	var body map[string]interface{}
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
-	assert.Equal(t, "/uploads/img.png", body[0]["image"])
+	data := body["data"].([]interface{})
+	assert.Equal(t, "/uploads/img.png", data[0].(map[string]interface{})["image"])
 }
