@@ -30,7 +30,7 @@ services:
   # Populates the grpc_certs volume from ./certs/grpc on the host, or generates
   # new certificates when GRPC_TLS_ENABLED=true and none are present.
   grpc-certs-init:
-    image: alpine:3.21
+    image: docker.arvancloud.ir/alpine:3.21
     container_name: metarang-grpc-certs-init
     environment:
       GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
@@ -45,7 +45,7 @@ services:
   
   # MySQL Database (shared)
   mysql:
-    image: mysql:8.0.43
+    image: docker.arvancloud.ir/mysql:8.0.43
     container_name: metarang-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root_password
@@ -71,7 +71,7 @@ services:
 
   # Redis (for pub/sub and caching)
   redis:
-    image: redis:7.4-alpine
+    image: docker.arvancloud.ir/redis:7.4-alpine
     container_name: metarang-redis
     ports:
       - "6379:6379"
@@ -779,7 +779,7 @@ services:
 
   # Swagger UI - OpenAPI documentation browser
   swagger-ui:
-    image: swaggerapi/swagger-ui:v5.18.2
+    image: docker.arvancloud.ir/swaggerapi/swagger-ui:v5.18.2
     container_name: metarang-swagger-ui
     environment:
       APP_URL: ${APP_URL:-http://localhost:8000}
@@ -801,7 +801,7 @@ services:
 
   # Kong API Gateway - HTTP to gRPC Translation
   kong:
-    image: kong:3.9.3
+    image: docker.arvancloud.ir/kong:3.9.3
     container_name: metarang-kong
     environment:
       KONG_DATABASE: "off"
@@ -860,7 +860,7 @@ services:
 
   # Prometheus - Metrics Collection
   prometheus:
-    image: prom/prometheus:v2.53.5
+    image: docker.arvancloud.ir/prom/prometheus:v2.53.5
     container_name: metarang-prometheus
     ports:
       - "9090:9090"
@@ -885,7 +885,7 @@ services:
 
   # Grafana - Visualization & Dashboards
   grafana:
-    image: grafana/grafana:11.6.16
+    image: docker.arvancloud.ir/grafana/grafana:11.6.16
     container_name: metarang-grafana
     ports:
       - "3001:3001"
@@ -914,7 +914,7 @@ services:
 
   # Node Exporter - Host-level infrastructure metrics (CPU, Memory, Disk, Network)
   node-exporter:
-    image: prom/node-exporter:v1.11.1
+    image: docker.arvancloud.ir/prom/node-exporter:v1.11.1
     container_name: metarang-node-exporter
     command:
       - '--path.procfs=/host/proc'
