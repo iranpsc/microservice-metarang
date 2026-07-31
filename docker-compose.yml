@@ -679,7 +679,7 @@ services:
     ports:
       - "8059:8059"    # HTTP REST API port (uploads); gRPC stays internal-only
     volumes:
-      - ./services/storage-service/uploads:/app/uploads
+      - ${UPLOADS_PATH:-./services/storage-service/uploads}:/app/uploads
       - *grpc-certs-mount
     env_file:
       - ./services/storage-service/config.env
