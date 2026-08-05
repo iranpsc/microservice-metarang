@@ -56,7 +56,6 @@ type UserWithRelations struct {
 	ProfilePhotoURL *string
 }
 
-// UserListLevel is a level row for GET /api/users (Laravel UserResource levels)
 type UserListLevel struct {
 	ID    uint64
 	Name  string
@@ -92,7 +91,6 @@ func NewUserRepository(db *sql.DB, adminPanelURL string) UserRepository {
 }
 
 // formatImageURL formats image URL with admin_panel_url + /uploads/ prefix.
-// Implements Laravel: config('app.admin_panel_url') . '/uploads/' . $this->image->url
 func (r *userRepository) formatImageURL(imageURL string) string {
 	if imageURL == "" {
 		return ""
@@ -481,7 +479,6 @@ func (r *userRepository) ListUsers(ctx context.Context, search string, orderBy s
 	return users, totalCount, nil
 }
 
-// GetUsersLevelsForList loads all achieved levels per user for GET /api/users (Laravel UserResource).
 func (r *userRepository) GetUsersLevelsForList(ctx context.Context, userIDs []uint64) (map[uint64]*UserListLevels, error) {
 	result := make(map[uint64]*UserListLevels)
 	if len(userIDs) == 0 {
@@ -540,7 +537,6 @@ func (r *userRepository) GetUsersLevelsForList(ctx context.Context, userIDs []ui
 		lvl := level
 		bundle.Previous = append(bundle.Previous, &lvl)
 
-		// Laravel latest_level: levels()->orderByDesc('id')->first()
 		if bundle.Current == nil || level.ID > bundle.Current.ID {
 			currentCopy := lvl
 			bundle.Current = &currentCopy

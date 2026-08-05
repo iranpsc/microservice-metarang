@@ -21,17 +21,22 @@ type citizenBuildingsRepo interface {
 	CountUserCompletedBuildings(ctx context.Context, userID uint64, karbaris []string, now time.Time) (int, error)
 }
 
-// CitizenBuildingsService implements public citizen building queries.
-type CitizenBuildingsService struct {
-	repo citizenBuildingsRepo
-	now  func() time.Time
+type citizenBuildingsUserRepo interface {
+	GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error)
 }
 
-func NewCitizenBuildingsService(repo citizenBuildingsRepo, now func() time.Time) *CitizenBuildingsService {
+// CitizenBuildingsService implements public citizen building queries.
+type CitizenBuildingsService struct {
+	repo     citizenBuildingsRepo
+	userRepo citizenBuildingsUserRepo
+	now      func() time.Time
+}
+
+func NewCitizenBuildingsService(repo citizenBuildingsRepo, userRepo citizenBuildingsUserRepo, now func() time.Time) *CitizenBuildingsService {
 	if now == nil {
 		now = time.Now
 	}
-	return &CitizenBuildingsService{repo: repo, now: now}
+	return &CitizenBuildingsService{repo: repo, userRepo: userRepo, now: now}
 }
 
 // GetSummary returns per-karbari counts of completed buildings owned by the user.
@@ -69,7 +74,11 @@ func (s *CitizenBuildingsService) GetChart(
 	allowedKarbaris []string,
 ) (*models.CitizenBuildingChartData, string, error) {
 	period = periodpkg.NormalizePeriod(period)
-	window, err := periodpkg.ResolvePeriod(period, s.now())
+	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
+	if err != nil {
+		return nil, period, fmt.Errorf("user registration date: %w", err)
+	}
+	window, err := periodpkg.ResolvePeriod(period, s.now(), registeredAt)
 	if err != nil {
 		return nil, period, err
 	}

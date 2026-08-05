@@ -127,7 +127,6 @@ func (r *MessageRepository) PrepareAcceptMessages(ctx context.Context, requester
 
 // PrepareRejectMessages prepares messages for rejecting join request
 func (r *MessageRepository) PrepareRejectMessages(ctx context.Context, requesterCode, receiverCode string) (requesterMsg string, receiverMsg string, err error) {
-	// For rejection, Laravel uses hardcoded messages, not templates
 	requesterMsg = fmt.Sprintf("درخواست پیوستن به سلسله شما توسط کاربر %s رد شد!", receiverCode)
 	receiverMsg = fmt.Sprintf("درخواست پیوستن به سلسله از طرف %s توسط شما رد شد.", requesterCode)
 

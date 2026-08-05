@@ -31,7 +31,6 @@ type CacheRepository interface {
 	// TryAcquireAccountSecurityVerificationSlot returns true when the user may request a new verification code.
 	TryAcquireAccountSecurityVerificationSlot(ctx context.Context, userID uint64, period time.Duration) (bool, error)
 
-	// Web3 wallet nonce cache (Laravel WalletController)
 	SetWeb3LinkNonce(ctx context.Context, userID uint64, address, nonce string, ttl time.Duration) error
 	PullWeb3LinkNonce(ctx context.Context, userID uint64, address string) (string, error)
 	SetWeb3SecurityNonce(ctx context.Context, userID uint64, address, nonce string, ttl time.Duration) error

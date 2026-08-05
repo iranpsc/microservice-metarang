@@ -67,7 +67,6 @@ func buildVideoResponse(video *service.VideoDetails) (*trainingpb.VideoResponse,
 	return resp, nil
 }
 
-// buildUploadURL prefixes resource paths with ADMIN_PANEL_URL/uploads/ (Laravel admin_panel_url).
 func buildUploadURL(path string) string {
 	if path == "" {
 		return ""

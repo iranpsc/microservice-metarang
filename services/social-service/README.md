@@ -1,6 +1,6 @@
 # Social Service
 
-gRPC service for **challenge** (quiz) APIs and **follow** relationships, aligned with the Laravel monolith routes documented under `api-docs/social-service/`.
+gRPC service for **challenge** (quiz) APIs and **follow** relationships, aligned with the routes documented under `api-docs/social-service/`.
 
 ## Responsibilities
 
@@ -13,7 +13,7 @@ Copy `config.env.sample` to `config.env` and set:
 
 | Variable | Description |
 |----------|-------------|
-| `DB_*` | Shared MySQL database (same schema as Laravel). |
+| `DB_*` | Shared MySQL database (same schema as the platform). |
 | `GRPC_PORT` | gRPC listen port (default **50061**). |
 | `COMMERCIAL_SERVICE_ADDR` | `commercial-service:50052` for wallet PSC credits on correct answers. |
 | `PROJECT_LOCALE` | Advertisement localization (`EN` or `FA`). |

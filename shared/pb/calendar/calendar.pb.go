@@ -302,7 +302,7 @@ type EventResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Id              uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Title           string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Description     string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`                                 // Laravel calls it description not content
+	Description     string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
 	StartsAt        string                 `protobuf:"bytes,4,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`                       // Jalali formatted Y/m/d H:i
 	EndsAt          string                 `protobuf:"bytes,5,opt,name=ends_at,json=endsAt,proto3" json:"ends_at,omitempty"`                             // Jalali formatted Y/m/d H:i (only for events, not versions)
 	Views           int32                  `protobuf:"varint,6,opt,name=views,proto3" json:"views,omitempty"`                                            // view count (only for events)

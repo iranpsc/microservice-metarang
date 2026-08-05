@@ -10,7 +10,6 @@ import (
 	pb "metarang/shared/pb/auth"
 )
 
-// GetAuthenticatedUserWallet handles GET /api/user/wallet (Laravel TransactionController@getWallet)
 func (h *AuthHandler) GetAuthenticatedUserWallet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")

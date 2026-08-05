@@ -15,7 +15,6 @@ func NewJoinRequestPolicy() *JoinRequestPolicy {
 }
 
 // CanView checks if user can view a join request
-// Implements JoinRequestPolicy::view from Laravel
 func (p *JoinRequestPolicy) CanView(
 	ctx context.Context,
 	userID uint64,
@@ -26,7 +25,6 @@ func (p *JoinRequestPolicy) CanView(
 }
 
 // CanDelete checks if user can delete a join request
-// Implements JoinRequestPolicy::delete from Laravel
 func (p *JoinRequestPolicy) CanDelete(
 	ctx context.Context,
 	userID uint64,
@@ -37,7 +35,6 @@ func (p *JoinRequestPolicy) CanDelete(
 }
 
 // CanAccept checks if user can accept a join request
-// Implements JoinRequestPolicy::accept from Laravel
 func (p *JoinRequestPolicy) CanAccept(
 	ctx context.Context,
 	userID uint64,
@@ -48,7 +45,6 @@ func (p *JoinRequestPolicy) CanAccept(
 }
 
 // CanReject checks if user can reject a join request
-// Implements JoinRequestPolicy::reject from Laravel
 func (p *JoinRequestPolicy) CanReject(
 	ctx context.Context,
 	userID uint64,

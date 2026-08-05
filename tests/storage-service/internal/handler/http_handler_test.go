@@ -252,7 +252,7 @@ func TestHTTPHandler_HandleChunkUpload(t *testing.T) {
 		t.Cleanup(func() { _ = os.Remove(expectedPath) })
 	})
 
-	t.Run("response format matches Laravel API exactly", func(t *testing.T) {
+	t.Run("response format matches expected API exactly", func(t *testing.T) {
 		// Test completed upload response
 		fileContent := []byte("test content")
 		body := &bytes.Buffer{}

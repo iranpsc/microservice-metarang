@@ -48,7 +48,6 @@ func NewUserServiceWithDependencies(
 	}
 }
 
-// UserListItem represents a user in the list (Laravel UserResource)
 type UserListItem struct {
 	ID             uint64
 	Name           string

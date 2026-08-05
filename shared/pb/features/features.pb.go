@@ -3207,9 +3207,9 @@ type HourlyProfit struct {
 	Amount        string                 `protobuf:"bytes,5,opt,name=amount,proto3" json:"amount,omitempty"`                     // formatted as string
 	DeadLine      string                 `protobuf:"bytes,6,opt,name=dead_line,json=deadLine,proto3" json:"dead_line,omitempty"` // Jalali date Y/m/d
 	IsActive      bool                   `protobuf:"varint,7,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
-	FeatureDbId   uint64                 `protobuf:"varint,8,opt,name=feature_db_id,json=featureDbId,proto3" json:"feature_db_id,omitempty"` // features.id (Laravel feature_db_id)
-	PropertiesId  string                 `protobuf:"bytes,9,opt,name=properties_id,json=propertiesId,proto3" json:"properties_id,omitempty"` // feature_properties.id (Laravel feature_id)
-	Karbari       string                 `protobuf:"bytes,10,opt,name=karbari,proto3" json:"karbari,omitempty"`                              // m, t, a
+	FeatureDbId   uint64                 `protobuf:"varint,8,opt,name=feature_db_id,json=featureDbId,proto3" json:"feature_db_id,omitempty"`
+	PropertiesId  string                 `protobuf:"bytes,9,opt,name=properties_id,json=propertiesId,proto3" json:"properties_id,omitempty"`
+	Karbari       string                 `protobuf:"bytes,10,opt,name=karbari,proto3" json:"karbari,omitempty"` // m, t, a
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3817,7 +3817,7 @@ func (x *BuildingModel) GetRequiredSatisfaction() string {
 type BuildFeatureRequest struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	FeatureId            uint64                 `protobuf:"varint,1,opt,name=feature_id,json=featureId,proto3" json:"feature_id,omitempty"`
-	BuildingModelId      string                 `protobuf:"bytes,2,opt,name=building_model_id,json=buildingModelId,proto3" json:"building_model_id,omitempty"` // Changed from uint64 to string to match Laravel model_id format
+	BuildingModelId      string                 `protobuf:"bytes,2,opt,name=building_model_id,json=buildingModelId,proto3" json:"building_model_id,omitempty"`
 	LaunchedSatisfaction string                 `protobuf:"bytes,3,opt,name=launched_satisfaction,json=launchedSatisfaction,proto3" json:"launched_satisfaction,omitempty"`
 	Rotation             string                 `protobuf:"bytes,4,opt,name=rotation,proto3" json:"rotation,omitempty"`
 	Position             string                 `protobuf:"bytes,5,opt,name=position,proto3" json:"position,omitempty"`
@@ -3984,7 +3984,7 @@ func (x *BuildingInformation) GetDescription() string {
 
 type BuildFeatureResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Feature       *Feature               `protobuf:"bytes,1,opt,name=feature,proto3" json:"feature,omitempty"` // Return full feature like Laravel does
+	Feature       *Feature               `protobuf:"bytes,1,opt,name=feature,proto3" json:"feature,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4225,7 +4225,7 @@ func (x *Building) GetInformation() string {
 type UpdateBuildingRequest struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	FeatureId            uint64                 `protobuf:"varint,1,opt,name=feature_id,json=featureId,proto3" json:"feature_id,omitempty"`
-	BuildingModelId      string                 `protobuf:"bytes,2,opt,name=building_model_id,json=buildingModelId,proto3" json:"building_model_id,omitempty"` // Changed from uint64 to string to match Laravel model_id format
+	BuildingModelId      string                 `protobuf:"bytes,2,opt,name=building_model_id,json=buildingModelId,proto3" json:"building_model_id,omitempty"`
 	LaunchedSatisfaction string                 `protobuf:"bytes,3,opt,name=launched_satisfaction,json=launchedSatisfaction,proto3" json:"launched_satisfaction,omitempty"`
 	Rotation             string                 `protobuf:"bytes,4,opt,name=rotation,proto3" json:"rotation,omitempty"`
 	Position             string                 `protobuf:"bytes,5,opt,name=position,proto3" json:"position,omitempty"`
@@ -4473,7 +4473,7 @@ func (x *BuildingResponse) GetBuilding() *Building {
 type DestroyBuildingRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	FeatureId       uint64                 `protobuf:"varint,1,opt,name=feature_id,json=featureId,proto3" json:"feature_id,omitempty"`
-	BuildingModelId string                 `protobuf:"bytes,2,opt,name=building_model_id,json=buildingModelId,proto3" json:"building_model_id,omitempty"` // Changed from uint64 to string to match Laravel model_id format
+	BuildingModelId string                 `protobuf:"bytes,2,opt,name=building_model_id,json=buildingModelId,proto3" json:"building_model_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -4571,7 +4571,7 @@ type ListCompletedBuildingsResponse struct {
 	state         protoimpl.MessageState             `protogen:"open.v1"`
 	Data          []*CompletedBuilding               `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
 	Links         *PaginationLinks                   `protobuf:"bytes,2,opt,name=links,proto3" json:"links,omitempty"`
-	Meta          *FeatureTradeHistoryPaginationMeta `protobuf:"bytes,3,opt,name=meta,proto3" json:"meta,omitempty"` // full Laravel-style pagination meta
+	Meta          *FeatureTradeHistoryPaginationMeta `protobuf:"bytes,3,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

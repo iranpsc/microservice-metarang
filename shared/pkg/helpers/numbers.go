@@ -8,8 +8,6 @@ import (
 )
 
 // FormatCompactNumber formats a number in compact notation (e.g., 1.2K, 3.4M)
-// Mimics Laravel's formatCompactNumber helper exactly
-// Laravel logic:
 // - If number < 1000: return with 3 decimals, trim trailing zeros and dot
 // - If number >= 1000: divide by appropriate power of 1000, format with 3 decimals, trim trailing zeros and dot, add unit
 func FormatCompactNumber(num float64) string {

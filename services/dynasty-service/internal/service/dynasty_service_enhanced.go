@@ -137,7 +137,6 @@ func (s *DynastyServiceEnhanced) UpdateDynastyFeature(
 }
 
 // CalculateFeatureProfitIncrease calculates profit increase from stability
-// Implements Laravel: (stability / 10000 - 1) if stability > 10000, else 0
 func (s *DynastyServiceEnhanced) CalculateFeatureProfitIncrease(stability float64) string {
 	if stability > 10000 {
 		increase := (stability / 10000) - 1

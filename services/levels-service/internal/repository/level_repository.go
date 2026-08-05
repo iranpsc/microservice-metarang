@@ -13,7 +13,6 @@ import (
 )
 
 // LevelRepository handles level database operations
-// Implements Laravel's Level model and relationships
 type LevelRepository struct {
 	db            *sql.DB
 	adminPanelURL string
@@ -46,7 +45,6 @@ func NewLevelRepository(db *sql.DB, adminPanelURL string) *LevelRepository {
 }
 
 // formatImageURL formats image URL with admin_panel_url + /uploads/ prefix
-// Implements Laravel: config('app.admin_panel_url') . '/uploads/' . $this->image->url
 func (r *LevelRepository) formatImageURL(imageURL string) string {
 	if imageURL == "" {
 		return ""
@@ -72,13 +70,11 @@ func (r *LevelRepository) formatImageURL(imageURL string) string {
 }
 
 // formatJalaliDateTime formats time.Time to Jalali format Y/m/d H:i:s
-// Implements Laravel: jdate($this->created_at)->format('Y/m/d H:i:s')
 func (r *LevelRepository) formatJalaliDateTime(t time.Time) string {
 	return helpers.FormatJalaliDateTime(t)
 }
 
 // GetUserLatestLevel retrieves user's latest achieved level
-// Implements Laravel: $user->levels()->orderByDesc('id')->first()
 func (r *LevelRepository) GetUserLatestLevel(ctx context.Context, userID uint64) (*pb.Level, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
@@ -131,7 +127,6 @@ func (r *LevelRepository) GetUserLatestLevel(ctx context.Context, userID uint64)
 }
 
 // GetLevelsBelowScore retrieves all levels with score less than given score
-// Implements Laravel: Level::where('score', '<', $score)->orderBy('score')->get()
 func (r *LevelRepository) GetLevelsBelowScore(ctx context.Context, score int32) ([]*pb.Level, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
@@ -215,7 +210,6 @@ func (r *LevelRepository) GetNextLevel(ctx context.Context, currentScore int32) 
 }
 
 // GetAllLevels retrieves all levels
-// Implements Laravel: Level::select('id', 'name', 'slug')->with('image')->get()
 func (r *LevelRepository) GetAllLevels(ctx context.Context) ([]*pb.Level, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
@@ -255,7 +249,6 @@ func (r *LevelRepository) GetAllLevels(ctx context.Context) ([]*pb.Level, error)
 }
 
 // FindByID retrieves a level by ID with all relationships
-// Implements Laravel: Level::find($id)->load('image', 'generalInfo')
 func (r *LevelRepository) FindByID(ctx context.Context, id uint64) (*pb.Level, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
@@ -299,7 +292,6 @@ func (r *LevelRepository) FindByID(ctx context.Context, id uint64) (*pb.Level, e
 }
 
 // FindBySlug retrieves a level by slug
-// Implements Laravel: Level::where('slug', $slug)->firstOrFail()
 func (r *LevelRepository) FindBySlug(ctx context.Context, slug string) (*pb.Level, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
@@ -343,7 +335,6 @@ func (r *LevelRepository) FindBySlug(ctx context.Context, slug string) (*pb.Leve
 }
 
 // GetLevelGeneralInfo retrieves general information for a level
-// Implements Laravel: $level->generalInfo
 func (r *LevelRepository) GetLevelGeneralInfo(ctx context.Context, levelID uint64) (*pb.LevelGeneralInfo, error) {
 	query := `
 		SELECT id, level_id, score, ` + "`rank`" + `, description, subcategories,
@@ -446,7 +437,6 @@ func (r *LevelRepository) GetLevelGeneralInfo(ctx context.Context, levelID uint6
 }
 
 // GetLevelPrize retrieves prize information for a level
-// Implements Laravel: $level->prize
 func (r *LevelRepository) GetLevelPrize(ctx context.Context, levelID uint64) (*pb.LevelPrize, error) {
 	query := `
 		SELECT id, level_id, psc, blue, red, yellow, effect, satisfaction, created_at
@@ -478,7 +468,6 @@ func (r *LevelRepository) GetLevelPrize(ctx context.Context, levelID uint64) (*p
 		return nil, err
 	}
 
-	// Convert integers to strings for consistency with Laravel
 	prize.Psc = fmt.Sprintf("%d", psc)
 	prize.Blue = fmt.Sprintf("%d", blue)
 	prize.Red = fmt.Sprintf("%d", red)
@@ -497,7 +486,6 @@ func (r *LevelRepository) GetLevelPrize(ctx context.Context, levelID uint64) (*p
 }
 
 // GetLevelGem retrieves gem information for a level
-// Implements Laravel: $level->gem
 func (r *LevelRepository) GetLevelGem(ctx context.Context, levelID uint64) (*pb.LevelGem, error) {
 	query := `
 		SELECT id, level_id, name, description, thread, points, volume, color,
@@ -539,7 +527,6 @@ func (r *LevelRepository) GetLevelGem(ctx context.Context, levelID uint64) (*pb.
 }
 
 // GetLevelGift retrieves gift information for a level
-// Implements Laravel: $level->gift
 func (r *LevelRepository) GetLevelGift(ctx context.Context, levelID uint64) (*pb.LevelGift, error) {
 	query := `
 		SELECT id, level_id, name, description, monthly_capacity_count, store_capacity,
@@ -598,7 +585,6 @@ func (r *LevelRepository) GetLevelGift(ctx context.Context, levelID uint64) (*pb
 }
 
 // GetLevelLicenses retrieves license information for a level
-// Implements Laravel: $level->licenses
 func (r *LevelRepository) GetLevelLicenses(ctx context.Context, levelID uint64) (*pb.LevelLicense, error) {
 	query := `
 		SELECT id, level_id, create_union, add_memeber_to_union, observation_license,
@@ -668,7 +654,6 @@ func (r *LevelRepository) GetLevelLicenses(ctx context.Context, levelID uint64) 
 }
 
 // GetNextLevelForScore finds the next level a user should achieve based on their score
-// Implements Laravel: Level::where('score', '<=', $user->score)->whereNotIn('id', $user->levels->pluck('id'))->first()
 func (r *LevelRepository) GetNextLevelForScore(ctx context.Context, userID uint64, score int32) (*pb.Level, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS UNSIGNED) as score, l.background_image,
@@ -714,7 +699,6 @@ func (r *LevelRepository) GetNextLevelForScore(ctx context.Context, userID uint6
 }
 
 // AttachLevelToUser attaches a level to a user
-// Implements Laravel: $user->levels()->attach($level_id)
 func (r *LevelRepository) AttachLevelToUser(ctx context.Context, userID, levelID uint64) error {
 	query := "INSERT INTO level_user (user_id, level_id, created_at, updated_at) VALUES (?, ?, NOW(), NOW())"
 	_, err := r.db.ExecContext(ctx, query, userID, levelID)
@@ -722,7 +706,6 @@ func (r *LevelRepository) AttachLevelToUser(ctx context.Context, userID, levelID
 }
 
 // HasUserReceivedPrize checks if user has received prize for a level
-// Implements Laravel: $user->recievedLevelPrizes()->where('level_prize_id', $prize_id)->exists()
 func (r *LevelRepository) HasUserReceivedPrize(ctx context.Context, userID, prizeID uint64) (bool, error) {
 	query := "SELECT COUNT(*) FROM recieved_level_prizes WHERE user_id = ? AND level_prize_id = ?"
 	var count int
@@ -734,7 +717,6 @@ func (r *LevelRepository) HasUserReceivedPrize(ctx context.Context, userID, priz
 }
 
 // RecordReceivedPrize records that user has received a prize
-// Implements Laravel: $user->recievedLevelPrizes()->attach($prize_id)
 func (r *LevelRepository) RecordReceivedPrize(ctx context.Context, userID, prizeID uint64) error {
 	query := "INSERT INTO recieved_level_prizes (user_id, level_prize_id, created_at, updated_at) VALUES (?, ?, NOW(), NOW())"
 	_, err := r.db.ExecContext(ctx, query, userID, prizeID)

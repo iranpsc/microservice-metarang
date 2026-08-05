@@ -136,7 +136,6 @@ func (h *AuthHandler) GetUserLevels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response according to Laravel API spec
 	data := map[string]interface{}{}
 
 	if resp.Data.LatestLevel != nil {
@@ -219,7 +218,6 @@ func (h *AuthHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response according to Laravel ProfileResource spec
 	data := map[string]interface{}{
 		"id":             resp.Data.Id,
 		"code":           resp.Data.Code,
@@ -269,7 +267,6 @@ func (h *AuthHandler) GetUserFeaturesCount(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Format response according to Laravel API spec
 	data := map[string]interface{}{
 		"maskoni_features_count":   resp.Data.MaskoniFeaturesCount,
 		"tejari_features_count":    resp.Data.TejariFeaturesCount,

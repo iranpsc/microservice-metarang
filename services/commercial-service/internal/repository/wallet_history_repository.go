@@ -24,6 +24,7 @@ type WalletHistoryRepository interface {
 	SumFeaturePurchaseWithdrawals(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error)
 	SumBuildingSatisfaction(ctx context.Context, userID uint64, start, end time.Time) (float64, error)
 	GetCurrentBalance(ctx context.Context, userID uint64) (*models.WalletBalance, error)
+	GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error)
 	GetPSCRate(ctx context.Context) (float64, error)
 }
 
@@ -243,6 +244,19 @@ func (r *walletHistoryRepository) SumBuildingSatisfaction(ctx context.Context, u
 		return 0, fmt.Errorf("sum building satisfaction: %w", err)
 	}
 	return total, nil
+}
+
+func (r *walletHistoryRepository) GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error) {
+	query := `SELECT created_at FROM users WHERE id = ? LIMIT 1`
+	var createdAt time.Time
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&createdAt)
+	if err == sql.ErrNoRows {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("get user created_at: %w", err)
+	}
+	return createdAt, nil
 }
 
 func (r *walletHistoryRepository) GetCurrentBalance(ctx context.Context, userID uint64) (*models.WalletBalance, error) {

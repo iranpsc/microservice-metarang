@@ -36,7 +36,6 @@ func NewTicketService(ticketRepo repository.TicketRepository, notificationAddr s
 }
 
 func (s *ticketService) CreateTicket(ctx context.Context, userID uint64, title, content, attachment string, receiverID *uint64, department *string) (*models.TicketWithRelations, error) {
-	// Generate 6-digit code (matching Laravel)
 	code := rand.Int31n(900000) + 100000
 
 	ticket := &models.Ticket{
@@ -108,7 +107,7 @@ func (s *ticketService) UpdateTicket(ctx context.Context, ticketID, userID uint6
 	if attachment != "" {
 		ticket.Attachment = attachment
 	}
-	ticket.Status = models.TicketStatusNew // Reset to NEW when updated (matching Laravel)
+	ticket.Status = models.TicketStatusNew
 
 	err = s.ticketRepo.Update(ctx, &ticket.Ticket)
 	if err != nil {
@@ -149,7 +148,6 @@ func (s *ticketService) AddResponse(ctx context.Context, ticketID, userID uint64
 		return nil, fmt.Errorf("failed to create response: %w", err)
 	}
 
-	// Update ticket status to ANSWERED (matching Laravel)
 	err = s.ticketRepo.UpdateStatus(ctx, ticketID, models.TicketStatusAnswered)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update ticket status: %w", err)
@@ -200,22 +198,18 @@ func (s *ticketService) CheckAuthorization(ctx context.Context, ticketID, userID
 
 	switch action {
 	case "view":
-		// Sender or receiver can view (matching Laravel TicketPolicy)
 		if senderID != userID && receiverID != userID {
 			return fmt.Errorf("unauthorized: you don't have permission to view this ticket")
 		}
 	case "update":
-		// Only sender can update (matching Laravel TicketPolicy)
 		if senderID != userID {
 			return fmt.Errorf("unauthorized: only ticket sender can update")
 		}
 	case "respond":
-		// Sender or receiver can respond (matching Laravel TicketPolicy)
 		if senderID != userID && receiverID != userID {
 			return fmt.Errorf("unauthorized: you don't have permission to respond to this ticket")
 		}
 	case "close":
-		// Only sender can close (matching Laravel TicketPolicy)
 		if senderID != userID {
 			return fmt.Errorf("unauthorized: only ticket sender can close")
 		}
@@ -240,7 +234,6 @@ func (s *ticketService) sendTicketNotification(userID uint64, ticket *models.Tic
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Prepare notification data matching Laravel TicketRecieved notification
 	message := fmt.Sprintf("تیکتی از طرف %s دریافت شده است", ticket.SenderName)
 	senderImage := "uploads/img/logo.png"
 	if ticket.SenderProfilePhoto != nil {

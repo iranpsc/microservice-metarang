@@ -6,8 +6,6 @@ import (
 	pb "metarang/shared/pb/auth"
 )
 
-// buildCitizenProfileHTTPResponse maps gRPC CitizenProfileResponse to Laravel PersonalInfo JSON.
-// Omits empty optional fields to match Laravel JsonResource mergeWhen behavior.
 func buildCitizenProfileHTTPResponse(resp *pb.CitizenProfileResponse) map[string]interface{} {
 	if resp == nil {
 		return map[string]interface{}{}
@@ -46,7 +44,6 @@ func buildCitizenProfileHTTPResponse(resp *pb.CitizenProfileResponse) map[string
 		out["score"] = resp.Score
 	}
 
-	// Always present in Laravel PersonalInfo
 	out["score_percentage_to_next_level"] = resp.ScorePercentageToNextLevel
 
 	if resp.CurrentLevel != nil {
@@ -189,7 +186,6 @@ func buildAchievedLevelsHTTP(levels []*pb.CitizenLevel) []map[string]interface{}
 	return result
 }
 
-// citizenProfileJSONRoundTrip ensures the HTTP payload matches expected Laravel keys.
 func citizenProfileJSONRoundTrip(data map[string]interface{}) map[string]interface{} {
 	raw, err := json.Marshal(data)
 	if err != nil {

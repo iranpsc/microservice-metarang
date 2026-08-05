@@ -73,7 +73,6 @@ message DynastyResponse {
   repeated IntroductionPrize prizes = 8;
 }
 
-// IntroductionPrize matches Laravel IntroductionPrizeResource for users without a dynasty.
 message IntroductionPrize {
   string member = 1;
   double satisfaction = 2;

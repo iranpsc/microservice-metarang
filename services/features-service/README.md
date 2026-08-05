@@ -324,7 +324,7 @@ All endpoints return gRPC status codes:
 - `FailedPrecondition` (412): Business rule violation (e.g., insufficient wallet, building already exists)
 - `Internal` (500): Server errors
 
-Validation errors follow Laravel format:
+Validation errors follow the standard platform format:
 ```json
 {
   "message": "The given data was invalid",

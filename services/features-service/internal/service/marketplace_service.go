@@ -904,7 +904,6 @@ func (s *MarketplaceService) AcceptBuyRequest(ctx context.Context, requestID, se
 		}
 
 		// Notify seller - they received payment
-		// Using a generic notification since Laravel sends sellFeature notification
 		if err := s.notificationClient.SendNotification(ctx, sellerID, "sellFeature", "فروش ملک",
 			fmt.Sprintf("ملک %d با موفقیت فروخته شد.", buyRequest.FeatureID),
 			map[string]string{
@@ -1160,7 +1159,6 @@ func (s *MarketplaceService) DeleteSellRequest(ctx context.Context, sellRequestI
 
 // RequestGracePeriod sets requested_grace_period on a pending buy request (deprecated RPC; prefer UpdateGracePeriod).
 // gracePeriod is the number of days as a decimal string (1–30). buyerID is a legacy proto field name: it must be the
-// seller's user id, matching Laravel BuyFeatureRequestPolicy::addGracePeriod (seller-only).
 func (s *MarketplaceService) RequestGracePeriod(ctx context.Context, requestID, sellerID uint64, gracePeriod string) error {
 	days, err := strconv.ParseInt(gracePeriod, 10, 32)
 	if err != nil || days < 1 || days > 30 {

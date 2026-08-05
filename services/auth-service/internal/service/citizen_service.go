@@ -154,7 +154,6 @@ func (s *citizenService) GetCitizenReferralChart(ctx context.Context, code strin
 	return chartData, nil
 }
 
-// ScorePercentageToNextLevel returns Laravel getScorePercentageToNextLevel for a citizen.
 func (s *citizenService) ScorePercentageToNextLevel(ctx context.Context, userID uint64, score int32) float64 {
 	if s.helperSvc == nil {
 		return 0
@@ -166,7 +165,6 @@ func (s *citizenService) ScorePercentageToNextLevel(ctx context.Context, userID 
 	return pct
 }
 
-// AbsoluteURL prepends APP_URL to a relative path (Laravel url() helper).
 func (s *citizenService) AbsoluteURL(path string) string {
 	if path == "" {
 		return ""
@@ -181,12 +179,10 @@ func (s *citizenService) AbsoluteURL(path string) string {
 	return s.appURL + "/" + path
 }
 
-// PassionIconURL returns the Laravel favorites icon URL for an enabled passion.
 func (s *citizenService) PassionIconURL(passion string) string {
 	return s.AbsoluteURL("uploads/favorites/" + passion + ".png")
 }
 
-// NationalityFlagURL returns the Laravel nationality flag URL.
 func (s *citizenService) NationalityFlagURL() string {
 	return s.AbsoluteURL("uploads/flags/iran.svg")
 }
@@ -201,7 +197,6 @@ func (s *citizenService) CitizenAvatar() string {
 	return citizenAvatarURL
 }
 
-// checkPrivacy mirrors Laravel PersonalInfo::checkFilter — default hidden.
 func (s *citizenService) checkPrivacy(privacy map[string]bool, field string) bool {
 	if privacy == nil {
 		return false
@@ -209,7 +204,6 @@ func (s *citizenService) checkPrivacy(privacy map[string]bool, field string) boo
 	return privacy[field]
 }
 
-// FormatRegisteredAt formats email_verified_at as Jalali Y/m/d (Laravel PersonalInfo).
 func FormatRegisteredAt(t time.Time) string {
 	if t.IsZero() {
 		return ""

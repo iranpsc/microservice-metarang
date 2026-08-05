@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const maxTicketAttachmentSize = 5 << 20 // 5MB — matches Laravel SecureFileUpload limit
+const maxTicketAttachmentSize = 5 << 20
 
 var allowedTicketAttachmentExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true,
@@ -20,7 +20,6 @@ var allowedTicketAttachmentExts = map[string]bool{
 }
 
 // uploadTicketAttachment stores a ticket attachment via the storage service HTTP API.
-// Returns a Laravel-compatible full URL (e.g. http://localhost:8000/uploads/tickets/<file>).
 func uploadTicketAttachment(r *http.Request, storageAddr, appURL string) (string, error) {
 	if storageAddr == "" {
 		return "", fmt.Errorf("storage service not configured")
@@ -166,7 +165,7 @@ func parseTicketFormFields(r *http.Request) (title, content, department string, 
 	return "", "", "", nil, nil
 }
 
-const maxNoteAttachmentSize = 5 << 20 // 5MB — matches Laravel NoteRequest limit
+const maxNoteAttachmentSize = 5 << 20
 
 var allowedNoteAttachmentExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".pdf": true,
@@ -221,7 +220,6 @@ func resolveNoteAttachmentURL(r *http.Request, storageAddr, appURL string) (stri
 		return url, false, nil
 	}
 
-	// Fallback: singular attachment field (Laravel-style)
 	if file, header, err := r.FormFile("attachment"); err == nil && header != nil {
 		defer func() { _ = file.Close() }()
 		url, uploadErr := uploadOpenedFile(storageAddr, appURL, "notes", header.Filename, header.Header.Get("Content-Type"), file, header.Size, allowedNoteAttachmentExts, maxNoteAttachmentSize)
@@ -290,7 +288,7 @@ func uploadOpenedFile(storageAddr, appURL, uploadSubdir, filename, contentType s
 	return uploadBytesToStorage(storageAddr, appURL, uploadSubdir, filename, contentType, data)
 }
 
-const maxReportAttachmentSize = 1 << 20 // 1MB — matches Laravel ReportRequest SecureFileUpload limit
+const maxReportAttachmentSize = 1 << 20
 
 var allowedReportAttachmentExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".pdf": true,

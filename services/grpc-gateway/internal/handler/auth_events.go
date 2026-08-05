@@ -43,7 +43,6 @@ func (h *AuthHandler) ListUserEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response to match Laravel UserEventResourceCollection
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"data": resp.Data,
 		"links": map[string]interface{}{
@@ -89,7 +88,6 @@ func (h *AuthHandler) GetUserEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response to match Laravel UserEventResource
 	writeJSON(w, http.StatusOK, resp.Data)
 }
 
@@ -142,7 +140,6 @@ func (h *AuthHandler) ReportUserEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response to match Laravel UserEventReportResource
 	writeJSON(w, http.StatusCreated, resp.Data)
 }
 
@@ -193,7 +190,6 @@ func (h *AuthHandler) SendReportResponse(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Format response to match Laravel UserEventReportResponseResource
 	writeJSON(w, http.StatusCreated, resp.Data)
 }
 

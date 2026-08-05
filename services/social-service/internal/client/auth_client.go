@@ -48,7 +48,6 @@ func (c *authClient) Close() error {
 	return nil
 }
 
-// CanFollow mirrors Laravel UserPolicy::follow profile-limitation checks.
 // It checks both a target-to-caller limitation and the target's global
 // target-to-self limitation.
 func (c *authClient) CanFollow(ctx context.Context, callerUserID, targetUserID uint64) (bool, error) {

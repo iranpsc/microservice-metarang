@@ -1,6 +1,5 @@
 package models
 
-// AllWalletAssets names match Laravel WalletAsset::ALL.
 var AllWalletAssets = []string{"psc", "irr", "red", "blue", "yellow", "satisfaction", "effect"}
 
 // ColorAssets are color tokens that support withdraw spending.

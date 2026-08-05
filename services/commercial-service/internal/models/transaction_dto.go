@@ -2,7 +2,6 @@
 package models
 
 // TransactionDTO represents the formatted transaction response
-// Matches Laravel's TransactionResource exactly
 type TransactionDTO struct {
 	ID     string `json:"id"`     // VARCHAR PK like TR-xxxxx
 	Type   string `json:"type"`   // polymorphic type

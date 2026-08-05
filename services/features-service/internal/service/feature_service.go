@@ -49,7 +49,6 @@ func NewFeatureService(
 }
 
 // ListFeatures retrieves features within a bounding box
-// Implements Laravel's FeatureRepository@all logic
 // Supports optional authentication (is_owned_by_auth_user) and building models
 func (s *FeatureService) ListFeatures(ctx context.Context, points []string, loadBuildings bool, userFeaturesLocation bool, authUserID uint64) ([]*pb.Feature, error) {
 	// Validate points array (min:4, regex validation per documentation)

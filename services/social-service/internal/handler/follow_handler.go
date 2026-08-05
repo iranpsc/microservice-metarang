@@ -105,10 +105,8 @@ func mapFollowError(err error) error {
 	case errors.Is(err, service.ErrUserNotFound):
 		return status.Errorf(codes.NotFound, "user not found")
 	case errors.Is(err, service.ErrCannotFollowSelf):
-		// Laravel UserPolicy::follow denies with HTTP 403
 		return status.Errorf(codes.PermissionDenied, "cannot follow yourself")
 	case errors.Is(err, service.ErrAlreadyFollowing):
-		// Laravel UserPolicy::follow denies with HTTP 403
 		return status.Errorf(codes.PermissionDenied, "already following this user")
 	case errors.Is(err, service.ErrProfileLimitation):
 		return status.Errorf(codes.PermissionDenied, "این کاربر امکان دنبال کردن را  برای شما غیر فعال کرده است.")

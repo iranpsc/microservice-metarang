@@ -29,7 +29,6 @@ type UserSearchResult struct {
 }
 
 // SearchUsers searches for users by code or name
-// Implements Laravel UserSearchService::searchUsers
 func (s *UserSearchService) SearchUsers(
 	ctx context.Context,
 	searchTerm string,

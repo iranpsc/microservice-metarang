@@ -544,7 +544,6 @@ func TestCallbackCreatesUserRelatedRecords(t *testing.T) {
 			t.Fatal("Expected user to be created with ID 1")
 		}
 
-		// Settings (Laravel UserObserver::created)
 		if settingsRepo.created == nil {
 			t.Fatal("Expected settings to be created for new user")
 		}
@@ -765,7 +764,6 @@ func TestCallbackLoggedInEvent(t *testing.T) {
 			t.Fatalf("Callback failed: %v", err)
 		}
 
-		// Login event (Laravel UserObserver::logedIn)
 		if len(activityRepo.events) != 1 {
 			t.Fatalf("Expected 1 login event, got %d", len(activityRepo.events))
 		}
@@ -795,7 +793,6 @@ func TestCallbackLoggedInEvent(t *testing.T) {
 			t.Errorf("Unexpected activity: %+v", activityRepo.activities[0])
 		}
 
-		// Notification service (Laravel LogedInNotification)
 		if notificationClient.lastRequest == nil {
 			t.Fatal("Expected notification service SendNotification to be called")
 		}

@@ -32,7 +32,6 @@ func (h *AuthHandler) ListProfilePhotos(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Format response to match Laravel ProfilePhotoResource: { "data": [...] }
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"data": resp.Data,
 	})
@@ -80,7 +79,6 @@ func (h *AuthHandler) UploadProfilePhoto(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Format response to match Laravel ProfilePhotoResource: { "id": ..., "url": ... }
 	writeJSON(w, http.StatusCreated, resp)
 }
 
@@ -108,7 +106,6 @@ func (h *AuthHandler) GetProfilePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response to match Laravel ProfilePhotoResource: { "id": ..., "url": ... }
 	writeJSON(w, http.StatusOK, resp)
 }
 

@@ -31,7 +31,6 @@ func (h *AuthHandler) ListBankAccounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format response to match Laravel API: { "data": [...] }
 	data := make([]map[string]interface{}, 0, len(resp.Data))
 	for _, account := range resp.Data {
 		data = append(data, formatBankAccountResource(account))
@@ -205,7 +204,6 @@ func (h *AuthHandler) DeleteBankAccount(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// formatBankAccountResource builds a Laravel BankAccountResource-compatible JSON object.
 func formatBankAccountResource(resp *pb.BankAccountResponse) map[string]interface{} {
 	response := map[string]interface{}{
 		"id":        resp.Id,
@@ -220,7 +218,6 @@ func formatBankAccountResource(resp *pb.BankAccountResponse) map[string]interfac
 	return response
 }
 
-// parseBankAccountErrors decodes JSON errors from the database (Laravel casts errors as array).
 func parseBankAccountErrors(raw string) interface{} {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

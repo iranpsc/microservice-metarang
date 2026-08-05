@@ -200,7 +200,6 @@ func main() {
 	mux.Handle("/api/account/security", authMiddleware(http.HandlerFunc(authHandler.RequestAccountSecurity)))
 	mux.Handle("/api/account/security/verify", authMiddleware(http.HandlerFunc(authHandler.VerifyAccountSecurity)))
 
-	// Web3 wallet connection routes (Laravel WalletController)
 	mux.Handle("/api/wallet/link/nonce", authMiddleware(http.HandlerFunc(walletHandler.GetLinkNonce)))
 	mux.Handle("/api/wallet/link", authMiddleware(http.HandlerFunc(walletHandler.LinkWallet)))
 	mux.Handle("/api/wallet/security/nonce", authMiddleware(http.HandlerFunc(walletHandler.GetSecurityNonce)))
@@ -212,7 +211,6 @@ func main() {
 	mux.Handle("/api/user/wallet", authMiddleware(http.HandlerFunc(authHandler.GetAuthenticatedUserWallet)))
 	mux.Handle("/api/user/profile", authMiddleware(http.HandlerFunc(authHandler.UpdateProfile)))
 
-	// GET /api/users/{user}/profile-limitations requires authentication (docs + Laravel)
 	mux.Handle("GET /api/users/{user}/profile-limitations", authMiddleware(http.HandlerFunc(authHandler.GetProfileLimitations)))
 
 	// Dynamic /api/users/{user}/... routes
@@ -242,7 +240,6 @@ func main() {
 	// Account security routes (already handled above, but keeping for consistency)
 	// These are already registered as protected routes above
 
-	// KYC routes — use EffectiveHTTPMethod so POST + _method=put|patch (Laravel multipart uploads) is accepted
 	mux.Handle("/api/kyc", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch handler.EffectiveHTTPMethod(r) {
 		case http.MethodGet:
@@ -296,7 +293,6 @@ func main() {
 		}
 	})))
 
-	// Personal Info routes — EffectiveHTTPMethod supports POST + _method=put|patch (Laravel clients)
 	personalInfoHandler := authMiddleware(handler.PersonalInfoRoutes(authHandler))
 	mux.Handle("/api/personal-info", personalInfoHandler)
 	mux.Handle("/api/personal-info/", personalInfoHandler)

@@ -20,7 +20,6 @@ func NewVariableRepository(db *sql.DB) VariableRepository {
 }
 
 // GetRate retrieves the rate for a specific asset
-// Laravel equivalent: Variable::getRate('psc')
 func (r *variableRepository) GetRate(ctx context.Context, asset string) (float64, error) {
 	query := `
 		SELECT price

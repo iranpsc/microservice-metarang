@@ -24,7 +24,6 @@ func NewReferralRepository(db *sql.DB) ReferralRepository {
 }
 
 // GetReferrerID gets the user's referrer ID (who referred them)
-// Laravel: $user->referred->id (user who referred this user)
 func (r *referralRepository) GetReferrerID(ctx context.Context, userID uint64) (*uint64, error) {
 	query := `
 		SELECT referrer_id
@@ -51,7 +50,6 @@ func (r *referralRepository) GetReferrerID(ctx context.Context, userID uint64) (
 }
 
 // GetTotalReferredAmount calculates total referral amount for a referrer
-// Laravel: $referred->referalOrders()->sum('amount')
 func (r *referralRepository) GetTotalReferredAmount(ctx context.Context, referrerID uint64) (float64, error) {
 	query := `
 		SELECT COALESCE(SUM(amount), 0)
@@ -69,7 +67,6 @@ func (r *referralRepository) GetTotalReferredAmount(ctx context.Context, referre
 }
 
 // CreateReferralOrder creates a referral order history record
-// Laravel: $referred->referralOrders()->create([...])
 func (r *referralRepository) CreateReferralOrder(ctx context.Context, history *models.ReferralOrderHistory) error {
 	query := `
 		INSERT INTO referral_order_histories (user_id, referral_id, amount, created_at, updated_at)

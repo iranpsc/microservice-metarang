@@ -95,7 +95,6 @@ type ChartDataPoint struct {
 	TotalAmount int64
 }
 
-// CitizenLevel represents level information for citizen profile (Laravel PersonalInfo)
 type CitizenLevel struct {
 	ID    uint64
 	Name  string

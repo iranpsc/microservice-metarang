@@ -16,7 +16,6 @@ func NewLockedAssetRepository(db *sql.DB) *LockedAssetRepository {
 }
 
 // Create locks assets for a buy request
-// Implements Laravel's BuyRequestsController@store logic for lockedwallet
 func (r *LockedAssetRepository) Create(ctx context.Context, buyRequestID, featureID uint64, psc, irr float64) (uint64, error) {
 	query := `
 		INSERT INTO locked_wallets (buy_feature_request_id, feature_id, psc, irr, created_at, updated_at)

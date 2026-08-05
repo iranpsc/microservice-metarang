@@ -50,7 +50,6 @@ func NewLevelService(
 }
 
 // GetUserLevel retrieves user's current level and progression
-// Implements Laravel: UserController@getLevel
 func (s *LevelService) GetUserLevel(ctx context.Context, userID uint64) (*pb.UserLevelResponse, error) {
 	latestLevel, err := s.levelRepo.GetUserLatestLevel(ctx, userID)
 	if err != nil {
@@ -76,7 +75,6 @@ func (s *LevelService) GetUserLevel(ctx context.Context, userID uint64) (*pb.Use
 	}
 
 	// Calculate percentage to next level
-	// Implements Laravel: $latestLevel->getScorePercentageToNextLevel($user)
 	nextLevel, err := s.levelRepo.GetNextLevel(ctx, latestLevel.Score)
 	scorePercentage := int32(0)
 	if err == nil && nextLevel != nil {
@@ -92,13 +90,11 @@ func (s *LevelService) GetUserLevel(ctx context.Context, userID uint64) (*pb.Use
 }
 
 // GetAllLevels retrieves all levels
-// Implements Laravel: LevelController@index
 func (s *LevelService) GetAllLevels(ctx context.Context) ([]*pb.Level, error) {
 	return s.levelRepo.GetAllLevels(ctx)
 }
 
 // GetLevel retrieves a specific level with all relationships
-// Implements Laravel: LevelController@show
 func (s *LevelService) GetLevel(ctx context.Context, levelID uint64, levelSlug string) (*pb.Level, error) {
 	if levelID > 0 {
 		return s.levelRepo.FindByID(ctx, levelID)
@@ -107,7 +103,6 @@ func (s *LevelService) GetLevel(ctx context.Context, levelID uint64, levelSlug s
 }
 
 // GetLevelGeneralInfo retrieves general info for a level
-// Implements Laravel: LevelController@getGeneralInfo
 func (s *LevelService) GetLevelGeneralInfo(ctx context.Context, levelID uint64, levelSlug string) (*pb.LevelGeneralInfo, error) {
 	// Get level first if only slug is provided
 	if levelID == 0 && levelSlug != "" {
@@ -122,7 +117,6 @@ func (s *LevelService) GetLevelGeneralInfo(ctx context.Context, levelID uint64, 
 }
 
 // GetLevelGem retrieves gem info for a level
-// Implements Laravel: LevelController@gem
 func (s *LevelService) GetLevelGem(ctx context.Context, levelID uint64, levelSlug string) (*pb.LevelGem, error) {
 	// Get level first if only slug is provided
 	if levelID == 0 && levelSlug != "" {
@@ -137,7 +131,6 @@ func (s *LevelService) GetLevelGem(ctx context.Context, levelID uint64, levelSlu
 }
 
 // GetLevelGift retrieves gift info for a level
-// Implements Laravel: LevelController@gift
 func (s *LevelService) GetLevelGift(ctx context.Context, levelID uint64, levelSlug string) (*pb.LevelGift, error) {
 	// Get level first if only slug is provided
 	if levelID == 0 && levelSlug != "" {
@@ -152,7 +145,6 @@ func (s *LevelService) GetLevelGift(ctx context.Context, levelID uint64, levelSl
 }
 
 // GetLevelLicenses retrieves license info for a level
-// Implements Laravel: LevelController@licenses
 func (s *LevelService) GetLevelLicenses(ctx context.Context, levelID uint64, levelSlug string) (*pb.LevelLicense, error) {
 	// Get level first if only slug is provided
 	if levelID == 0 && levelSlug != "" {
@@ -167,7 +159,6 @@ func (s *LevelService) GetLevelLicenses(ctx context.Context, levelID uint64, lev
 }
 
 // GetLevelPrizes retrieves prizes for a level
-// Implements Laravel: LevelController@prizes
 func (s *LevelService) GetLevelPrizes(ctx context.Context, levelID uint64, levelSlug string) (*pb.LevelPrize, error) {
 	// Get level first if only slug is provided
 	if levelID == 0 && levelSlug != "" {
@@ -187,7 +178,6 @@ func (s *LevelService) GetLevelPrizes(ctx context.Context, levelID uint64, level
 }
 
 // ClaimPrize allows user to claim prize (future implementation with wallet service integration)
-// Implements Laravel: LevelPrizePolicy@recievePrize and UserObserver prize award logic
 func (s *LevelService) ClaimPrize(ctx context.Context, userID, levelID uint64) error {
 	// Get the level prize
 	prize, err := s.levelRepo.GetLevelPrize(ctx, levelID)

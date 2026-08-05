@@ -66,7 +66,6 @@ func (p *redisPublisher) PublishUserStatusChanged(ctx context.Context, userID ui
 	}
 
 	// Publish to the user-status-changed channel
-	// This matches Laravel's broadcast channel name
 	err = p.client.Publish(ctx, "user-status-changed", payload).Err()
 	if err != nil {
 		return fmt.Errorf("failed to publish to Redis: %w", err)

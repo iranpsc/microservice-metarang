@@ -31,7 +31,6 @@ func (h *AuthHandler) GetKYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If KYC not found, return empty JSON object (matches Laravel behavior)
 	if resp.Id == 0 {
 		writeJSON(w, http.StatusOK, map[string]interface{}{})
 		return
@@ -42,7 +41,6 @@ func (h *AuthHandler) GetKYC(w http.ResponseWriter, r *http.Request) {
 
 // UpdateKYC handles PUT/PATCH /api/kyc
 func (h *AuthHandler) UpdateKYC(w http.ResponseWriter, r *http.Request) {
-	// Accept Laravel-style POST + _method=put|patch for multipart file uploads
 	if m := EffectiveHTTPMethod(r); m != http.MethodPut && m != http.MethodPatch {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -128,7 +126,6 @@ func (h *AuthHandler) UpdateKYC(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, formatKYCResponse(resp))
 }
 
-// formatKYCResponse builds a Laravel KycResource-compatible JSON object.
 func formatKYCResponse(resp *pb.KYCResponse) map[string]interface{} {
 	response := map[string]interface{}{
 		"id":         fmt.Sprintf("%d", resp.Id),

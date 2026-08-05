@@ -8,7 +8,6 @@ import (
 
 const listUsersPerPage int32 = 20
 
-// userListLevelToHTTP maps a list Level proto to Laravel UserResource level shape.
 func userListLevelToHTTP(lvl *pb.Level) map[string]interface{} {
 	if lvl == nil {
 		return nil
@@ -28,7 +27,6 @@ func userListLevelToHTTP(lvl *pb.Level) map[string]interface{} {
 	return out
 }
 
-// buildListUserItemHTTP maps a user list proto item to Laravel UserResource JSON.
 func buildListUserItemHTTP(item *pb.UserListItem) map[string]interface{} {
 	userData := map[string]interface{}{
 		"id":    item.Id,
@@ -64,7 +62,6 @@ func buildListUserItemHTTP(item *pb.UserListItem) map[string]interface{} {
 	return userData
 }
 
-// buildListUsersHTTPResponse formats GET /api/users as Laravel simplePaginate JSON.
 func buildListUsersHTTPResponse(r *http.Request, resp *pb.ListUsersResponse) map[string]interface{} {
 	currentPage := int32(1)
 	hasMore := false

@@ -108,7 +108,6 @@ func (h *AuthHandler) GetCitizenReferralChart(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, buildCitizenReferralChartHTTPResponse(resp))
 }
 
-// buildCitizenReferralsHTTPResponse formats referrals as Laravel simplePaginate JSON.
 func buildCitizenReferralsHTTPResponse(r *http.Request, resp *pb.CitizenReferralsResponse) map[string]interface{} {
 	const perPage int32 = 10
 
@@ -170,7 +169,6 @@ func buildCitizenReferralsHTTPResponse(r *http.Request, resp *pb.CitizenReferral
 	return response
 }
 
-// buildCitizenReferralChartHTTPResponse formats chart stats with a single Laravel-style data wrapper.
 func buildCitizenReferralChartHTTPResponse(resp *pb.CitizenReferralChartResponse) map[string]interface{} {
 	chartPayload := map[string]interface{}{
 		"total_referrals_count":        "0",

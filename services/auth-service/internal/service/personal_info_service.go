@@ -107,7 +107,6 @@ func (s *personalInfoService) UpdatePersonalInfo(ctx context.Context, userID uin
 
 	// Handle nullable string fields - empty string becomes null (clears field)
 	// Note: In proto3, we can't distinguish between "not provided" and "empty string"
-	// So empty string means "clear this field" per Laravel API documentation
 	personalInfo.Occupation = sql.NullString{String: occupation, Valid: occupation != ""}
 	personalInfo.Education = sql.NullString{String: education, Valid: education != ""}
 	personalInfo.Memory = sql.NullString{String: memory, Valid: memory != ""}

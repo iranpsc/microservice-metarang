@@ -35,7 +35,6 @@ func (c *jalaliConverter) FormatJalaliDate(t time.Time) string {
 }
 
 // FormatJalaliTime converts time.Time to Jalali time format H:m:s
-// NOTE: Laravel uses H:m:s format (not H:i:s) - we must match exactly
 func (c *jalaliConverter) FormatJalaliTime(t time.Time) string {
 	return fmt.Sprintf("%02d:%d:%02d", t.Hour(), t.Minute(), t.Second())
 }

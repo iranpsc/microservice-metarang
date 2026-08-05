@@ -243,7 +243,6 @@ func (r *citizenRepository) GetCitizenReferrals(ctx context.Context, referrerID 
 		return nil, nil, fmt.Errorf("failed to count referrals: %w", err)
 	}
 
-	// Ordering matches Laravel ReferralService::getReferrals (subquery on referrer_id).
 	query := `
 		SELECT u.id, u.code, u.name, u.created_at
 		FROM users u
@@ -408,7 +407,6 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 	}
 
 	// Build query based on range type
-	// Laravel behavior:
 	// - yearly: ALL data, no time filter (groups by year from first to current)
 	// - monthly: last 12 months
 	// - weekly: last 7 days

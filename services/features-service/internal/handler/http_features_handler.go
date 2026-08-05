@@ -879,7 +879,6 @@ func mapListBuildingModel(featureID uint64, building *featurespb.Building) map[s
 	}
 }
 
-// parseNumericOrString returns a uint64 when s is numeric (Laravel JSON number), otherwise the original string.
 func parseNumericOrString(s string) interface{} {
 	if s == "" {
 		return nil

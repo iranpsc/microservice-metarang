@@ -135,7 +135,7 @@ go test ./... -v
 
 ## Dependencies
 
-- Database: MySQL (shared with Laravel)
+- Database: MySQL (shared instance)
 - gRPC: For service communication
 - Sadad Payment Gateway: For payment processing
 

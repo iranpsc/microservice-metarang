@@ -233,9 +233,10 @@ func main() {
 	isicCodeService := service.NewIsicCodeService(isicCodeRepo)
 
 	citizenFeaturesRepo := repository.NewCitizenFeaturesRepository(database)
-	citizenFeaturesService := service.NewCitizenFeaturesService(citizenFeaturesRepo)
+	userRepo := repository.NewUserRepository(database)
+	citizenFeaturesService := service.NewCitizenFeaturesService(citizenFeaturesRepo, userRepo)
 
-	citizenBuildingsService := service.NewCitizenBuildingsService(buildingRepo, nil)
+	citizenBuildingsService := service.NewCitizenBuildingsService(buildingRepo, userRepo, nil)
 
 	// Initialize gRPC handlers
 	handler.SetProjectLocale(getEnv("PROJECT_LOCALE", "EN"))

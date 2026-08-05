@@ -14,7 +14,6 @@ import (
 // LevelsClient wraps gRPC clients for Levels Service
 type LevelsClient interface {
 	// RecordFollower asks levels-service to update the user's followers_count
-	// log and recalculate their score (Laravel UserObserver::followed).
 	RecordFollower(ctx context.Context, userID uint64) error
 	Close() error
 }

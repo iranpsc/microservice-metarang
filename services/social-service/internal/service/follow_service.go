@@ -122,7 +122,6 @@ func (s *followService) Follow(ctx context.Context, userID, targetUserID uint64)
 		return fmt.Errorf("failed to create follow relationship: %w", err)
 	}
 
-	// Laravel fires User::followed on the followed user (UserObserver::followed):
 	// levels-service updates their followers_count log and recalculates score.
 	// Best-effort: a levels-service outage must not fail the follow itself.
 	if s.levelsClient != nil {
@@ -146,7 +145,6 @@ func (s *followService) Remove(ctx context.Context, userID, targetUserID uint64)
 }
 
 // buildFollowResource builds the resource for userID as seen by viewerID (the
-// authenticated user), mirroring Laravel FollowResource.
 func (s *followService) buildFollowResource(ctx context.Context, viewerID, userID uint64) (*models.FollowResource, error) {
 	// Get user basic info
 	userInfo, err := s.userRepo.GetUserBasicInfo(ctx, userID)

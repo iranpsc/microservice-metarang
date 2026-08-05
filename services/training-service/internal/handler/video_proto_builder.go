@@ -10,7 +10,6 @@ import (
 	"metarang/training-service/internal/service"
 )
 
-// VideoDetailsToProto maps enriched video details to the gRPC VideoResponse (Laravel-compatible URLs and shape).
 func VideoDetailsToProto(video *service.VideoDetails) (*trainingpb.VideoResponse, error) {
 	if video == nil || video.Video == nil {
 		return nil, fmt.Errorf("invalid video data")

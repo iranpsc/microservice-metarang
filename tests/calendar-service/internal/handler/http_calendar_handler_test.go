@@ -62,7 +62,7 @@ func (m *mockCalendarAPI) AddInteraction(ctx context.Context, req *calendarpb.Ad
 	return &calendarpb.EventResponse{}, nil
 }
 
-func TestHTTPGetEvents_VersionLaravelShape(t *testing.T) {
+func TestHTTPGetEvents_VersionExpectedShape(t *testing.T) {
 	api := &mockCalendarAPI{}
 	api.GetEventsFunc = func(_ context.Context, req *calendarpb.GetEventsRequest) (*calendarpb.EventsResponse, error) {
 		if req.Type != "version" {

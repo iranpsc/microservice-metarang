@@ -21,8 +21,8 @@ func FormatJalaliDateTime(t time.Time) string {
 	return pt.Format("yyyy/MM/dd HH:mm:ss")
 }
 
-// FormatJalaliDateTimeLaravel matches Laravel jdate(...)->format('Y-m-d H:i:s').
-func FormatJalaliDateTimeLaravel(t time.Time) string {
+// FormatJalaliDateTimeDash formats Gregorian datetime as Jalali Y-m-d H:i:s (dash-separated date).
+func FormatJalaliDateTimeDash(t time.Time) string {
 	pt := ptime.New(t)
 	return pt.Format("yyyy-MM-dd HH:mm:ss")
 }

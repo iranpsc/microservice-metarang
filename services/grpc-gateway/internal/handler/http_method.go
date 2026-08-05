@@ -6,7 +6,6 @@ import (
 )
 
 // EffectiveHTTPMethod returns the HTTP method used for routing.
-// POST requests may use Laravel-style method spoofing via the _method field
 // in query parameters or form body (application/x-www-form-urlencoded or multipart).
 func EffectiveHTTPMethod(r *http.Request) string {
 	if r.Method != http.MethodPost {

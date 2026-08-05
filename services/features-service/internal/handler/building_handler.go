@@ -28,7 +28,6 @@ func NewBuildingHandler(service BuildingServicePort, completed CompletedBuilding
 }
 
 // GetBuildPackage retrieves available building models for a feature from 3D Meta API
-// Implements Laravel's BuildFeatureController@getBuildPackage
 func (h *BuildingHandler) GetBuildPackage(ctx context.Context, req *pb.GetBuildPackageRequest) (*pb.BuildPackageResponse, error) {
 	locale := GetProjectLocale()
 	if req.FeatureId == 0 {
@@ -50,7 +49,6 @@ func (h *BuildingHandler) GetBuildPackage(ctx context.Context, req *pb.GetBuildP
 }
 
 // BuildFeature starts construction of a building on a feature
-// Implements Laravel's BuildFeatureController@buildFeature
 func (h *BuildingHandler) BuildFeature(ctx context.Context, req *pb.BuildFeatureRequest) (*pb.BuildFeatureResponse, error) {
 	locale := GetProjectLocale()
 	if req.FeatureId == 0 {
@@ -80,7 +78,6 @@ func (h *BuildingHandler) BuildFeature(ctx context.Context, req *pb.BuildFeature
 }
 
 // GetBuildings retrieves all buildings on a feature
-// Implements Laravel's BuildFeatureController@getBuildings
 func (h *BuildingHandler) GetBuildings(ctx context.Context, req *pb.GetBuildingsRequest) (*pb.BuildingsResponse, error) {
 	locale := GetProjectLocale()
 	if req.FeatureId == 0 {
@@ -164,7 +161,6 @@ func (h *BuildingHandler) UpdateBuildingInformation(ctx context.Context, req *pb
 }
 
 // DestroyBuilding removes a building from a feature
-// Implements Laravel's BuildFeatureController@destroyBuilding
 func (h *BuildingHandler) DestroyBuilding(ctx context.Context, req *pb.DestroyBuildingRequest) (*pb.BuildingResponse, error) {
 	locale := GetProjectLocale()
 	if req.FeatureId == 0 {

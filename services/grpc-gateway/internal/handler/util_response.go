@@ -52,7 +52,6 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}, skipWrap ...
 				if _, hasError := dataMap["error"]; hasError {
 					shouldSkipWrap = true
 				}
-				// Laravel-style bare responses: {"url": "..."} or {"link": "..."}
 				if _, hasURL := dataMap["url"]; hasURL {
 					shouldSkipWrap = true
 				}

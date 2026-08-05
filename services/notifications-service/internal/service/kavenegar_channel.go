@@ -33,7 +33,6 @@ func NewKavenegarSMSChannel(apiKey, sender string) SMSChannel {
 
 func (c *kavenegarSMSChannel) verifyLookup(receptor, template, token string) (kavenegar.Message, error) {
 	// Pass nil for params so the SDK does not add empty Token2/Token3/Type fields.
-	// Laravel uses: verifyLookup('verify', $code) -> POST verify/lookup with receptor, token, template.
 	return c.api.Verify.Lookup(receptor, template, token, nil)
 }
 
@@ -75,7 +74,6 @@ func (c *kavenegarSMSChannel) SendOTP(ctx context.Context, payload models.OTPPay
 		return "", fmt.Errorf("OTP code is required")
 	}
 
-	// Match Laravel GetOtpNotification: verifyLookup('verify', $code)
 	res, err := c.verifyLookup(payload.Phone, kavenegarOTPTemplate, payload.Code)
 	if err != nil {
 		return "", mapKavenegarError(err)
@@ -114,7 +112,7 @@ func mapKavenegarError(err error) error {
 func kavenegarAPIErrorHint(status int) string {
 	switch status {
 	case 403:
-		return "invalid API key; set SMS_API_KEY in notifications-service/config.env to match laravel-api config/kavenegar.php"
+		return "invalid API key; set SMS_API_KEY in notifications-service/config.env"
 	case 416:
 		return "request IP is not allowed in Kavenegar panel; add your server/Docker egress IP to API access list or disable IP restriction"
 	case 424:

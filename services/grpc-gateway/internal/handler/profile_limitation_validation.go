@@ -253,7 +253,6 @@ func profileLimitationResourceJSON(data *pb.ProfileLimitation, callerUserID uint
 		},
 	}
 
-	// Laravel ProfileLimitationResource: include note (even null) only for limiter.
 	if callerUserID == data.LimiterUserId {
 		if data.Note == nil || *data.Note == "" {
 			resource["note"] = nil

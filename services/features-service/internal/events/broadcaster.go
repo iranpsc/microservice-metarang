@@ -42,7 +42,6 @@ func NewRedisBroadcaster(redisAddr, redisPassword, channel string) (*RedisBroadc
 }
 
 // BroadcastFeatureStatusChanged broadcasts a feature status change event
-// Matches Laravel's FeatureStatusChanged event structure
 func (b *RedisBroadcaster) BroadcastFeatureStatusChanged(ctx context.Context, featureID uint64, rgb string) error {
 	payload := map[string]interface{}{
 		"id":  featureID,

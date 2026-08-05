@@ -36,7 +36,6 @@ func (h *personalInfoHandler) GetPersonalInfo(ctx context.Context, req *pb.GetPe
 		return nil, mapPersonalInfoServiceError(err)
 	}
 
-	// If not found, return empty array (matches Laravel behavior)
 	if personalInfo == nil {
 		return &pb.GetPersonalInfoResponse{
 			Data: &pb.PersonalInfoData{},

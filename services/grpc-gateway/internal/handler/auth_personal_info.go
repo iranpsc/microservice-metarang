@@ -33,7 +33,6 @@ func (h *AuthHandler) GetPersonalInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if personal info exists (has any data)
-	// If all fields are empty/null, return empty array per Laravel API spec
 	if resp.Data == nil || !hasPersonalInfoData(resp.Data) {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"data": []interface{}{},
@@ -41,7 +40,6 @@ func (h *AuthHandler) GetPersonalInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert PersonalInfoData to Laravel-compatible format
 	data := map[string]interface{}{}
 	if resp.Data.Occupation != "" {
 		data["occupation"] = resp.Data.Occupation
@@ -102,7 +100,6 @@ func hasPersonalInfoData(data *pb.PersonalInfoData) bool {
 
 // UpdatePersonalInfo handles PUT/PATCH /api/personal-info
 func (h *AuthHandler) UpdatePersonalInfo(w http.ResponseWriter, r *http.Request) {
-	// Accept Laravel-style POST + _method=put|patch (same as KYC / bank-accounts routing)
 	if m := EffectiveHTTPMethod(r); m != http.MethodPut && m != http.MethodPatch {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return

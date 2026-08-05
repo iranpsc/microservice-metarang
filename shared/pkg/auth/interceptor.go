@@ -183,7 +183,6 @@ func extractToken(authHeader string) string {
 }
 
 // shouldUseOptionalAuth checks if authentication is optional for a method.
-// Matches Laravel routes that work without auth but enrich the response when a bearer token is present.
 func shouldUseOptionalAuth(fullMethod string) bool {
 	optionalMethods := []string{
 		"/features.FeatureService/ListFeatures",

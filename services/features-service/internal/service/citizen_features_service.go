@@ -10,7 +10,6 @@ import (
 	periodpkg "metarang/shared/pkg/period"
 )
 
-// DisplayableKarbaris matches Laravel UserFeaturesService::DISPLAYABLE_KARBARIS.
 var DisplayableKarbaris = []string{"a", "m", "t", "g", "s", "b", "e", "n"}
 
 var karbariLabels = map[string]string{
@@ -35,16 +34,22 @@ type citizenFeaturesRepo interface {
 	ListMapMarkers(ctx context.Context, userID uint64, karbaris []string) ([]models.CitizenFeatureMapMarker, error)
 }
 
-// CitizenFeaturesService implements public citizen feature asset queries.
-type CitizenFeaturesService struct {
-	repo citizenFeaturesRepo
-	now  func() time.Time
+type userCreatedAtRepo interface {
+	GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error)
 }
 
-func NewCitizenFeaturesService(repo citizenFeaturesRepo) *CitizenFeaturesService {
+// CitizenFeaturesService implements public citizen feature asset queries.
+type CitizenFeaturesService struct {
+	repo     citizenFeaturesRepo
+	userRepo userCreatedAtRepo
+	now      func() time.Time
+}
+
+func NewCitizenFeaturesService(repo citizenFeaturesRepo, userRepo userCreatedAtRepo) *CitizenFeaturesService {
 	return &CitizenFeaturesService{
-		repo: repo,
-		now:  time.Now,
+		repo:     repo,
+		userRepo: userRepo,
+		now:      time.Now,
 	}
 }
 
@@ -66,7 +71,11 @@ func (s *CitizenFeaturesService) GetSummary(
 	if reference.IsZero() {
 		reference = s.now()
 	}
-	window, err := periodpkg.ResolvePeriod(period, reference)
+	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user registration date: %w", err)
+	}
+	window, err := periodpkg.ResolvePeriod(period, reference, registeredAt)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +121,11 @@ func (s *CitizenFeaturesService) GetChart(
 	if reference.IsZero() {
 		reference = s.now()
 	}
-	window, err := periodpkg.ResolvePeriod(period, reference)
+	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user registration date: %w", err)
+	}
+	window, err := periodpkg.ResolvePeriod(period, reference, registeredAt)
 	if err != nil {
 		return nil, err
 	}

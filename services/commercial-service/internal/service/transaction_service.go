@@ -55,7 +55,6 @@ func (s *transactionService) GetLatestTransaction(ctx context.Context, userID ui
 }
 
 // transactionToDTO converts Transaction model to TransactionDTO with proper formatting
-// Matches Laravel's TransactionResource::toArray() exactly
 func (s *transactionService) transactionToDTO(t *models.Transaction) *models.TransactionDTO {
 	payableType := ""
 	if t.PayableType != nil {

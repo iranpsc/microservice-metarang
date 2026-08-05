@@ -62,7 +62,6 @@ func (r *BuyRequestRepository) SoftDelete(ctx context.Context, id uint64) error 
 }
 
 // CancelAllForFeature cancels (soft deletes) all buy requests for a feature
-// Implements Laravel's cancelBuyRequests() logic
 func (r *BuyRequestRepository) CancelAllForFeature(ctx context.Context, featureID uint64) error {
 	query := "UPDATE buy_feature_requests SET deleted_at = NOW() WHERE feature_id = ? AND deleted_at IS NULL"
 	_, err := r.db.ExecContext(ctx, query, featureID)

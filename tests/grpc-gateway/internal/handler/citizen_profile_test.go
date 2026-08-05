@@ -16,7 +16,7 @@ import (
 	"metarang/grpc-gateway/internal/testutil"
 )
 
-func TestGetCitizenProfile_LaravelShape(t *testing.T) {
+func TestGetCitizenProfile_ExpectedJSONShape(t *testing.T) {
 	citizen := &testutil.MockCitizenService{}
 	citizen.GetCitizenProfileFunc = func(_ context.Context, _ *pb.GetCitizenProfileRequest) (*pb.CitizenProfileResponse, error) {
 		return &pb.CitizenProfileResponse{

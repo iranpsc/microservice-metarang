@@ -54,7 +54,6 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *pb.CreateOrderReque
 			return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 		}
 		if errors.Is(err, service.ErrPaymentFailed) {
-			// Laravel OrderController throws ValidationException with an "error" field (422)
 			return nil, returnValidationError(map[string]string{
 				"error": paymentFailedMessage(err),
 			})

@@ -211,7 +211,7 @@ func buildSpec(routes []routeDef, discovered map[string]discoveredEndpoint, appU
 		OpenAPI: "3.0.3",
 		Info: map[string]interface{}{
 			"title":       "metarang API",
-			"description": "REST API for metarang microservices. Laravel-compatible JSON responses served via Kong → grpc-gateway → gRPC services.",
+			"description": "REST API for metarang microservices. Legacy-compatible JSON responses served via Kong → grpc-gateway → gRPC services.",
 			"version":     "1.0.0",
 			"contact": map[string]string{
 				"name": "metarang",
@@ -226,7 +226,7 @@ func buildSpec(routes []routeDef, discovered map[string]discoveredEndpoint, appU
 					"type":         "http",
 					"scheme":       "bearer",
 					"bearerFormat": "Token",
-					"description":  "Laravel Sanctum-style bearer token. Header: Authorization: Bearer {token}",
+					"description":  "Bearer token. Header: Authorization: Bearer {token}",
 				},
 			},
 			"schemas": map[string]interface{}{

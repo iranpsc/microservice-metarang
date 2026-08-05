@@ -43,11 +43,11 @@ type ChunkUploadHTTPRequest struct {
 type ChunkUploadHTTPResponse struct {
 	Success        bool    `json:"success"`
 	Message        string  `json:"message"`
-	PercentageDone float64 `json:"done"` // Match Laravel's response key
+	PercentageDone float64 `json:"done"`
 	IsFinished     bool    `json:"is_finished,omitempty"`
-	FileURL        string  `json:"path,omitempty"`      // Match Laravel's response key
-	FileName       string  `json:"name,omitempty"`      // Match Laravel's response key
-	MimeType       string  `json:"mime_type,omitempty"` // Match Laravel's response key
+	FileURL        string  `json:"path,omitempty"`
+	FileName       string  `json:"name,omitempty"`
+	MimeType       string  `json:"mime_type,omitempty"`
 }
 
 // HandleChunkUpload handles the chunk upload HTTP endpoint
@@ -145,7 +145,6 @@ func (h *HTTPHandler) HandleChunkUpload(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Build response matching Laravel format exactly
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 

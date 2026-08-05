@@ -7,7 +7,6 @@ import (
 	dynastypb "metarang/shared/pb/dynasty"
 )
 
-// buildDynastyHTTPResponse formats a dynasty gRPC response to match Laravel DynastyResource JSON.
 func buildDynastyHTTPResponse(resp *dynastypb.DynastyResponse) map[string]interface{} {
 	if resp == nil {
 		return map[string]interface{}{}
@@ -74,7 +73,6 @@ func buildDynastyFeatureHTTP(feature *dynastypb.DynastyFeature) map[string]inter
 }
 
 // buildFamilyMembersHTTPResponse formats GET /api/dynasty/{dynasty}/family/{family}
-// to match Laravel FamilyMemberResource::collection().
 func buildFamilyMembersHTTPResponse(resp *dynastypb.FamilyResponse) []map[string]interface{} {
 	if resp == nil || len(resp.Members) == 0 {
 		return []map[string]interface{}{}

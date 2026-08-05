@@ -68,7 +68,6 @@ func (h *MarketplaceHandler) BuyFeature(ctx context.Context, req *pb.BuyFeatureR
 }
 
 // SendBuyRequest creates a buy request for a feature
-// Implements Laravel's BuyRequestsController@store
 func (h *MarketplaceHandler) SendBuyRequest(ctx context.Context, req *pb.SendBuyRequestRequest) (*pb.BuyRequestResponse, error) {
 	locale := GetProjectLocale()
 	validationErrors := MergeValidationErrors(
@@ -99,7 +98,6 @@ func (h *MarketplaceHandler) SendBuyRequest(ctx context.Context, req *pb.SendBuy
 }
 
 // AcceptBuyRequest accepts a pending buy request
-// Implements Laravel's BuyRequestsController@acceptBuyRequest
 func (h *MarketplaceHandler) AcceptBuyRequest(ctx context.Context, req *pb.AcceptBuyRequestRequest) (*pb.BuyRequestResponse, error) {
 	locale := GetProjectLocale()
 	validationErrors := MergeValidationErrors(
@@ -400,7 +398,6 @@ func (h *MarketplaceHandler) UpdateGracePeriod(ctx context.Context, req *pb.Upda
 }
 
 // RequestGracePeriod adds grace period to a buy request (deprecated)
-// Implements Laravel's BuyRequestsController@addGracePeriod (seller-only; legacy field buyer_id holds seller id).
 func (h *MarketplaceHandler) RequestGracePeriod(ctx context.Context, req *pb.RequestGracePeriodRequest) (*pb.GracePeriodResponse, error) {
 	if req.RequestId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "request_id is required")

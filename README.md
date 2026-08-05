@@ -1,6 +1,6 @@
 # Metarang Microservices
 
-Microservices implementation for the Metarang platform migration from Laravel monolith to Golang/gRPC.
+Microservices implementation for the Metarang platform using Golang/gRPC.
 
 ## Architecture
 
@@ -172,7 +172,7 @@ Shared schema in `scripts/schema.sql`. Notes: `transactions.id` is VARCHAR; `fea
 
 ## API Compatibility
 
-**CRITICAL**: All services MUST maintain 100% API compatibility with the Laravel monolith (JSON fields, status codes, validation format, Jalali dates, URLs).
+**CRITICAL**: All services MUST maintain 100% API compatibility with the existing platform API (JSON fields, status codes, validation format, Jalali dates, URLs).
 
 ## Troubleshooting
 
@@ -198,7 +198,7 @@ See `docs/DEPLOYMENT.md` and `docs/TROUBLESHOOTING.md` for production details.
 - **`.cursor/rules/`** – Rules for LLM assistants
 - **`docs/`** – Architecture, deployment, troubleshooting
 
-Key principles: 100% Laravel API compatibility, layered architecture (handler/service/repository), dependency injection, proper error handling.
+Key principles: 100% API compatibility, layered architecture (handler/service/repository), dependency injection, proper error handling.
 
 ## License
 

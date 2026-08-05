@@ -48,7 +48,7 @@ message AddInteractionRequest {
 message EventResponse {
   uint64 id = 1;
   string title = 2;
-  string description = 3; // Laravel calls it description not content
+  string description = 3;
   string starts_at = 4; // Jalali formatted Y/m/d H:i
   string ends_at = 5; // Jalali formatted Y/m/d H:i (only for events, not versions)
   int32 views = 6; // view count (only for events)

@@ -988,24 +988,22 @@ func (x *GetMeRequest) GetToken() string {
 }
 
 type UserResponse struct {
-	state                    protoimpl.MessageState `protogen:"open.v1"`
-	Id                       uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name                     string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Token                    string                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
-	AccessToken              string                 `protobuf:"bytes,4,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
-	AutomaticLogout          int32                  `protobuf:"varint,5,opt,name=automatic_logout,json=automaticLogout,proto3" json:"automatic_logout,omitempty"`
-	Code                     string                 `protobuf:"bytes,6,opt,name=code,proto3" json:"code,omitempty"`
-	Level                    *Level                 `protobuf:"bytes,7,opt,name=level,proto3" json:"level,omitempty"`
-	Image                    string                 `protobuf:"bytes,8,opt,name=image,proto3" json:"image,omitempty"`
-	UnreadNotificationsCount int32                  `protobuf:"varint,9,opt,name=unread_notifications_count,json=unreadNotificationsCount,proto3" json:"unread_notifications_count,omitempty"`
-	// CRITICAL: Preserve Laravel typo for API compatibility!
-	// Laravel has "socre" not "score"
-	SocrePercentageToNextLevel float64 `protobuf:"fixed64,10,opt,name=socre_percentage_to_next_level,json=socrePercentageToNextLevel,proto3" json:"socre_percentage_to_next_level,omitempty"`
-	HourlyProfitTimePercentage float64 `protobuf:"fixed64,12,opt,name=hourly_profit_time_percentage,json=hourlyProfitTimePercentage,proto3" json:"hourly_profit_time_percentage,omitempty"`
-	VerifiedKyc                bool    `protobuf:"varint,13,opt,name=verified_kyc,json=verifiedKyc,proto3" json:"verified_kyc,omitempty"`
-	Birthdate                  string  `protobuf:"bytes,14,opt,name=birthdate,proto3" json:"birthdate,omitempty"`
-	HasWallet                  bool    `protobuf:"varint,15,opt,name=has_wallet,json=hasWallet,proto3" json:"has_wallet,omitempty"`
-	WalletAddress              string  `protobuf:"bytes,16,opt,name=wallet_address,json=walletAddress,proto3" json:"wallet_address,omitempty"`
+	state                      protoimpl.MessageState `protogen:"open.v1"`
+	Id                         uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name                       string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Token                      string                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
+	AccessToken                string                 `protobuf:"bytes,4,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	AutomaticLogout            int32                  `protobuf:"varint,5,opt,name=automatic_logout,json=automaticLogout,proto3" json:"automatic_logout,omitempty"`
+	Code                       string                 `protobuf:"bytes,6,opt,name=code,proto3" json:"code,omitempty"`
+	Level                      *Level                 `protobuf:"bytes,7,opt,name=level,proto3" json:"level,omitempty"`
+	Image                      string                 `protobuf:"bytes,8,opt,name=image,proto3" json:"image,omitempty"`
+	UnreadNotificationsCount   int32                  `protobuf:"varint,9,opt,name=unread_notifications_count,json=unreadNotificationsCount,proto3" json:"unread_notifications_count,omitempty"`
+	SocrePercentageToNextLevel float64                `protobuf:"fixed64,10,opt,name=socre_percentage_to_next_level,json=socrePercentageToNextLevel,proto3" json:"socre_percentage_to_next_level,omitempty"`
+	HourlyProfitTimePercentage float64                `protobuf:"fixed64,12,opt,name=hourly_profit_time_percentage,json=hourlyProfitTimePercentage,proto3" json:"hourly_profit_time_percentage,omitempty"`
+	VerifiedKyc                bool                   `protobuf:"varint,13,opt,name=verified_kyc,json=verifiedKyc,proto3" json:"verified_kyc,omitempty"`
+	Birthdate                  string                 `protobuf:"bytes,14,opt,name=birthdate,proto3" json:"birthdate,omitempty"`
+	HasWallet                  bool                   `protobuf:"varint,15,opt,name=has_wallet,json=hasWallet,proto3" json:"has_wallet,omitempty"`
+	WalletAddress              string                 `protobuf:"bytes,16,opt,name=wallet_address,json=walletAddress,proto3" json:"wallet_address,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -2875,7 +2873,7 @@ type CitizenCustoms struct {
 	Prediction    string                 `protobuf:"bytes,6,opt,name=prediction,proto3" json:"prediction,omitempty"`
 	Memory        string                 `protobuf:"bytes,7,opt,name=memory,proto3" json:"memory,omitempty"`
 	About         string                 `protobuf:"bytes,8,opt,name=about,proto3" json:"about,omitempty"`
-	Passions      map[string]string      `protobuf:"bytes,9,rep,name=passions,proto3" json:"passions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // passion_key -> icon_url (Laravel: /uploads/favorites/{key}.png)
+	Passions      map[string]string      `protobuf:"bytes,9,rep,name=passions,proto3" json:"passions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6433,7 +6431,6 @@ func (x *UserListItem) GetProfilePhoto() string {
 	return ""
 }
 
-// UserLevelInfo - level information for user list (Laravel UserResource)
 type UserLevelInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Current       *Level                 `protobuf:"bytes,1,opt,name=current,proto3" json:"current,omitempty"`   // Latest level (orderByDesc levels.id)

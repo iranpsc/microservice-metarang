@@ -273,7 +273,7 @@ type UserEvent struct {
 type UserEventReport struct {
 	ID                uint64         `db:"id"`
 	UserEventID       uint64         `db:"user_event_id"`
-	SuspeciousCitizen sql.NullString `db:"suspecious_citizen"` // Note: Laravel uses 'suspecious' (typo)
+	SuspeciousCitizen sql.NullString `db:"suspecious_citizen"`
 	EventDescription  string         `db:"event_description"`
 	Status            int32          `db:"status"`
 	Closed            bool           `db:"closed"`

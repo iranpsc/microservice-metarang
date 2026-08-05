@@ -1,6 +1,6 @@
 # Training Service
 
-The Training Service manages video tutorials, categories, comments, replies, and user interactions (likes, dislikes, views) within the metarang microservices architecture. It replaces the Laravel video-tutorials module with 100% API compatibility.
+The Training Service manages video tutorials, categories, comments, replies, and user interactions (likes, dislikes, views) within the metarang microservices architecture. It replaces the legacy video-tutorials module with 100% API compatibility.
 
 ## Overview
 
@@ -37,7 +37,7 @@ Database (MySQL)
 
 - **Handlers**: gRPC request/response conversion, validation, error mapping, Jalali date formatting
 - **Services**: Business logic for videos, categories, comments, and replies
-- **Repositories**: Data access with polymorphic queries (Laravel-compatible `App\Models\*` types)
+- **Repositories**: Data access with polymorphic queries (legacy `App\Models\*` type strings)
 - **Auth Client**: gRPC client for user profile data (falls back to direct DB queries if unavailable)
 
 ### Service Dependencies
@@ -49,7 +49,7 @@ Database (MySQL)
 
 ## API Endpoints
 
-All HTTP endpoints are exposed via the `grpc-gateway` service and maintain Laravel-compatible JSON responses. Public viewing routes use optional authentication; write actions require a bearer token.
+All HTTP endpoints are exposed via the `grpc-gateway` service and maintain legacy-compatible JSON responses. Public viewing routes use optional authentication; write actions require a bearer token.
 
 ### Video Tutorials
 
@@ -104,7 +104,7 @@ The service exposes four gRPC services defined in `shared/proto/training.proto`:
 
 ## Database Schema
 
-The service uses the shared MySQL database with Laravel-compatible polymorphic tables:
+The service uses the shared MySQL database with legacy-compatible polymorphic tables:
 
 | Table | Purpose |
 |-------|---------|
@@ -142,7 +142,7 @@ See `scripts/schema.sql` for the complete schema.
 ### URL Building
 
 - Image and video URLs are built from `ADMIN_PANEL_URL` + `/uploads/` + resource path
-- Dates are formatted using the Jalali calendar for Laravel compatibility
+- Dates are formatted using the Jalali calendar for API compatibility
 
 ### Localization
 
@@ -289,12 +289,12 @@ The `grpc-gateway` must have `TRAINING_SERVICE_ADDR=training-service:50057` set 
 
 ## API Compatibility
 
-This service maintains 100% API compatibility with the Laravel monolith:
+This service maintains 100% API compatibility with the existing platform API:
 
 - Exact JSON field names and types
 - Exact HTTP status codes and validation error formats
 - Jalali date/time formatting
-- Laravel polymorphic model type strings (`App\Models\Video`, `App\Models\Comment`)
+- Legacy polymorphic model type strings (`App\Models\Video`, `App\Models\Comment`)
 - URL structures matching the original video-tutorials module
 
 ## License

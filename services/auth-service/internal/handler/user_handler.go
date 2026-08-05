@@ -241,7 +241,6 @@ func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 		response.Data = append(response.Data, item)
 	}
 
-	// Laravel simplePaginate: signal next page when this page is full.
 	currentPage := int32(page)
 	hasMore := int32(len(users)) >= limit
 
@@ -252,7 +251,7 @@ func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 		response.Meta.NextPageUrl = fmt.Sprintf("?page=%d", currentPage+1)
 	}
 
-	_ = totalCount // total count is not exposed in Laravel simplePaginate meta
+	_ = totalCount
 
 	return response, nil
 }

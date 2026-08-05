@@ -207,8 +207,6 @@ message UserResponse {
   Level level = 7;
   string image = 8;
   int32 unread_notifications_count = 9;
-  // CRITICAL: Preserve Laravel typo for API compatibility!
-  // Laravel has "socre" not "score"
   double socre_percentage_to_next_level = 10;
   reserved 11;
   reserved "unasnwered_questions_count";
@@ -406,7 +404,7 @@ message CitizenCustoms {
   string prediction = 6;
   string memory = 7;
   string about = 8;
-  map<string, string> passions = 9; // passion_key -> icon_url (Laravel: /uploads/favorites/{key}.png)
+  map<string, string> passions = 9;
 }
 
 message CitizenLevel {
@@ -775,7 +773,6 @@ message UserListItem {
   string profile_photo = 6;     // Latest profile photo URL
 }
 
-// UserLevelInfo - level information for user list (Laravel UserResource)
 message UserLevelInfo {
   Level current = 1;            // Latest level (orderByDesc levels.id)
   repeated Level previous = 2;  // All achieved levels from level_user pivot

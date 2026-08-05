@@ -6,7 +6,6 @@ import (
 	"fmt"
 )
 
-// UserVariableRepository updates rows in user_variables (shared DB with Laravel monolith).
 type UserVariableRepository struct {
 	db *sql.DB
 }
@@ -15,7 +14,6 @@ func NewUserVariableRepository(db *sql.DB) *UserVariableRepository {
 	return &UserVariableRepository{db: db}
 }
 
-// ApplyDynastyPrizeMultipliers applies percentage boosts matching Laravel DynastyPrizeController@store:
 //
 //	referral_profit += referral_profit * introduction_profit_increase
 //	data_storage += data_storage * data_storage (prize multiplier)

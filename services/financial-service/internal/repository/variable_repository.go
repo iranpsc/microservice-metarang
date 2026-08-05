@@ -19,7 +19,6 @@ func NewVariableRepository(db *sql.DB) VariableRepository {
 }
 
 // GetRate retrieves the rate for a specific asset
-// Laravel equivalent: Variable::getRate('psc')
 // Note: The actual table structure uses 'asset' and 'price' columns
 // but some code references 'key' and 'value'. We'll use asset/price
 // to match the schema.

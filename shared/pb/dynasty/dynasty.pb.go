@@ -322,7 +322,6 @@ func (x *DynastyResponse) GetPrizes() []*IntroductionPrize {
 	return nil
 }
 
-// IntroductionPrize matches Laravel IntroductionPrizeResource for users without a dynasty.
 type IntroductionPrize struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	Member                     string                 `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`

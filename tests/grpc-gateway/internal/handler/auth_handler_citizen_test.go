@@ -23,7 +23,7 @@ func newCitizenAuthHandler(t *testing.T, citizen *testutil.MockCitizenService) *
 	return handler.NewAuthHandler(conn, nil, "en")
 }
 
-func TestGetCitizenReferrals_LaravelPagination(t *testing.T) {
+func TestGetCitizenReferrals_SimplePagination(t *testing.T) {
 	citizen := &testutil.MockCitizenService{}
 	citizen.GetCitizenReferralsFunc = func(_ context.Context, req *pb.GetCitizenReferralsRequest) (*pb.CitizenReferralsResponse, error) {
 		return &pb.CitizenReferralsResponse{

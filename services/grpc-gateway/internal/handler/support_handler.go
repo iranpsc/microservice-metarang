@@ -95,13 +95,11 @@ func (h *SupportHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to Laravel-compatible format
 	tickets := make([]map[string]interface{}, 0, len(resp.Tickets))
 	for _, ticket := range resp.Tickets {
 		tickets = append(tickets, formatTicketResource(ticket, false))
 	}
 
-	// Simple pagination response (matching Laravel simplePaginate)
 	response := map[string]interface{}{
 		"data": tickets,
 	}
@@ -384,8 +382,6 @@ func (h *SupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, formatTicketResponse(resp))
 }
 
-// formatTicketResource converts a proto ticket to Laravel TicketResource-compatible JSON.
-// includeResponses mirrors Laravel's whenLoaded('responses') on the show endpoint.
 func formatTicketResource(resp *pbSupport.TicketResponse, includeResponses bool) map[string]interface{} {
 	dateStr, timeStr := splitJalaliDateTime(resp.UpdatedAt)
 	ticketMap := map[string]interface{}{
@@ -947,7 +943,6 @@ func (h *SupportHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// formatNoteResponse converts a proto note to Laravel/frontend-compatible JSON.
 // Frontend expects attachments as an array; DB stores a single attachment URL.
 func formatNoteResponse(resp *pbSupport.NoteResponse) map[string]interface{} {
 	noteMap := map[string]interface{}{
@@ -965,7 +960,6 @@ func formatNoteResponse(resp *pbSupport.NoteResponse) map[string]interface{} {
 	return noteMap
 }
 
-// formatReportResponse converts a proto report to Laravel ReportResource-compatible JSON.
 func formatReportResponse(resp *pbSupport.ReportResponse, appURL string) map[string]interface{} {
 	reportMap := map[string]interface{}{
 		"id":       strconv.FormatUint(resp.Id, 10),

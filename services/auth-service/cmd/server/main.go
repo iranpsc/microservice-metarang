@@ -218,7 +218,7 @@ func main() {
 		cacheRepo,
 		accountSecurityRepo,
 		activityRepo,
-		getEnv("APP_NAME", "Laravel"),
+		getEnv("APP_NAME", "Metarang"),
 		getEnv("APP_URL", "http://localhost:8000"),
 	)
 	authService := service.NewAuthService(

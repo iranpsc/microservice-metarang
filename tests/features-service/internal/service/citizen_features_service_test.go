@@ -13,6 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockUserCreatedAtRepo struct {
+	createdAt time.Time
+	err       error
+}
+
+func (m *mockUserCreatedAtRepo) GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error) {
+	return m.createdAt, m.err
+}
+
 type mockCitizenFeaturesRepo struct {
 	countOwned     func(ctx context.Context, userID uint64, karbari string) (int32, error)
 	countTrades    func(ctx context.Context, userID uint64, role, karbari string, start, end time.Time) (int32, error)
@@ -42,7 +51,7 @@ func (m *mockCitizenFeaturesRepo) ListMapMarkers(ctx context.Context, userID uin
 }
 
 func TestCitizenFeaturesService_GetSummary_EmptyKarbaris(t *testing.T) {
-	svc := service.NewCitizenFeaturesService(&mockCitizenFeaturesRepo{})
+	svc := service.NewCitizenFeaturesService(&mockCitizenFeaturesRepo{}, &mockUserCreatedAtRepo{})
 	result, err := svc.GetSummary(context.Background(), 1, "daily", nil, time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local))
 	require.NoError(t, err)
 	assert.Equal(t, "daily", result.Period)
@@ -70,7 +79,7 @@ func TestCitizenFeaturesService_GetSummary_PerKarbari(t *testing.T) {
 		return 0, nil
 	}
 
-	svc := service.NewCitizenFeaturesService(repo)
+	svc := service.NewCitizenFeaturesService(repo, &mockUserCreatedAtRepo{})
 	result, err := svc.GetSummary(context.Background(), 7, "weekly", []string{"t", "m"}, ref)
 	require.NoError(t, err)
 	require.Len(t, result.Items, 2)
@@ -85,12 +94,12 @@ func TestCitizenFeaturesService_GetSummary_PerKarbari(t *testing.T) {
 
 func TestCitizenFeaturesService_GetChart_EmptyKarbaris(t *testing.T) {
 	ref := time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local)
-	svc := service.NewCitizenFeaturesService(&mockCitizenFeaturesRepo{})
+	svc := service.NewCitizenFeaturesService(&mockCitizenFeaturesRepo{}, &mockUserCreatedAtRepo{})
 	chart, err := svc.GetChart(context.Background(), 1, "weekly", nil, ref)
 	require.NoError(t, err)
-	require.Len(t, chart.Labels, 7)
-	require.Len(t, chart.Bought, 7)
-	require.Len(t, chart.Sold, 7)
+	require.Len(t, chart.Labels, 4)
+	require.Len(t, chart.Bought, 4)
+	require.Len(t, chart.Sold, 4)
 	for i := range chart.Bought {
 		assert.Equal(t, int32(0), chart.Bought[i])
 		assert.Equal(t, int32(0), chart.Sold[i])
@@ -99,7 +108,7 @@ func TestCitizenFeaturesService_GetChart_EmptyKarbaris(t *testing.T) {
 
 func TestCitizenFeaturesService_GetChart_BucketsTrades(t *testing.T) {
 	ref := time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local)
-	window, err := period.ResolvePeriod("weekly", ref)
+	window, err := period.ResolvePeriod("weekly", ref, time.Time{})
 	require.NoError(t, err)
 
 	boughtAt := window.Buckets[1].Start.Add(2 * time.Hour)
@@ -114,17 +123,17 @@ func TestCitizenFeaturesService_GetChart_BucketsTrades(t *testing.T) {
 		return []models.CitizenTradeTimestamp{{ID: 2, CreatedAt: soldAt}}, nil
 	}
 
-	svc := service.NewCitizenFeaturesService(repo)
+	svc := service.NewCitizenFeaturesService(repo, &mockUserCreatedAtRepo{})
 	chart, err := svc.GetChart(context.Background(), 7, "weekly", []string{"t"}, ref)
 	require.NoError(t, err)
-	require.Len(t, chart.Labels, 7)
+	require.Len(t, chart.Labels, 4)
 	assert.Equal(t, int32(1), chart.Bought[1])
 	assert.Equal(t, int32(1), chart.Sold[3])
 	assert.Equal(t, int32(0), chart.Bought[0])
 }
 
 func TestCitizenFeaturesService_GetFeatures_EmptyKarbaris(t *testing.T) {
-	svc := service.NewCitizenFeaturesService(&mockCitizenFeaturesRepo{})
+	svc := service.NewCitizenFeaturesService(&mockCitizenFeaturesRepo{}, &mockUserCreatedAtRepo{})
 	page, err := svc.GetFeatures(context.Background(), 1, nil, "search", 1, 15)
 	require.NoError(t, err)
 	assert.Empty(t, page.Items)
@@ -152,7 +161,7 @@ func TestCitizenFeaturesService_GetFeatures_SearchDoesNotAffectMap(t *testing.T)
 		}, nil
 	}
 
-	svc := service.NewCitizenFeaturesService(repo)
+	svc := service.NewCitizenFeaturesService(repo, &mockUserCreatedAtRepo{})
 	page, err := svc.GetFeatures(context.Background(), 7, []string{"t"}, "TO111", 2, 10)
 	require.NoError(t, err)
 	require.Len(t, page.Items, 1)

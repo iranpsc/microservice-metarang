@@ -1,6 +1,6 @@
 # Support Service
 
-A Go microservice that provides comprehensive support ticket, reporting, and user event management functionality, fully compatible with the Laravel implementation.
+A Go microservice that provides comprehensive support ticket, reporting, and user event management functionality, fully compatible with the existing platform API.
 
 ## Features
 
@@ -29,7 +29,7 @@ A Go microservice that provides comprehensive support ticket, reporting, and use
 
 - **Language**: Go 1.24
 - **Protocol**: gRPC
-- **Database**: MySQL (shared with Laravel)
+- **Database**: MySQL (shared instance)
 - **Dependencies**:
   - `google.golang.org/grpc` - gRPC framework
   - `github.com/go-sql-driver/mysql` - MySQL driver
@@ -71,7 +71,7 @@ support-service/
 
 ### Prerequisites
 - Go 1.24 or higher
-- MySQL database (shared with Laravel)
+- MySQL database (shared instance)
 - Access to shared protobuf definitions
 
 ### Setup
@@ -118,7 +118,7 @@ NOTIFICATION_SERVICE_ADDR=localhost:50055
 
 ## Database Schema
 
-The service uses the existing Laravel database tables:
+The service uses the existing shared database tables:
 
 ### Tickets
 - `tickets` - Main ticket table
@@ -389,10 +389,10 @@ docker run -p 50054:50054 support-service
 
 ## Integration
 
-### With Laravel
-The service uses the same MySQL database as Laravel and maintains full compatibility:
+### Database compatibility
+The service uses the shared MySQL database and maintains full compatibility:
 - Same table structure
-- Same field names (including Laravel typos)
+- Same field names (including legacy typos)
 - Same status codes
 - Same business logic
 
@@ -426,7 +426,7 @@ gRPC error codes used:
 
 ## Compatibility
 
-This service is **100% compatible** with the Laravel implementation:
+This service is **100% compatible** with the existing platform API:
 - All features replicated
 - All business logic matched
 - All database schema compatible
@@ -438,7 +438,7 @@ See `IMPLEMENTATION_COMPARISON.md` for detailed comparison.
 ## Contributing
 
 1. Follow Go best practices
-2. Maintain Laravel compatibility
+2. Maintain API compatibility
 3. Add tests for new features
 4. Update documentation
 5. Use conventional commit messages

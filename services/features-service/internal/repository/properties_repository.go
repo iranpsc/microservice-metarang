@@ -38,7 +38,6 @@ func (r *PropertiesRepository) GetByFeatureID(ctx context.Context, featureID uin
 }
 
 // Update updates feature properties
-// Implements Laravel's FeatureProperties->update()
 func (r *PropertiesRepository) Update(ctx context.Context, featureID uint64, updates map[string]interface{}) error {
 	if len(updates) == 0 {
 		return nil
@@ -61,7 +60,6 @@ func (r *PropertiesRepository) Update(ctx context.Context, featureID uint64, upd
 }
 
 // UpdatePricing updates pricing fields
-// Implements Laravel's FeatureController@updateFeature logic
 func (r *PropertiesRepository) UpdatePricing(ctx context.Context, featureID uint64, pricePSC, priceIRR string, minPercentage int) error {
 	query := `
 		UPDATE feature_properties

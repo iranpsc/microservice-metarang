@@ -26,7 +26,6 @@ func NewOrderPolicy(eligibilityRepo repository.EligibilityRepository, firstOrder
 }
 
 // CanBuyFromStore checks if user can buy from store
-// Laravel: UserPolicy::buyFromStore
 // Rule: Blocks users under 18 unless permissions are verified and BFR flag is set; adults pass automatically
 func (p *orderPolicy) CanBuyFromStore(ctx context.Context, userID uint64) (bool, error) {
 	birthdate, err := p.eligibilityRepo.GetUserBirthdate(ctx, userID)
@@ -56,7 +55,6 @@ func (p *orderPolicy) CanBuyFromStore(ctx context.Context, userID uint64) (bool,
 }
 
 // CanGetBonus checks if user can get first order bonus
-// Laravel: OrderPolicy::canGetBonus
 // Rule: Returns true only when user has never logged a firstOrder record and asset is not 'irr'
 func (p *orderPolicy) CanGetBonus(ctx context.Context, userID uint64, asset string) (bool, error) {
 	if asset == "irr" {

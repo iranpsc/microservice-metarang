@@ -219,7 +219,6 @@ func (h *AuthHandler) RequestAccountSecurity(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Parse request body (Laravel API field: time)
 	var req struct {
 		Time  flexibleInt32 `json:"time" form:"time"`
 		Phone string        `json:"phone,omitempty" form:"phone"`
@@ -276,7 +275,6 @@ func (h *AuthHandler) VerifyAccountSecurity(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Parse request body (Laravel accepts numeric|string for code)
 	var req struct {
 		Code flexibleString `json:"code" form:"code"`
 	}

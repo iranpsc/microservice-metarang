@@ -323,7 +323,7 @@ func TestHTTPCompletedBuildingsRoutes(t *testing.T) {
 	})
 }
 
-func TestHTTPGetSingleProfitLaravelResourceShape(t *testing.T) {
+func TestHTTPGetSingleProfit_ExpectedResourceShape(t *testing.T) {
 	profit := &mockHTTPProfitAPI{single: func(_ context.Context, req *pb.GetSingleProfitRequest) (*pb.HourlyProfitResponse, error) {
 		assert.Equal(t, uint64(1), req.ProfitId)
 		assert.Equal(t, uint64(42), req.UserId)

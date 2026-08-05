@@ -169,7 +169,6 @@ func (s *BuildingService) GetBuildPackage(ctx context.Context, featureID uint64,
 }
 
 // BuildFeature starts construction of a building on a feature
-// Returns the Feature object with building models loaded (matching Laravel response)
 func (s *BuildingService) BuildFeature(ctx context.Context, req *pb.BuildFeatureRequest) (*pb.Feature, error) {
 	// 1. Get feature and validate ownership
 	feature, _, err := s.featureRepo.FindByID(ctx, req.FeatureId)
@@ -328,7 +327,6 @@ func (s *BuildingService) BuildFeature(ctx context.Context, req *pb.BuildFeature
 		return nil, fmt.Errorf("failed to create building: %w", err)
 	}
 
-	// 13. Load and return Feature with building models (matching Laravel response)
 	buildings, err := s.buildingRepo.FindByFeatureID(ctx, req.FeatureId)
 	if err != nil {
 		// Log error but return feature anyway
@@ -347,7 +345,6 @@ func (s *BuildingService) BuildFeature(ctx context.Context, req *pb.BuildFeature
 
 // ExtractAttributeValue extracts a numeric value by slug from attributes array.
 // Attributes format: [{"slug": "width", "value": 50}, ...]
-// Values may be JSON numbers (float64) or numeric strings (as returned by the 3D API / Laravel).
 func ExtractAttributeValue(attributes []map[string]interface{}, slug string) (float64, bool) {
 	for _, attr := range attributes {
 		s, ok := attr["slug"].(string)
@@ -359,7 +356,6 @@ func ExtractAttributeValue(attributes []map[string]interface{}, slug string) (fl
 	return 0, false
 }
 
-// coerceAttributeNumber converts attribute values to float64 (Laravel-compatible coercion).
 func coerceAttributeNumber(value interface{}) (float64, bool) {
 	switch v := value.(type) {
 	case float64:
@@ -418,7 +414,6 @@ func (s *BuildingService) CalculateBubbleDiameter(attributesJSON string) float64
 	return perimeter * coefficient
 }
 
-// ValidateBuildingInformation validates BuildingInformation fields according to Laravel rules
 // Rules:
 // - activity_line: nullable, max 255
 // - name: nullable, max 255 (only saved if activity_line provided)

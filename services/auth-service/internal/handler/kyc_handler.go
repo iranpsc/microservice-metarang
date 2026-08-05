@@ -32,7 +32,6 @@ func (h *kycHandler) GetKYC(ctx context.Context, req *pb.GetKYCRequest) (*pb.KYC
 		return nil, mapKYCServiceError(err, getProjectLocale())
 	}
 
-	// If KYC not found or policy denies view, return empty response (matches Laravel {})
 	if kyc == nil {
 		return &pb.KYCResponse{}, nil
 	}
@@ -158,7 +157,6 @@ func (h *kycHandler) UpdateKYC(ctx context.Context, req *pb.UpdateKYCRequest) (*
 	return h.convertKYCToProto(kyc), nil
 }
 
-// prependGatewayURL prepends APP_URL to relative upload paths (matches Laravel url() helper).
 func (h *kycHandler) prependGatewayURL(url string) string {
 	if url == "" {
 		return url
@@ -173,7 +171,6 @@ func (h *kycHandler) prependGatewayURL(url string) string {
 	return strings.TrimSuffix(h.apiGatewayURL, "/") + "/" + url
 }
 
-// promoteKYCVideo moves a staged upload into public kyc storage (Laravel KycController@update).
 func (h *kycHandler) promoteKYCVideo(ctx context.Context, videoPath, videoName string) (string, error) {
 	if h.storageClient == nil {
 		return "", fmt.Errorf("storage service not available")
@@ -258,7 +255,6 @@ func contentTypeFromFilename(name string) string {
 }
 
 // stagedVideoPaths returns candidate storage paths for a staged upload.
-// Supports Laravel (upload/...) and microservice (uploads/...) chunk upload layouts.
 func stagedVideoPaths(videoPath, videoName string) []string {
 	dir := strings.Trim(videoPath, "/")
 	name := strings.TrimPrefix(videoName, "/")

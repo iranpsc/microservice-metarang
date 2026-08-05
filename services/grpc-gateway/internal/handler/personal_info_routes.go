@@ -5,7 +5,6 @@ import (
 )
 
 // PersonalInfoRoutes handles GET and PUT/PATCH for /api/personal-info (singleton resource).
-// Uses EffectiveHTTPMethod so Laravel-style POST + _method=put|patch reaches the updater.
 func PersonalInfoRoutes(h *AuthHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch EffectiveHTTPMethod(r) {

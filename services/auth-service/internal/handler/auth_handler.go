@@ -33,7 +33,6 @@ func RegisterAuthHandler(grpcServer *grpc.Server, authService service.AuthServic
 }
 
 func (h *authHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
-	// Validate back_url is required (matching Laravel: 'back_url' => 'required|url')
 	validationErrors := make(map[string]string)
 
 	if req.BackUrl == "" {

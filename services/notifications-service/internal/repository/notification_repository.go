@@ -63,7 +63,6 @@ func (r *NotificationRepository) CreateNotification(ctx context.Context, notific
 		notification.CreatedAt = now
 	}
 
-	// Insert notification using Laravel's polymorphic structure
 	query := `
 		INSERT INTO notifications (id, type, notifiable_type, notifiable_id, data, read_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -72,7 +71,7 @@ func (r *NotificationRepository) CreateNotification(ctx context.Context, notific
 	_, err = r.db.ExecContext(ctx, query,
 		notification.ID,
 		notification.Type,
-		"App\\User", // Laravel's default user model type
+		"App\\User",
 		notification.UserID,
 		string(dataBytes),
 		notification.ReadAt,

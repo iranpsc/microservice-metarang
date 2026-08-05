@@ -48,7 +48,6 @@ func (r *FeatureRepository) FindByID(ctx context.Context, id uint64) (*models.Fe
 	return feature, properties, nil
 }
 
-// BboxBoundsFromPoints matches Laravel FeatureRepository@all:
 // x between points[0].x and points[1].x, y between points[0].y and points[2].y
 func BboxBoundsFromPoints(points []string) (minX, maxX, minY, maxY string, err error) {
 	if len(points) < 4 {
@@ -79,7 +78,6 @@ func BboxBoundsFromPoints(points []string) (minX, maxX, minY, maxY string, err e
 	return x0, x1, y0, y2, nil
 }
 
-// FindByBoundingBox implements Laravel's FeatureRepository@all logic
 // Points format: four "x,y" strings (bbox corners)
 func (r *FeatureRepository) FindByBoundingBox(ctx context.Context, points []string, loadBuildings bool) ([]*models.Feature, error) {
 	minX, maxX, minY, maxY, err := BboxBoundsFromPoints(points)
@@ -87,7 +85,6 @@ func (r *FeatureRepository) FindByBoundingBox(ctx context.Context, points []stri
 		return nil, err
 	}
 
-	// Query coordinates table for geometries within bounds (Laravel FeatureRepository@all)
 	query := `
 		SELECT DISTINCT c.geometry_id
 		FROM coordinates c
@@ -120,7 +117,6 @@ func (r *FeatureRepository) FindByBoundingBox(ctx context.Context, points []stri
 		idStrs[i] = fmt.Sprintf("%d", id)
 	}
 
-	// Load features with properties (Laravel: Feature::whereIn('id', $geometryIds))
 	featureQuery := `
 		SELECT f.id, f.owner_id, f.map_id, f.type, f.created_at, f.updated_at,
 		       fp.id as prop_id, fp.feature_id, fp.karbari, fp.rgb, fp.owner, fp.label, fp.address,

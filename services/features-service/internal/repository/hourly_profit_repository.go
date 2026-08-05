@@ -221,7 +221,6 @@ func (r *HourlyProfitRepository) GetTotalsByKarbari(ctx context.Context, userID 
 }
 
 // ResetProfitAndUpdateDeadline resets amount to 0 and updates deadline
-// Implements Laravel's FeatureHourlyProfitController@getSingleProfit logic
 func (r *HourlyProfitRepository) ResetProfitAndUpdateDeadline(ctx context.Context, profitID uint64, withdrawProfitDays int) error {
 	deadlineSeconds := withdrawProfitDays * 86400
 	newDeadline := time.Now().Add(time.Duration(deadlineSeconds) * time.Second)
@@ -237,7 +236,6 @@ func (r *HourlyProfitRepository) ResetProfitAndUpdateDeadline(ctx context.Contex
 }
 
 // CalculateAndUpdateProfits implements the hourly profit calculation job
-// From Laravel's CalculateFeatureProfit command.
 // Returns the number of profit records updated in this batch (max 100).
 func (r *HourlyProfitRepository) CalculateAndUpdateProfits(ctx context.Context) (int, error) {
 	// Find all profits that need updating:
@@ -460,7 +458,6 @@ func (r *HourlyProfitRepository) DeactivateProfitsForFeature(ctx context.Context
 }
 
 // FindOldestByUserID returns the user's hourly profit with the earliest deadline.
-// Matches Laravel: FeatureHourlyProfit::whereUserId($user->id)->oldest('dead_line')->first()
 func (r *HourlyProfitRepository) FindOldestByUserID(ctx context.Context, userID uint64) (*models.FeatureHourlyProfit, error) {
 	query := `
 		SELECT id, user_id, feature_id, asset, amount, dead_line, is_active, created_at, updated_at

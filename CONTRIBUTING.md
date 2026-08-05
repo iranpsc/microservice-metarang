@@ -23,7 +23,7 @@ This project adheres to a Code of Conduct. By participating, you are expected to
 
 ## Key Principles
 
-- **100% API Compatibility**: All services MUST maintain 100% API compatibility with the original Laravel monolith – JSON fields, status codes, validation formats, Jalali dates, and URL structures.
+- **100% API Compatibility**: All services MUST maintain 100% API compatibility with the existing platform API – JSON fields, status codes, validation formats, Jalali dates, and URL structures.
 - **Security First**: Never hardcode secrets. Use `config.env` files only.
 - **Test Coverage**: Every change must be covered by unit, integration, and golden tests.
 - **Layered Architecture**: Strictly follow `handler → service → repository` pattern.

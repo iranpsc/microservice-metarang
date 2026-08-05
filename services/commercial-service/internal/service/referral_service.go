@@ -35,8 +35,6 @@ func NewReferralService(
 	}
 }
 
-// ProcessReferralCommission implements the referral commission logic from Laravel
-// Laravel: App\Services\ReferralService::referral(User $user, Order $order)
 func (s *referralService) ProcessReferralCommission(ctx context.Context, userID uint64, order *models.Order) error {
 	// If the asset is 'irr', do not proceed with referral
 	if order.Asset == "irr" {

@@ -201,7 +201,6 @@ func (s *kycService) validateKYCInput(fname, lname, melliCode, birthdate, provin
 		return ErrInvalidMelliCode
 	}
 
-	// Validate birthdate format (Jalali: Y/m/d) — matches Laravel shamsi_date rule
 	if birthdate == "" {
 		return ErrInvalidBirthdate
 	}
@@ -228,7 +227,6 @@ func (s *kycService) validateKYCInput(fname, lname, melliCode, birthdate, provin
 	return nil
 }
 
-// hasApprovedKYC matches Laravel User::verified() (kyc.status === 1).
 func (s *kycService) hasApprovedKYC(ctx context.Context, userID uint64) (bool, error) {
 	kyc, err := s.kycRepo.FindByUserID(ctx, userID)
 	if err != nil {
@@ -272,7 +270,6 @@ func (s *kycService) ListBankAccounts(ctx context.Context, userID uint64) ([]*mo
 }
 
 func (s *kycService) CreateBankAccount(ctx context.Context, userID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error) {
-	// BankAccountPolicy::create requires approved KYC (Laravel User::verified()).
 	verified, err := s.hasApprovedKYC(ctx, userID)
 	if err != nil {
 		return nil, err

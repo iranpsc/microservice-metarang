@@ -8,7 +8,6 @@ import (
 	"metarang/shared/pkg/helpers"
 )
 
-// DynastyResponse matches Laravel DynastyResource exactly
 type DynastyResponse struct {
 	UserHasDynasty bool               `json:"user-has-dynasty"` // Note: kebab-case!
 	ID             uint64             `json:"id,omitempty"`
@@ -39,7 +38,6 @@ type AvailableFeature struct {
 	Area         string `json:"area"`
 }
 
-// FormatDynastyResponse formats dynasty to match Laravel DynastyResource exactly
 func FormatDynastyResponse(
 	dynasty *models.Dynasty,
 	familyID uint64,
@@ -53,7 +51,6 @@ func FormatDynastyResponse(
 	userFeatures []AvailableFeature,
 ) *DynastyResponse {
 	// Calculate feature profit increase
-	// Implements Laravel: (stability / 10000 - 1) if > 10000, else 0
 	var profitIncrease string
 	if stability > 10000 {
 		increase := (stability / 10000) - 1
@@ -86,7 +83,6 @@ func FormatDynastyResponse(
 	}
 }
 
-// SentRequestResource matches Laravel SentRequestsResource
 type SentRequestResource struct {
 	ID           uint64     `json:"id"`
 	ToUser       UserBasic  `json:"to_user"`
@@ -96,7 +92,6 @@ type SentRequestResource struct {
 	CreatedAt    string     `json:"created_at"`
 }
 
-// ReceivedRequestResource matches Laravel RecievedJoinRequest
 type ReceivedRequestResource struct {
 	ID           uint64    `json:"id"`
 	FromUser     UserBasic `json:"from_user"`
@@ -106,7 +101,6 @@ type ReceivedRequestResource struct {
 	CreatedAt    string    `json:"created_at"`
 }
 
-// FamilyMemberResource matches Laravel FamilyMemberResource
 type FamilyMemberResource struct {
 	ID           uint64        `json:"id"`
 	User         UserWithLevel `json:"user"`
@@ -199,7 +193,6 @@ func FormatFamilyMember(
 }
 
 // FormatUserSearchResponse formats user search response
-// CRITICAL: Laravel has typo - uses 'date' instead of 'data'!
 func FormatUserSearchResponse(results interface{}) map[string]interface{} {
 	return map[string]interface{}{
 		"date": results, // Yes, 'date' not 'data'! Must preserve typo!

@@ -16,7 +16,6 @@ func NewSystemVariableRepository(db *sql.DB) *SystemVariableRepository {
 }
 
 // GetByKey retrieves a system variable value by key
-// Implements Laravel: SystemVariable::getByKey('public_pricing_limit') ?? 80
 func (r *SystemVariableRepository) GetByKey(ctx context.Context, key string) (int, error) {
 	query := `
 		SELECT value

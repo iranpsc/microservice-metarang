@@ -102,7 +102,7 @@ func TestListUsers_EmptyLevels(t *testing.T) {
 	assert.Empty(t, previous)
 }
 
-func TestListUsers_LaravelPagination(t *testing.T) {
+func TestListUsers_SimplePagination(t *testing.T) {
 	user := &testutil.MockUserService{}
 	user.ListUsersFunc = func(_ context.Context, _ *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
 		return &pb.ListUsersResponse{

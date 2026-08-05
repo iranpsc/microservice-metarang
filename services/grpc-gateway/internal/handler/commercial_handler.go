@@ -26,7 +26,6 @@ func NewCommercialHandler(commercialConn *grpc.ClientConn, locale string) *Comme
 	}
 }
 
-// GetCurrentUserWallet handles GET /api/user/wallet (Laravel WalletController@index)
 func (h *CommercialHandler) GetCurrentUserWallet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -45,7 +44,6 @@ func (h *CommercialHandler) GetCurrentUserWallet(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Laravel returns wallet fields as strings.
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"psc":          resp.Psc,
 		"irr":          resp.Irr,
@@ -57,7 +55,6 @@ func (h *CommercialHandler) GetCurrentUserWallet(w http.ResponseWriter, r *http.
 	})
 }
 
-// ListTransactions handles GET /api/user/transactions (Laravel TransactionController@index)
 func (h *CommercialHandler) ListTransactions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -149,7 +146,6 @@ func (h *CommercialHandler) ListTransactions(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, response)
 }
 
-// GetLatestTransaction handles GET /api/user/transactions/latest (Laravel TransactionController@latestTransaction)
 func (h *CommercialHandler) GetLatestTransaction(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")

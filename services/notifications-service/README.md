@@ -44,7 +44,7 @@ Key variables consumed by the service:
 - `SMTP_*`: SMTP server credentials for email delivery.
 
 ## Next Steps
-- Implement the repository layer to match Laravel's notification persistence.
+- Implement the repository layer to match the existing notification persistence schema.
 - Integrate SMS and Email providers under `internal/service`.
 - Add unit tests for handlers and services.
 
