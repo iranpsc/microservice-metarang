@@ -95,8 +95,9 @@ func TestCitizenFeaturesService_GetSummary_PerKarbari(t *testing.T) {
 func TestCitizenFeaturesService_GetChart_EmptyKarbaris(t *testing.T) {
 	ref := time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local)
 	svc := service.NewCitizenFeaturesService(&mockCitizenFeaturesRepo{}, &mockUserCreatedAtRepo{})
-	chart, err := svc.GetChart(context.Background(), 1, "weekly", nil, ref)
+	chart, periodValue, err := svc.GetChart(context.Background(), 1, "weekly", nil, ref)
 	require.NoError(t, err)
+	assert.Equal(t, "weekly", periodValue)
 	require.Len(t, chart.Labels, 4)
 	require.Len(t, chart.Bought, 4)
 	require.Len(t, chart.Sold, 4)
@@ -124,8 +125,9 @@ func TestCitizenFeaturesService_GetChart_BucketsTrades(t *testing.T) {
 	}
 
 	svc := service.NewCitizenFeaturesService(repo, &mockUserCreatedAtRepo{})
-	chart, err := svc.GetChart(context.Background(), 7, "weekly", []string{"t"}, ref)
+	chart, periodValue, err := svc.GetChart(context.Background(), 7, "weekly", []string{"t"}, ref)
 	require.NoError(t, err)
+	assert.Equal(t, "weekly", periodValue)
 	require.Len(t, chart.Labels, 4)
 	assert.Equal(t, int32(1), chart.Bought[1])
 	assert.Equal(t, int32(1), chart.Sold[3])

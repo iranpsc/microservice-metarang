@@ -23,7 +23,7 @@ type FollowResource struct {
 	Can          FollowPermissions
 }
 
-// authenticated (viewer) user may take on the listed user.
+// FollowPermissions describes actions the authenticated (viewer) user may take on the listed user.
 type FollowPermissions struct {
 	Follow         bool
 	Unfollow       bool

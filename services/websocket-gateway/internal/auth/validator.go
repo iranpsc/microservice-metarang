@@ -1,3 +1,4 @@
+// Package auth provides token validation for WebSocket connections.
 package auth
 
 import (

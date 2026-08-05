@@ -116,18 +116,18 @@ func (s *CitizenFeaturesService) GetChart(
 	period string,
 	allowedKarbaris []string,
 	reference time.Time,
-) (*models.CitizenFeatureChartData, error) {
+) (*models.CitizenFeatureChartData, string, error) {
 	period = periodpkg.NormalizePeriod(period)
 	if reference.IsZero() {
 		reference = s.now()
 	}
 	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("user registration date: %w", err)
+		return nil, period, fmt.Errorf("user registration date: %w", err)
 	}
 	window, err := periodpkg.ResolvePeriod(period, reference, registeredAt)
 	if err != nil {
-		return nil, err
+		return nil, period, err
 	}
 
 	labels := make([]string, len(window.Buckets))
@@ -142,16 +142,16 @@ func (s *CitizenFeaturesService) GetChart(
 			Labels: labels,
 			Bought: bought,
 			Sold:   sold,
-		}, nil
+		}, period, nil
 	}
 
 	boughtTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "buyer", allowedKarbaris, window.Start, window.End)
 	if err != nil {
-		return nil, fmt.Errorf("list bought trades: %w", err)
+		return nil, period, fmt.Errorf("list bought trades: %w", err)
 	}
 	soldTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "seller", allowedKarbaris, window.Start, window.End)
 	if err != nil {
-		return nil, fmt.Errorf("list sold trades: %w", err)
+		return nil, period, fmt.Errorf("list sold trades: %w", err)
 	}
 
 	for i, bucket := range window.Buckets {
@@ -163,7 +163,7 @@ func (s *CitizenFeaturesService) GetChart(
 		Labels: labels,
 		Bought: bought,
 		Sold:   sold,
-	}, nil
+	}, period, nil
 }
 
 // GetFeatures returns a paginated feature list plus search-independent map markers.

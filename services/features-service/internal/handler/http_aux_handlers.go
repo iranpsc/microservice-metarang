@@ -277,7 +277,10 @@ func (h *HTTPCitizenFeaturesHandler) Handle(w http.ResponseWriter, r *http.Reque
 			writeGRPCError(w, err)
 			return
 		}
-		writeJSON(w, 200, map[string]interface{}{"data": map[string]interface{}{"labels": resp.Data.Labels, "bought": resp.Data.Bought, "sold": resp.Data.Sold}})
+		writeJSON(w, 200, map[string]interface{}{
+			"data":   map[string]interface{}{"labels": resp.Data.Labels, "bought": resp.Data.Bought, "sold": resp.Data.Sold},
+			"period": resp.Period,
+		})
 		return
 	}
 

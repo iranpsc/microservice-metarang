@@ -48,7 +48,8 @@ func (r *FeatureRepository) FindByID(ctx context.Context, id uint64) (*models.Fe
 	return feature, properties, nil
 }
 
-// x between points[0].x and points[1].x, y between points[0].y and points[2].y
+// BboxBoundsFromPoints returns min/max x and y from four corner points:
+// x between points[0].x and points[1].x, y between points[0].y and points[2].y.
 func BboxBoundsFromPoints(points []string) (minX, maxX, minY, maxY string, err error) {
 	if len(points) < 4 {
 		return "", "", "", "", fmt.Errorf("expected at least 4 points, got %d", len(points))
@@ -78,7 +79,8 @@ func BboxBoundsFromPoints(points []string) (minX, maxX, minY, maxY string, err e
 	return x0, x1, y0, y2, nil
 }
 
-// Points format: four "x,y" strings (bbox corners)
+// FindByBoundingBox loads features within a bounding box.
+// Points format: four "x,y" strings (bbox corners).
 func (r *FeatureRepository) FindByBoundingBox(ctx context.Context, points []string, loadBuildings bool) ([]*models.Feature, error) {
 	minX, maxX, minY, maxY, err := BboxBoundsFromPoints(points)
 	if err != nil {

@@ -86,6 +86,6 @@ type CitizenBuildingsServicePort interface {
 // CitizenFeaturesServicePort is implemented by *service.CitizenFeaturesService.
 type CitizenFeaturesServicePort interface {
 	GetSummary(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureSummaryResult, error)
-	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, error)
+	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, string, error)
 	GetFeatures(ctx context.Context, userID uint64, allowedKarbaris []string, search string, page, perPage int) (*models.CitizenFeaturesPage, error)
 }

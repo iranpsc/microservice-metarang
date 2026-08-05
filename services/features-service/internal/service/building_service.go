@@ -414,6 +414,7 @@ func (s *BuildingService) CalculateBubbleDiameter(attributesJSON string) float64
 	return perimeter * coefficient
 }
 
+// ValidateBuildingInformation validates building information fields.
 // Rules:
 // - activity_line: nullable, max 255
 // - name: nullable, max 255 (only saved if activity_line provided)

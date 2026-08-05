@@ -43,7 +43,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to subscribe to Redis: %v", err)
 	}
-	defer subscriber.Close()
+	defer func() {
+		if err := subscriber.Close(); err != nil {
+			log.Printf("Failed to close Redis subscriber: %v", err)
+		}
+	}()
 
 	mux := http.NewServeMux()
 	mux.Handle("/socket.io/", eventHub)

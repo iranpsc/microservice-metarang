@@ -5447,6 +5447,7 @@ func (x *GetCitizenFeatureChartRequest) GetAllowedKarbaris() []string {
 type GetCitizenFeatureChartResponse struct {
 	state         protoimpl.MessageState   `protogen:"open.v1"`
 	Data          *CitizenFeatureChartData `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	Period        string                   `protobuf:"bytes,2,opt,name=period,proto3" json:"period,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5486,6 +5487,13 @@ func (x *GetCitizenFeatureChartResponse) GetData() *CitizenFeatureChartData {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *GetCitizenFeatureChartResponse) GetPeriod() string {
+	if x != nil {
+		return x.Period
+	}
+	return ""
 }
 
 type CitizenFeatureChartData struct {
@@ -7094,9 +7102,10 @@ const file_features_proto_rawDesc = "" +
 	"\x1dGetCitizenFeatureChartRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x16\n" +
 	"\x06period\x18\x02 \x01(\tR\x06period\x12)\n" +
-	"\x10allowed_karbaris\x18\x03 \x03(\tR\x0fallowedKarbaris\"W\n" +
+	"\x10allowed_karbaris\x18\x03 \x03(\tR\x0fallowedKarbaris\"o\n" +
 	"\x1eGetCitizenFeatureChartResponse\x125\n" +
-	"\x04data\x18\x01 \x01(\v2!.features.CitizenFeatureChartDataR\x04data\"]\n" +
+	"\x04data\x18\x01 \x01(\v2!.features.CitizenFeatureChartDataR\x04data\x12\x16\n" +
+	"\x06period\x18\x02 \x01(\tR\x06period\"]\n" +
 	"\x17CitizenFeatureChartData\x12\x16\n" +
 	"\x06labels\x18\x01 \x03(\tR\x06labels\x12\x16\n" +
 	"\x06bought\x18\x02 \x03(\x05R\x06bought\x12\x12\n" +

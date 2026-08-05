@@ -14,10 +14,10 @@ func NewUserVariableRepository(db *sql.DB) *UserVariableRepository {
 	return &UserVariableRepository{db: db}
 }
 
-//
-//	referral_profit += referral_profit * introduction_profit_increase
-//	data_storage += data_storage * data_storage (prize multiplier)
-//	withdraw_profit += withdraw_profit * accumulated_capital_reserve
+// ApplyDynastyPrizeMultipliers adjusts user_variables prize fields:
+// referral_profit += referral_profit * introduction_profit_increase;
+// data_storage += data_storage * data_storage (prize multiplier);
+// withdraw_profit += withdraw_profit * accumulated_capital_reserve.
 func (r *UserVariableRepository) ApplyDynastyPrizeMultipliers(
 	ctx context.Context,
 	tx *sql.Tx,
