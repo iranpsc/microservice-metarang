@@ -99,15 +99,14 @@ func featureChartResponseForPeriod(periodValue string) *featurespb.GetCitizenFea
 	if err != nil {
 		panic(err)
 	}
-	n := len(window.Buckets)
-	labels := make([]string, n)
-	bought := make([]int32, n)
-	sold := make([]int32, n)
+	bought := make([]*featurespb.CitizenChartPoint, len(window.Buckets))
+	sold := make([]*featurespb.CitizenChartPoint, len(window.Buckets))
 	for i, bucket := range window.Buckets {
-		labels[i] = bucket.Label
+		bought[i] = &featurespb.CitizenChartPoint{Karbari: "t", Label: bucket.Label}
+		sold[i] = &featurespb.CitizenChartPoint{Karbari: "t", Label: bucket.Label}
 	}
 	return &featurespb.GetCitizenFeatureChartResponse{
-		Data:   &featurespb.CitizenFeatureChartData{Labels: labels, Bought: bought, Sold: sold},
+		Data:   &featurespb.CitizenFeatureChartData{Bought: bought, Sold: sold},
 		Period: periodValue,
 	}
 }
@@ -117,14 +116,12 @@ func buildingChartResponseForPeriod(periodValue string) *featurespb.GetCitizenBu
 	if err != nil {
 		panic(err)
 	}
-	n := len(window.Buckets)
-	labels := make([]string, n)
-	completed := make([]int32, n)
+	completed := make([]*featurespb.CitizenChartPoint, len(window.Buckets))
 	for i, bucket := range window.Buckets {
-		labels[i] = bucket.Label
+		completed[i] = &featurespb.CitizenChartPoint{Karbari: "m", Label: bucket.Label}
 	}
 	return &featurespb.GetCitizenBuildingChartResponse{
-		Data:   &featurespb.CitizenBuildingChartData{Labels: labels, Completed: completed},
+		Data:   &featurespb.CitizenBuildingChartData{Completed: completed},
 		Period: periodValue,
 	}
 }
@@ -225,15 +222,21 @@ func TestHTTPCitizenFeaturesChart_PeriodAndBucketCounts(t *testing.T) {
 
 			var body map[string]interface{}
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-			assert.Equal(t, test.wantPeriod, body["period"])
+			_, hasPeriod := body["period"]
+			assert.False(t, hasPeriod)
 
 			data := body["data"].(map[string]interface{})
-			labels := data["labels"].([]interface{})
 			bought := data["bought"].([]interface{})
 			sold := data["sold"].([]interface{})
-			assert.Len(t, labels, test.wantBuckets)
 			assert.Len(t, bought, test.wantBuckets)
 			assert.Len(t, sold, test.wantBuckets)
+			firstPoint := bought[0].(map[string]interface{})
+			_, hasKarbari := firstPoint["karbari"]
+			_, hasLabel := firstPoint["label"]
+			_, hasAmount := firstPoint["amount"]
+			assert.True(t, hasKarbari)
+			assert.True(t, hasLabel)
+			assert.True(t, hasAmount)
 		})
 	}
 }
@@ -269,13 +272,18 @@ func TestHTTPCitizenBuildingsChart_PeriodAndBucketCounts(t *testing.T) {
 
 			var body map[string]interface{}
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-			assert.Equal(t, test.wantPeriod, body["period"])
+			_, hasPeriod := body["period"]
+			assert.False(t, hasPeriod)
 
-			data := body["data"].(map[string]interface{})
-			labels := data["labels"].([]interface{})
-			completed := data["completed"].([]interface{})
-			assert.Len(t, labels, test.wantBuckets)
-			assert.Len(t, completed, test.wantBuckets)
+			data := body["data"].([]interface{})
+			assert.Len(t, data, test.wantBuckets)
+			firstPoint := data[0].(map[string]interface{})
+			_, hasKarbari := firstPoint["karbari"]
+			_, hasLabel := firstPoint["label"]
+			_, hasAmount := firstPoint["amount"]
+			assert.True(t, hasKarbari)
+			assert.True(t, hasLabel)
+			assert.True(t, hasAmount)
 		})
 	}
 }
@@ -300,4 +308,43 @@ func TestHTTPCitizenBuildingsSummary_NoPeriodField(t *testing.T) {
 	assert.False(t, hasPeriod)
 	_, hasData := body["data"]
 	assert.True(t, hasData)
+}
+
+func TestHTTPCitizenBuildingsList_IncludesImages(t *testing.T) {
+	area := 85.0
+	buildings := &mockCitizenBuildingsHTTPAPI{
+		list: func(_ context.Context, _ *featurespb.ListCitizenBuildingsRequest) (*featurespb.ListCitizenBuildingsResponse, error) {
+			return &featurespb.ListCitizenBuildingsResponse{
+				Data: []*featurespb.CitizenBuildingItem{
+					{
+						BuildingId: "sku-1",
+						Karbari:    "m",
+						Area:       &area,
+						Images:     []*featurespb.Image{{Id: 11, Url: "https://cdn.example/a.jpg"}},
+					},
+				},
+				Meta: &featurespb.FeatureTradeHistoryPaginationMeta{CurrentPage: 1, LastPage: 1, PerPage: 10, Total: 1},
+			}, nil
+		},
+	}
+	_, buildingsHandler := newCitizenHTTPHandlers(t, &mockCitizenFeaturesHTTPAPI{}, buildings)
+
+	w := httptest.NewRecorder()
+	buildingsHandler.Handle(w, httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/buildings", nil), "hm-1", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	data, ok := body["data"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, data, 1)
+	item, ok := data[0].(map[string]interface{})
+	require.True(t, ok)
+	images, ok := item["images"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, images, 1)
+	img, ok := images[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, float64(11), img["id"])
+	assert.Equal(t, "https://cdn.example/a.jpg", img["url"])
 }

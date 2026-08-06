@@ -643,10 +643,15 @@ message GetCitizenFeatureChartResponse {
   string period = 2;
 }
 
+message CitizenChartPoint {
+  string karbari = 1;
+  string label = 2;
+  double amount = 3;
+}
+
 message CitizenFeatureChartData {
-  repeated string labels = 1;
-  repeated int32 bought = 2;
-  repeated int32 sold = 3;
+  repeated CitizenChartPoint bought = 1;
+  repeated CitizenChartPoint sold = 2;
 }
 
 message ListCitizenFeaturesRequest {
@@ -724,8 +729,7 @@ message GetCitizenBuildingChartResponse {
 }
 
 message CitizenBuildingChartData {
-  repeated string labels = 1;
-  repeated int32 completed = 2;
+  repeated CitizenChartPoint completed = 1;
 }
 
 message ListCitizenBuildingsRequest {
@@ -741,13 +745,14 @@ message ListCitizenBuildingsResponse {
 }
 
 message CitizenBuildingItem {
-  string feature_properties_id = 1;
+  string building_id = 1; // building_models.sku
   string karbari = 2;
   optional double area = 3;
   optional double visitors = 4;
   optional double empty_units = 5;
-  optional double floors = 6;
+  optional double density = 6; // from building_model attributes, not feature_properties.density
   optional string construction_end_date = 7; // Jalali Y/m/d
+  repeated Image images = 8; // from building_models.images (synced from 3dmeta)
 }
 
 // IsicCodeService handles ISIC code listing (GET /api/isic-codes).

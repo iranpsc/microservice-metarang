@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
+	"metarang/features-service/internal/models"
 	featurespb "metarang/shared/pb/features"
 )
 
@@ -166,6 +167,29 @@ func optionalFloat64(value *float64) interface{} {
 		return nil
 	}
 	return *value
+}
+
+func toProtoCitizenChartPoints(points []models.CitizenChartPoint) []*featurespb.CitizenChartPoint {
+	out := make([]*featurespb.CitizenChartPoint, len(points))
+	for i, p := range points {
+		out[i] = &featurespb.CitizenChartPoint{Karbari: p.Karbari, Label: p.Label, Amount: p.Amount}
+	}
+	return out
+}
+
+func citizenChartPointsJSON(points []*featurespb.CitizenChartPoint) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(points))
+	for _, p := range points {
+		if p == nil {
+			continue
+		}
+		out = append(out, map[string]interface{}{
+			"karbari": p.Karbari,
+			"label":   p.Label,
+			"amount":  p.Amount,
+		})
+	}
+	return out
 }
 
 func citizenCenterJSON(center *featurespb.CitizenFeatureCenter) interface{} {

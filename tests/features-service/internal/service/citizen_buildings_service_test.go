@@ -71,14 +71,10 @@ func TestCitizenBuildingsService_GetChart_EmptyKarbaris(t *testing.T) {
 	ref := time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local)
 	svc := service.NewCitizenBuildingsService(&mockCitizenBuildingsRepo{}, &mockUserCreatedAtRepo{}, func() time.Time { return ref })
 
-	chart, periodValue, err := svc.GetChart(context.Background(), 1, "weekly", nil)
+	result, err := svc.GetChart(context.Background(), 1, "weekly", nil)
 	require.NoError(t, err)
-	assert.Equal(t, "weekly", periodValue)
-	require.Len(t, chart.Labels, 4)
-	require.Len(t, chart.Completed, 4)
-	for i := range chart.Completed {
-		assert.Equal(t, int32(0), chart.Completed[i])
-	}
+	assert.Equal(t, "weekly", result.Period)
+	assert.Empty(t, result.Completed)
 }
 
 func TestCitizenBuildingsService_GetChart_BucketsCompletedBuildings(t *testing.T) {
@@ -96,13 +92,14 @@ func TestCitizenBuildingsService_GetChart_BucketsCompletedBuildings(t *testing.T
 	}
 
 	svc := service.NewCitizenBuildingsService(repo, &mockUserCreatedAtRepo{}, func() time.Time { return ref })
-	chart, periodValue, err := svc.GetChart(context.Background(), 7, "weekly", []string{"m"})
+	result, err := svc.GetChart(context.Background(), 7, "weekly", []string{"m"})
 	require.NoError(t, err)
-	assert.Equal(t, "weekly", periodValue)
-	require.Len(t, chart.Labels, 4)
-	assert.Equal(t, int32(1), chart.Completed[1])
-	assert.Equal(t, int32(2), chart.Completed[3])
-	assert.Equal(t, int32(0), chart.Completed[0])
+	assert.Equal(t, "weekly", result.Period)
+	require.Len(t, result.Completed, 4)
+	assert.Equal(t, "m", result.Completed[0].Karbari)
+	assert.Equal(t, 1.0, result.Completed[1].Amount)
+	assert.Equal(t, 2.0, result.Completed[3].Amount)
+	assert.Equal(t, 0.0, result.Completed[0].Amount)
 }
 
 func TestCitizenBuildingsService_GetChart_InvalidPeriodFallsBackToDaily(t *testing.T) {
@@ -113,11 +110,10 @@ func TestCitizenBuildingsService_GetChart_InvalidPeriodFallsBackToDaily(t *testi
 	}
 	svc := service.NewCitizenBuildingsService(repo, &mockUserCreatedAtRepo{}, func() time.Time { return ref })
 
-	chart, periodValue, err := svc.GetChart(context.Background(), 1, "invalid", []string{"m"})
+	result, err := svc.GetChart(context.Background(), 1, "invalid", []string{"m"})
 	require.NoError(t, err)
-	assert.Equal(t, "daily", periodValue)
-	require.Len(t, chart.Labels, 24)
-	require.Len(t, chart.Completed, 24)
+	assert.Equal(t, "daily", result.Period)
+	require.Len(t, result.Completed, 24)
 }
 
 func TestCitizenBuildingsService_GetBuildings_EmptyKarbaris(t *testing.T) {
@@ -145,9 +141,10 @@ func TestCitizenBuildingsService_GetBuildings_MapsAttributesAndPagination(t *tes
 		assert.Equal(t, 10, offset)
 		return []models.CitizenBuildingRow{
 			{
-				FeaturePropertiesID: "h0-00991",
+				SKU:                 "sku-residential-001",
 				Karbari:             "m",
-				AttributesJSON:      `[{"slug":"length","value":17},{"slug":"width","value":5},{"slug":"floors","value":2}]`,
+				AttributesJSON:      `[{"slug":"length","value":17},{"slug":"width","value":5},{"slug":"density","value":2}]`,
+				ImagesJSON:          `[{"id":11,"url":"https://cdn.example/a.jpg"},"https://cdn.example/b.jpg"]`,
 				ConstructionEndDate: endDate,
 			},
 		}, nil
@@ -158,14 +155,22 @@ func TestCitizenBuildingsService_GetBuildings_MapsAttributesAndPagination(t *tes
 	require.NoError(t, err)
 	require.Len(t, page.Items, 1)
 	item := page.Items[0]
-	assert.Equal(t, "H0-00991", item.FeaturePropertiesID)
+	assert.Equal(t, "sku-residential-001", item.BuildingID)
 	assert.Equal(t, "m", item.Karbari)
 	require.NotNil(t, item.Area)
 	assert.Equal(t, 85.0, *item.Area) // length * width
-	assert.Nil(t, item.Visitors)
-	require.NotNil(t, item.Floors)
-	assert.Equal(t, 2.0, *item.Floors)
+	require.NotNil(t, item.Visitors)
+	assert.Equal(t, 0.0, *item.Visitors)
+	require.NotNil(t, item.EmptyUnits)
+	assert.Equal(t, 0.0, *item.EmptyUnits)
+	require.NotNil(t, item.Density)
+	assert.Equal(t, 2.0, *item.Density)
 	require.NotNil(t, item.ConstructionEndDate)
+	require.Len(t, item.Images, 2)
+	assert.Equal(t, uint64(11), item.Images[0].ID)
+	assert.Equal(t, "https://cdn.example/a.jpg", item.Images[0].URL)
+	assert.Equal(t, uint64(0), item.Images[1].ID)
+	assert.Equal(t, "https://cdn.example/b.jpg", item.Images[1].URL)
 	assert.Equal(t, 25, page.Total)
 	assert.Equal(t, 3, page.LastPage)
 	assert.Equal(t, 2, page.CurrentPage)

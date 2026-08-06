@@ -79,13 +79,13 @@ type IsicCodeServicePort interface {
 // CitizenBuildingsServicePort is implemented by *service.CitizenBuildingsService.
 type CitizenBuildingsServicePort interface {
 	GetSummary(ctx context.Context, userID uint64, allowedKarbaris []string) (*models.CitizenBuildingSummaryResult, error)
-	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartData, string, error)
+	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartResult, error)
 	GetBuildings(ctx context.Context, userID uint64, allowedKarbaris []string, page int) (*models.CitizenBuildingsPage, error)
 }
 
 // CitizenFeaturesServicePort is implemented by *service.CitizenFeaturesService.
 type CitizenFeaturesServicePort interface {
 	GetSummary(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureSummaryResult, error)
-	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, string, error)
+	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartResult, error)
 	GetFeatures(ctx context.Context, userID uint64, allowedKarbaris []string, search string, page, perPage int) (*models.CitizenFeaturesPage, error)
 }

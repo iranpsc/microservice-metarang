@@ -278,8 +278,10 @@ func (h *HTTPCitizenFeaturesHandler) Handle(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		writeJSON(w, 200, map[string]interface{}{
-			"data":   map[string]interface{}{"labels": resp.Data.Labels, "bought": resp.Data.Bought, "sold": resp.Data.Sold},
-			"period": resp.Period,
+			"data": map[string]interface{}{
+				"bought": citizenChartPointsJSON(resp.Data.Bought),
+				"sold":   citizenChartPointsJSON(resp.Data.Sold),
+			},
 		})
 		return
 	}
@@ -372,7 +374,9 @@ func (h *HTTPCitizenBuildingsHandler) Handle(w http.ResponseWriter, r *http.Requ
 			writeGRPCError(w, err)
 			return
 		}
-		writeJSON(w, 200, map[string]interface{}{"data": map[string]interface{}{"labels": resp.Data.Labels, "completed": resp.Data.Completed}, "period": resp.Period})
+		writeJSON(w, 200, map[string]interface{}{
+			"data": citizenChartPointsJSON(resp.Data.Completed),
+		})
 		return
 	}
 	resp, err := h.api.ListCitizenBuildings(r.Context(), &featurespb.ListCitizenBuildingsRequest{UserId: id, AllowedKarbaris: allowed, Page: pageQuery(r, 1)})
@@ -383,13 +387,14 @@ func (h *HTTPCitizenBuildingsHandler) Handle(w http.ResponseWriter, r *http.Requ
 	data := make([]map[string]interface{}, 0, len(resp.Data))
 	for _, x := range resp.Data {
 		data = append(data, map[string]interface{}{
-			"feature_properties_id": x.FeaturePropertiesId,
+			"building_id":           x.BuildingId,
 			"karbari":               x.Karbari,
 			"area":                  optionalFloat64(x.Area),
 			"visitors":              optionalFloat64(x.Visitors),
 			"empty_units":           optionalFloat64(x.EmptyUnits),
-			"floors":                optionalFloat64(x.Floors),
+			"density":               optionalFloat64(x.Density),
 			"construction_end_date": optionalString(x.ConstructionEndDate),
+			"images":                citizenImagesJSON(x.Images),
 		})
 	}
 	basePath := requestPath(r)

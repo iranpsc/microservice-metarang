@@ -17,7 +17,7 @@ import (
 
 type mockCitizenBuildingsPort struct {
 	summary   func(ctx context.Context, userID uint64, allowedKarbaris []string) (*models.CitizenBuildingSummaryResult, error)
-	chart     func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartData, string, error)
+	chart     func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartResult, error)
 	buildings func(ctx context.Context, userID uint64, allowedKarbaris []string, page int) (*models.CitizenBuildingsPage, error)
 }
 
@@ -25,7 +25,7 @@ func (m *mockCitizenBuildingsPort) GetSummary(ctx context.Context, userID uint64
 	return m.summary(ctx, userID, allowedKarbaris)
 }
 
-func (m *mockCitizenBuildingsPort) GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartData, string, error) {
+func (m *mockCitizenBuildingsPort) GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartResult, error) {
 	return m.chart(ctx, userID, period, allowedKarbaris)
 }
 
@@ -64,11 +64,14 @@ func TestCitizenBuildingsHandler_Summary_Success(t *testing.T) {
 
 func TestCitizenBuildingsHandler_Chart_Success(t *testing.T) {
 	m := &mockCitizenBuildingsPort{}
-	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartData, string, error) {
-		return &models.CitizenBuildingChartData{
-			Labels:    []string{"a", "b"},
-			Completed: []int32{1, 2},
-		}, "weekly", nil
+	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartResult, error) {
+		return &models.CitizenBuildingChartResult{
+			Completed: []models.CitizenChartPoint{
+				{Karbari: "m", Label: "a", Amount: 1},
+				{Karbari: "m", Label: "b", Amount: 2},
+			},
+			Period: "weekly",
+		}, nil
 	}
 
 	h := handler.NewCitizenBuildingsHandler(m)
@@ -80,16 +83,22 @@ func TestCitizenBuildingsHandler_Chart_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "weekly", resp.Period)
 	require.NotNil(t, resp.Data)
-	assert.Equal(t, []int32{1, 2}, resp.Data.Completed)
-	require.Equal(t, len(resp.Data.Labels), len(resp.Data.Completed))
+	require.Len(t, resp.Data.Completed, 2)
+	assert.Equal(t, "m", resp.Data.Completed[0].Karbari)
+	assert.Equal(t, "a", resp.Data.Completed[0].Label)
+	assert.Equal(t, 1.0, resp.Data.Completed[0].Amount)
+	assert.Equal(t, "b", resp.Data.Completed[1].Label)
+	assert.Equal(t, 2.0, resp.Data.Completed[1].Amount)
 }
 
 func TestCitizenBuildingsHandler_Chart_DailyBucketCount(t *testing.T) {
 	m := &mockCitizenBuildingsPort{}
-	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartData, string, error) {
-		labels := make([]string, 24)
-		completed := make([]int32, 24)
-		return &models.CitizenBuildingChartData{Labels: labels, Completed: completed}, "daily", nil
+	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartResult, error) {
+		completed := make([]models.CitizenChartPoint, 24)
+		for i := range completed {
+			completed[i] = models.CitizenChartPoint{Label: "bucket"}
+		}
+		return &models.CitizenBuildingChartResult{Completed: completed, Period: "daily"}, nil
 	}
 	h := handler.NewCitizenBuildingsHandler(m)
 	resp, err := h.GetCitizenBuildingChart(context.Background(), &pb.GetCitizenBuildingChartRequest{
@@ -98,16 +107,17 @@ func TestCitizenBuildingsHandler_Chart_DailyBucketCount(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "daily", resp.Period)
-	require.Len(t, resp.Data.Labels, 24)
 	require.Len(t, resp.Data.Completed, 24)
 }
 
 func TestCitizenBuildingsHandler_Chart_MonthlyBucketCount(t *testing.T) {
 	m := &mockCitizenBuildingsPort{}
-	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartData, string, error) {
-		labels := make([]string, 12)
-		completed := make([]int32, 12)
-		return &models.CitizenBuildingChartData{Labels: labels, Completed: completed}, "monthly", nil
+	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartResult, error) {
+		completed := make([]models.CitizenChartPoint, 12)
+		for i := range completed {
+			completed[i] = models.CitizenChartPoint{Label: "bucket"}
+		}
+		return &models.CitizenBuildingChartResult{Completed: completed, Period: "monthly"}, nil
 	}
 	h := handler.NewCitizenBuildingsHandler(m)
 	resp, err := h.GetCitizenBuildingChart(context.Background(), &pb.GetCitizenBuildingChartRequest{
@@ -116,7 +126,6 @@ func TestCitizenBuildingsHandler_Chart_MonthlyBucketCount(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "monthly", resp.Period)
-	require.Len(t, resp.Data.Labels, 12)
 	require.Len(t, resp.Data.Completed, 12)
 }
 
@@ -131,10 +140,13 @@ func TestCitizenBuildingsHandler_List_Success(t *testing.T) {
 		return &models.CitizenBuildingsPage{
 			Items: []models.CitizenBuildingListItem{
 				{
-					FeaturePropertiesID: "H0-00991",
+					BuildingID:          "sku-residential-001",
 					Karbari:             "m",
 					Area:                &area,
 					ConstructionEndDate: &endDate,
+					Images: []models.CitizenBuildingImage{
+						{ID: 11, URL: "https://cdn.example/a.jpg"},
+					},
 				},
 			},
 			CurrentPage: 2,
@@ -154,7 +166,10 @@ func TestCitizenBuildingsHandler_List_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Data, 1)
-	assert.Equal(t, "H0-00991", resp.Data[0].FeaturePropertiesId)
+	assert.Equal(t, "sku-residential-001", resp.Data[0].BuildingId)
+	require.Len(t, resp.Data[0].Images, 1)
+	assert.Equal(t, uint64(11), resp.Data[0].Images[0].Id)
+	assert.Equal(t, "https://cdn.example/a.jpg", resp.Data[0].Images[0].Url)
 	require.NotNil(t, resp.Meta)
 	assert.Equal(t, int32(25), resp.Meta.Total)
 }

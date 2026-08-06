@@ -18,7 +18,7 @@ import (
 
 type mockCitizenFeaturesPort struct {
 	summary func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureSummaryResult, error)
-	chart   func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, string, error)
+	chart   func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartResult, error)
 	list    func(ctx context.Context, userID uint64, allowedKarbaris []string, search string, page, perPage int) (*models.CitizenFeaturesPage, error)
 }
 
@@ -26,7 +26,7 @@ func (m *mockCitizenFeaturesPort) GetSummary(ctx context.Context, userID uint64,
 	return m.summary(ctx, userID, period, allowedKarbaris, reference)
 }
 
-func (m *mockCitizenFeaturesPort) GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, string, error) {
+func (m *mockCitizenFeaturesPort) GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartResult, error) {
 	return m.chart(ctx, userID, period, allowedKarbaris, reference)
 }
 
@@ -91,12 +91,18 @@ func TestCitizenFeaturesHandler_Chart_MissingUserID(t *testing.T) {
 
 func TestCitizenFeaturesHandler_Chart_Success(t *testing.T) {
 	m := &mockCitizenFeaturesPort{}
-	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, string, error) {
-		return &models.CitizenFeatureChartData{
-			Labels: []string{"a", "b"},
-			Bought: []int32{1, 0},
-			Sold:   []int32{0, 2},
-		}, "daily", nil
+	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartResult, error) {
+		return &models.CitizenFeatureChartResult{
+			Bought: []models.CitizenChartPoint{
+				{Karbari: "t", Label: "a", Amount: 1},
+				{Karbari: "t", Label: "b", Amount: 0},
+			},
+			Sold: []models.CitizenChartPoint{
+				{Karbari: "t", Label: "a", Amount: 0},
+				{Karbari: "t", Label: "b", Amount: 2},
+			},
+			Period: "daily",
+		}, nil
 	}
 	h := handler.NewCitizenFeaturesHandler(m)
 	resp, err := h.GetCitizenFeatureChart(context.Background(), &pb.GetCitizenFeatureChartRequest{
@@ -106,20 +112,23 @@ func TestCitizenFeaturesHandler_Chart_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.Data)
 	assert.Equal(t, "daily", resp.Period)
-	assert.Equal(t, []string{"a", "b"}, resp.Data.Labels)
-	assert.Equal(t, []int32{1, 0}, resp.Data.Bought)
-	assert.Equal(t, []int32{0, 2}, resp.Data.Sold)
-	assert.Equal(t, len(resp.Data.Labels), len(resp.Data.Bought))
-	assert.Equal(t, len(resp.Data.Labels), len(resp.Data.Sold))
+	require.Len(t, resp.Data.Bought, 2)
+	require.Len(t, resp.Data.Sold, 2)
+	assert.Equal(t, "t", resp.Data.Bought[0].Karbari)
+	assert.Equal(t, 1.0, resp.Data.Bought[0].Amount)
+	assert.Equal(t, 2.0, resp.Data.Sold[1].Amount)
 }
 
 func TestCitizenFeaturesHandler_Chart_WeeklyBucketCount(t *testing.T) {
 	m := &mockCitizenFeaturesPort{}
-	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, string, error) {
-		labels := make([]string, 4)
-		bought := make([]int32, 4)
-		sold := make([]int32, 4)
-		return &models.CitizenFeatureChartData{Labels: labels, Bought: bought, Sold: sold}, "weekly", nil
+	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartResult, error) {
+		bought := make([]models.CitizenChartPoint, 4)
+		sold := make([]models.CitizenChartPoint, 4)
+		for i := range bought {
+			bought[i] = models.CitizenChartPoint{Label: "bucket"}
+			sold[i] = models.CitizenChartPoint{Label: "bucket"}
+		}
+		return &models.CitizenFeatureChartResult{Bought: bought, Sold: sold, Period: "weekly"}, nil
 	}
 	h := handler.NewCitizenFeaturesHandler(m)
 	resp, err := h.GetCitizenFeatureChart(context.Background(), &pb.GetCitizenFeatureChartRequest{
@@ -128,18 +137,20 @@ func TestCitizenFeaturesHandler_Chart_WeeklyBucketCount(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "weekly", resp.Period)
-	require.Len(t, resp.Data.Labels, 4)
 	require.Len(t, resp.Data.Bought, 4)
 	require.Len(t, resp.Data.Sold, 4)
 }
 
 func TestCitizenFeaturesHandler_Chart_DailyBucketCount(t *testing.T) {
 	m := &mockCitizenFeaturesPort{}
-	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, string, error) {
-		labels := make([]string, 24)
-		bought := make([]int32, 24)
-		sold := make([]int32, 24)
-		return &models.CitizenFeatureChartData{Labels: labels, Bought: bought, Sold: sold}, "daily", nil
+	m.chart = func(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartResult, error) {
+		bought := make([]models.CitizenChartPoint, 24)
+		sold := make([]models.CitizenChartPoint, 24)
+		for i := range bought {
+			bought[i] = models.CitizenChartPoint{Label: "bucket"}
+			sold[i] = models.CitizenChartPoint{Label: "bucket"}
+		}
+		return &models.CitizenFeatureChartResult{Bought: bought, Sold: sold, Period: "daily"}, nil
 	}
 	h := handler.NewCitizenFeaturesHandler(m)
 	resp, err := h.GetCitizenFeatureChart(context.Background(), &pb.GetCitizenFeatureChartRequest{
@@ -147,7 +158,6 @@ func TestCitizenFeaturesHandler_Chart_DailyBucketCount(t *testing.T) {
 		Period: "daily",
 	})
 	require.NoError(t, err)
-	require.Len(t, resp.Data.Labels, 24)
 	require.Len(t, resp.Data.Bought, 24)
 	require.Len(t, resp.Data.Sold, 24)
 }

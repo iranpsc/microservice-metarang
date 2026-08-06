@@ -47,11 +47,11 @@ type CitizenFeatureSummaryItem struct {
 	SoldCount    int32
 }
 
-// CitizenFeatureChartData is the bought/sold chart payload.
-type CitizenFeatureChartData struct {
-	Labels []string
-	Bought []int32
-	Sold   []int32
+// CitizenFeatureChartResult is the chart response payload.
+type CitizenFeatureChartResult struct {
+	Bought []CitizenChartPoint
+	Sold   []CitizenChartPoint
+	Period string
 }
 
 // CitizenFeaturesPage is a paginated public features list plus map markers.

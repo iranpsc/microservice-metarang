@@ -109,61 +109,65 @@ func (s *CitizenFeaturesService) GetSummary(
 	}, nil
 }
 
-// GetChart returns bought/sold counts bucketed by period.
+// GetChart returns bought/sold counts bucketed by period, one series per karbari.
 func (s *CitizenFeaturesService) GetChart(
 	ctx context.Context,
 	userID uint64,
 	period string,
 	allowedKarbaris []string,
 	reference time.Time,
-) (*models.CitizenFeatureChartData, string, error) {
+) (*models.CitizenFeatureChartResult, error) {
 	period = periodpkg.NormalizePeriod(period)
 	if reference.IsZero() {
 		reference = s.now()
 	}
 	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
 	if err != nil {
-		return nil, period, fmt.Errorf("user registration date: %w", err)
+		return nil, fmt.Errorf("user registration date: %w", err)
 	}
 	window, err := periodpkg.ResolvePeriod(period, reference, registeredAt)
 	if err != nil {
-		return nil, period, err
-	}
-
-	labels := make([]string, len(window.Buckets))
-	bought := make([]int32, len(window.Buckets))
-	sold := make([]int32, len(window.Buckets))
-	for i, bucket := range window.Buckets {
-		labels[i] = bucket.Label
+		return nil, err
 	}
 
 	if len(allowedKarbaris) == 0 {
-		return &models.CitizenFeatureChartData{
-			Labels: labels,
-			Bought: bought,
-			Sold:   sold,
-		}, period, nil
+		return &models.CitizenFeatureChartResult{
+			Bought: []models.CitizenChartPoint{},
+			Sold:   []models.CitizenChartPoint{},
+			Period: period,
+		}, nil
 	}
 
-	boughtTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "buyer", allowedKarbaris, window.Start, window.End)
-	if err != nil {
-		return nil, period, fmt.Errorf("list bought trades: %w", err)
-	}
-	soldTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "seller", allowedKarbaris, window.Start, window.End)
-	if err != nil {
-		return nil, period, fmt.Errorf("list sold trades: %w", err)
+	bought := make([]models.CitizenChartPoint, 0, len(allowedKarbaris)*len(window.Buckets))
+	sold := make([]models.CitizenChartPoint, 0, len(allowedKarbaris)*len(window.Buckets))
+	for _, karbari := range allowedKarbaris {
+		boughtTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "buyer", []string{karbari}, window.Start, window.End)
+		if err != nil {
+			return nil, fmt.Errorf("list bought trades for %s: %w", karbari, err)
+		}
+		soldTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "seller", []string{karbari}, window.Start, window.End)
+		if err != nil {
+			return nil, fmt.Errorf("list sold trades for %s: %w", karbari, err)
+		}
+		for _, bucket := range window.Buckets {
+			bought = append(bought, models.CitizenChartPoint{
+				Karbari: karbari,
+				Label:   bucket.Label,
+				Amount:  float64(countTradesInBucket(boughtTrades, bucket)),
+			})
+			sold = append(sold, models.CitizenChartPoint{
+				Karbari: karbari,
+				Label:   bucket.Label,
+				Amount:  float64(countTradesInBucket(soldTrades, bucket)),
+			})
+		}
 	}
 
-	for i, bucket := range window.Buckets {
-		bought[i] = countTradesInBucket(boughtTrades, bucket)
-		sold[i] = countTradesInBucket(soldTrades, bucket)
-	}
-
-	return &models.CitizenFeatureChartData{
-		Labels: labels,
+	return &models.CitizenFeatureChartResult{
 		Bought: bought,
 		Sold:   sold,
-	}, period, nil
+		Period: period,
+	}, nil
 }
 
 // GetFeatures returns a paginated feature list plus search-independent map markers.

@@ -798,9 +798,10 @@ func (r *BuildingRepository) ListUserCompletedBuildings(
 
 	query := fmt.Sprintf(`
 		SELECT
-			COALESCE(fp.id, '') AS feature_properties_id,
+			COALESCE(bm.sku, '') AS sku,
 			COALESCE(fp.karbari, '') AS karbari,
 			COALESCE(bm.attributes, '[]') AS attributes,
+			COALESCE(bm.images, '[]') AS images,
 			b.construction_end_date
 		FROM buildings b
 		INNER JOIN features f ON f.id = b.feature_id
@@ -823,9 +824,10 @@ func (r *BuildingRepository) ListUserCompletedBuildings(
 	for rows.Next() {
 		var row models.CitizenBuildingRow
 		if err := rows.Scan(
-			&row.FeaturePropertiesID,
+			&row.SKU,
 			&row.Karbari,
 			&row.AttributesJSON,
+			&row.ImagesJSON,
 			&row.ConstructionEndDate,
 		); err != nil {
 			return nil, fmt.Errorf("scan user completed building: %w", err)
