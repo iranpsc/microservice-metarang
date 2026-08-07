@@ -78,71 +78,109 @@ func TestAccountSecurityRepository_SQLMock(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func tokenValidateColumns() []string {
+	return []string{
+		"pat.id", "pat.tokenable_id", "expires_at", "last_used_at",
+		"u.id", "name", "email", "phone", "password", "code", "referrer_id", "score", "ip",
+		"last_seen", "email_verified_at", "phone_verified_at", "access_token",
+		"refresh_token", "token_type", "expires_in", "wallet_address", "created_at", "updated_at",
+	}
+}
+
+func waitSQLMockExpectations(t *testing.T, mock sqlmock.Sqlmock) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		lastErr = mock.ExpectationsWereMet()
+		if lastErr == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	require.NoError(t, lastErr)
+}
+
 func TestTokenRepository_SQLMock(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	repo := repository.NewTokenRepository(db)
+	// Each subtest uses its own sqlmock DB so the async last_used_at UPDATE from
+	// ValidateToken cannot race into later cases (flaky on slow CI).
 	ctx := context.Background()
 	now := time.Now()
 	future := now.Add(time.Hour)
 
 	t.Run("create", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := repository.NewTokenRepository(db)
+
 		mock.ExpectExec("INSERT INTO personal_access_tokens").
 			WillReturnResult(sqlmock.NewResult(7, 1))
 		tok, err := repo.Create(ctx, 1, "auth", future)
 		require.NoError(t, err)
 		require.Contains(t, tok, "7|")
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("validate invalid", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := repository.NewTokenRepository(db)
+
 		mock.ExpectQuery("FROM personal_access_tokens pat").
 			WillReturnError(sql.ErrNoRows)
-		_, err := repo.ValidateToken(ctx, "plain")
+		_, err = repo.ValidateToken(ctx, "plain")
 		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid token")
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("validate success", func(t *testing.T) {
-		cols := []string{
-			"pat.id", "pat.tokenable_id", "expires_at", "last_used_at",
-			"u.id", "name", "email", "phone", "password", "code", "referrer_id", "score", "ip",
-			"last_seen", "email_verified_at", "phone_verified_at", "access_token",
-			"refresh_token", "token_type", "expires_in", "wallet_address", "created_at", "updated_at",
-		}
-		rows := sqlmock.NewRows(cols).AddRow(
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := repository.NewTokenRepository(db)
+
+		rows := sqlmock.NewRows(tokenValidateColumns()).AddRow(
 			uint64(7), uint64(1), future, nil,
 			uint64(1), "n", "e@x.com", nil, "hash", "c1", nil, int32(0), "1.1.1.1",
 			nil, nil, nil, nil, nil, nil, nil, nil, now, now,
 		)
 		mock.ExpectQuery("FROM personal_access_tokens pat").WillReturnRows(rows)
-		// async last_used update — allow optionally
 		mock.ExpectExec("UPDATE personal_access_tokens SET last_used_at").
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		user, err := repo.ValidateToken(ctx, "7|abcdef")
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), user.ID)
-		time.Sleep(50 * time.Millisecond)
+		waitSQLMockExpectations(t, mock)
 	})
 
 	t.Run("validate expired", func(t *testing.T) {
-		past := now.Add(-time.Hour)
-		cols := []string{
-			"pat.id", "pat.tokenable_id", "expires_at", "last_used_at",
-			"u.id", "name", "email", "phone", "password", "code", "referrer_id", "score", "ip",
-			"last_seen", "email_verified_at", "phone_verified_at", "access_token",
-			"refresh_token", "token_type", "expires_in", "wallet_address", "created_at", "updated_at",
-		}
-		rows := sqlmock.NewRows(cols).AddRow(
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := repository.NewTokenRepository(db)
+
+		past := time.Now().Add(-time.Hour)
+		rows := sqlmock.NewRows(tokenValidateColumns()).AddRow(
 			uint64(7), uint64(1), past, nil,
 			uint64(1), "n", "e@x.com", nil, "hash", "c1", nil, int32(0), "1.1.1.1",
 			nil, nil, nil, nil, nil, nil, nil, nil, now, now,
 		)
 		mock.ExpectQuery("FROM personal_access_tokens pat").WillReturnRows(rows)
-		_, err := repo.ValidateToken(ctx, "abcdef")
+		_, err = repo.ValidateToken(ctx, "abcdef")
 		require.Error(t, err)
+		require.Contains(t, err.Error(), "token expired")
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("delete and find", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := repository.NewTokenRepository(db)
+
 		mock.ExpectExec("DELETE FROM personal_access_tokens").
 			WithArgs(uint64(1)).
 			WillReturnResult(sqlmock.NewResult(0, 2))
@@ -154,6 +192,7 @@ func TestTokenRepository_SQLMock(t *testing.T) {
 		tok, err := repo.FindTokenByHash(ctx, "hash")
 		require.NoError(t, err)
 		require.Nil(t, tok)
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
