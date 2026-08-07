@@ -634,6 +634,7 @@ message GetGeneralSettingsResponse {
 }
 
 message NotificationSettingsData {
+  uint64 id = 11;
   bool announcements_sms = 1;
   bool announcements_email = 2;
   bool reports_sms = 3;

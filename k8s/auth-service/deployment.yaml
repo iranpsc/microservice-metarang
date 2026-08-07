@@ -33,6 +33,9 @@ spec:
         - containerPort: 50051
           name: grpc
           protocol: TCP
+        - containerPort: 8066
+          name: http
+          protocol: TCP
         - containerPort: 9090
           name: metrics
           protocol: TCP
@@ -76,6 +79,8 @@ spec:
               key: oauth.client.secret
         - name: GRPC_PORT
           value: "50051"
+        - name: HTTP_PORT
+          value: "8066"
         - name: METRICS_PORT
           value: "9090"
         - name: REDIS_HOST
@@ -118,15 +123,17 @@ spec:
             memory: "512Mi"
             cpu: "500m"
         livenessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50051"]
+          httpGet:
+            path: /health
+            port: 8066
           initialDelaySeconds: 10
           periodSeconds: 30
           timeoutSeconds: 3
           failureThreshold: 3
         readinessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50051"]
+          httpGet:
+            path: /health
+            port: 8066
           initialDelaySeconds: 5
           periodSeconds: 10
           timeoutSeconds: 3
@@ -147,6 +154,10 @@ spec:
     targetPort: 50051
     protocol: TCP
     name: grpc
+  - port: 8066
+    targetPort: 8066
+    protocol: TCP
+    name: http
   - port: 9090
     targetPort: 9090
     protocol: TCP

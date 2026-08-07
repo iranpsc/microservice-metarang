@@ -19,10 +19,10 @@ type personalInfoHandler struct {
 	personalInfoService service.PersonalInfoService
 }
 
-func RegisterPersonalInfoHandler(grpcServer *grpc.Server, personalInfoService service.PersonalInfoService) {
-	pb.RegisterPersonalInfoServiceServer(grpcServer, &personalInfoHandler{
-		personalInfoService: personalInfoService,
-	})
+func RegisterPersonalInfoHandler(grpcServer *grpc.Server, personalInfoService service.PersonalInfoService) pb.PersonalInfoServiceServer {
+	h := &personalInfoHandler{personalInfoService: personalInfoService}
+	pb.RegisterPersonalInfoServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *personalInfoHandler) GetPersonalInfo(ctx context.Context, req *pb.GetPersonalInfoRequest) (*pb.GetPersonalInfoResponse, error) {

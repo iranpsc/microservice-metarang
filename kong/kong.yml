@@ -90,6 +90,28 @@ services:
     read_timeout: 60000
     retries: 3
 
+  # Auth REST API — served directly by auth-service (migrated off grpc-gateway)
+  - name: auth-service
+    url: http://auth-service:8066
+    protocol: http
+    host: auth-service
+    port: 8066
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Commercial REST API — served directly by commercial-service (migrated off grpc-gateway)
+  - name: commercial-service
+    url: http://commercial-service:8067
+    protocol: http
+    host: commercial-service
+    port: 8067
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
   - name: swagger-ui
     url: http://swagger-ui:8080
     protocol: http
@@ -269,6 +291,78 @@ routes:
     methods:
       - GET
       - POST
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+
+  # Commercial API — higher priority than catch-all /api → grpc-gateway
+  # and higher than auth-api for /api/citizen/*/wallet/history/*
+  - name: commercial-api
+    service: commercial-service
+    paths:
+      - /api/user/transactions
+      - ~/api/citizen/[^/]+/wallet/history
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+
+  # Auth API — higher priority than catch-all /api → grpc-gateway.
+  # /api/user/transactions* and /api/citizen/*/wallet/history* are routed by commercial-api (priority 98).
+  # /api/citizen/* features/buildings subpaths are routed by features-api (priority 98).
+  - name: auth-api
+    service: auth-service
+    paths:
+      - /api/auth
+      - /api/account
+      - /api/wallet
+      - /api/users
+      - /api/user/wallet
+      - /api/user/profile
+      - ~/api/user$
+      - /api/search
+      - /api/kyc
+      - /api/bank-accounts
+      - /api/personal-info
+      - /api/profile-limitations
+      - /api/profilePhotos
+      - /api/profile-photos
+      - /api/settings
+      - /api/general-settings
+      - /api/privacy
+      - /api/events
+      - /api/citizen
+    strip_path: false
+    preserve_host: false
+    regex_priority: 97
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
       - OPTIONS
     plugins:
       - name: rate-limiting

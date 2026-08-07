@@ -272,7 +272,7 @@ func TestGetKYC_NotFound(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.GetKYC(ctx, 1)
 	if err != nil {
@@ -295,7 +295,7 @@ func TestGetKYC_NotOwned(t *testing.T) {
 	}
 	kycRepo.kycs[2] = existingKYC
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.GetKYC(ctx, 1)
 	if err != nil {
@@ -320,7 +320,7 @@ func TestGetKYC_Found(t *testing.T) {
 	}
 	kycRepo.kycs[1] = existingKYC
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.GetKYC(ctx, 1)
 	if err != nil {
@@ -338,7 +338,7 @@ func TestUpdateKYC_CreateNew(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.UpdateKYC(
 		ctx,
@@ -385,7 +385,7 @@ func TestUpdateKYC_UpdateRejected(t *testing.T) {
 	}
 	kycRepo.kycs[1] = existingKYC
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.UpdateKYC(
 		ctx,
@@ -431,7 +431,7 @@ func TestUpdateKYC_RejectPendingUpdate(t *testing.T) {
 	}
 	kycRepo.kycs[1] = existingKYC
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -468,7 +468,7 @@ func TestUpdateKYC_RejectApprovedUpdate(t *testing.T) {
 	}
 	kycRepo.kycs[1] = existingKYC
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -495,7 +495,7 @@ func TestUpdateKYC_InvalidFname(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -522,7 +522,7 @@ func TestUpdateKYC_InvalidLname(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -549,7 +549,7 @@ func TestUpdateKYC_InvalidGender(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -576,7 +576,7 @@ func TestUpdateKYC_InvalidBirthdate(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -611,7 +611,7 @@ func TestUpdateKYC_DuplicateMelliCode(t *testing.T) {
 	}
 	kycRepo.kycs[2] = existingKYC
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -642,7 +642,7 @@ func TestUpdateKYC_ValidGenders(t *testing.T) {
 		t.Run(gender, func(t *testing.T) {
 			kycRepo := newFakeKYCRepository()
 			userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-			svc := service.NewKYCService(kycRepo, userRepo)
+			svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 			_, err := svc.UpdateKYC(
 				ctx,
@@ -668,7 +668,7 @@ func TestUpdateKYC_TrimsWhitespace(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.UpdateKYC(
 		ctx,
@@ -708,7 +708,7 @@ func TestUpdateKYC_MelliCardRequired(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -744,7 +744,7 @@ func TestUpdateKYC_VideoRequired(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			kycRepo := newFakeKYCRepository()
 			userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-			svc := service.NewKYCService(kycRepo, userRepo)
+			svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 			_, err := svc.UpdateKYC(
 				ctx,
@@ -773,7 +773,7 @@ func TestUpdateKYC_VerifyTextIDRequired(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -800,7 +800,7 @@ func TestUpdateKYC_VerifyTextIDNotFound(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	_, err := svc.UpdateKYC(
 		ctx,
@@ -837,7 +837,7 @@ func TestUpdateKYC_ProvinceRequired(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			kycRepo := newFakeKYCRepository()
 			userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-			svc := service.NewKYCService(kycRepo, userRepo)
+			svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 			_, err := svc.UpdateKYC(
 				ctx,
@@ -876,7 +876,7 @@ func TestUpdateKYC_GenderRequired(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			kycRepo := newFakeKYCRepository()
 			userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-			svc := service.NewKYCService(kycRepo, userRepo)
+			svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 			_, err := svc.UpdateKYC(
 				ctx,
@@ -905,7 +905,7 @@ func TestUpdateKYC_ProvinceMaxLength(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	// Create a province name longer than 255 characters
 	longProvince := string(make([]byte, 256))
@@ -935,7 +935,7 @@ func TestUpdateKYC_AllRequiredFieldsSet(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.UpdateKYC(
 		ctx,
@@ -990,7 +990,7 @@ func TestUpdateKYC_StatusAndErrorsReset(t *testing.T) {
 	}
 	kycRepo.kycs[1] = existingKYC
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.UpdateKYC(
 		ctx,
@@ -1024,7 +1024,7 @@ func TestUpdateKYC_BirthdateConversion(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	kyc, err := svc.UpdateKYC(
 		ctx,
@@ -1072,7 +1072,7 @@ func TestUpdateKYC_InvalidMelliCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			kycRepo := newFakeKYCRepository()
 			userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-			svc := service.NewKYCService(kycRepo, userRepo)
+			svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 			_, err := svc.UpdateKYC(
 				ctx,
@@ -1101,7 +1101,7 @@ func TestUpdateKYC_FnameMaxLength(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	// Create a name longer than 255 characters
 	longName := string(make([]byte, 256))
@@ -1131,7 +1131,7 @@ func TestUpdateKYC_LnameMaxLength(t *testing.T) {
 	ctx := context.Background()
 	kycRepo := newFakeKYCRepository()
 	userRepo := newFakeKYCUserRepository(map[uint64]*models.User{1: {ID: 1}})
-	svc := service.NewKYCService(kycRepo, userRepo)
+	svc := service.NewKYCService(kycRepo, userRepo, nil, "")
 
 	// Create a name longer than 255 characters
 	longName := string(make([]byte, 256))

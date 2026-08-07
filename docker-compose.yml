@@ -99,6 +99,7 @@ services:
       - ./services/auth-service/config.env
     environment:
       GRPC_PORT: 50051
+      HTTP_PORT: 8066
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -126,10 +127,11 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50051"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8066/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 15s
     develop:
       watch:
         - action: rebuild
@@ -154,8 +156,6 @@ services:
       HTTP_PORT: 8080
       AUTH_SERVICE_ADDR: auth-service:50051
       DYNASTY_SERVICE_ADDR: dynasty-service:50055
-      COMMERCIAL_SERVICE_ADDR: commercial-service:50052
-      LEVELS_SERVICE_ADDR: levels-service:50054
       TRAINING_SERVICE_ADDR: training-service:50057
       SUPPORT_SERVICE_ADDR: support-service:50056
       STORAGE_SERVICE_ADDR: storage-service:8059
@@ -163,8 +163,6 @@ services:
     depends_on:
       <<: *grpc-certs-depends
       auth-service:
-        condition: service_started
-      commercial-service:
         condition: service_started
       training-service:
         condition: service_started
@@ -200,11 +198,13 @@ services:
       context: .
       dockerfile: ./services/commercial-service/Dockerfile
     container_name: metarang-commercial-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/commercial-service/config.env
     environment:
       GRPC_PORT: 50052
+      HTTP_PORT: 8067
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -217,7 +217,7 @@ services:
       mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50052"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8067/health"]
       interval: 10s
       timeout: 5s
       retries: 5

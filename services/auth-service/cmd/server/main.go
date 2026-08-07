@@ -19,10 +19,12 @@ import (
 
 	"metarang/auth-service/internal/auth"
 	"metarang/auth-service/internal/handler"
+	"metarang/auth-service/internal/middleware"
 	"metarang/auth-service/internal/pubsub"
 	"metarang/auth-service/internal/repository"
 	"metarang/auth-service/internal/service"
 	pb "metarang/shared/pb/auth"
+	levelspb "metarang/shared/pb/levels"
 	notificationspb "metarang/shared/pb/notifications"
 	storagepb "metarang/shared/pb/storage"
 	sharedauth "metarang/shared/pkg/auth"
@@ -244,7 +246,6 @@ func main() {
 		settingsRepo,
 		profilePhotoRepo,
 	)
-	kycService := service.NewKYCService(kycRepo, userRepo)
 	citizenService := service.NewCitizenService(
 		citizenRepo,
 		userRepo,
@@ -263,22 +264,22 @@ func main() {
 	}
 	log.Printf("Profile photo service using API Gateway URL: %s", apiGatewayURL)
 
-	// Initialize profile photo service (storage client can be added later when proto files are generated)
-	// For now, service works without storage client (files can be uploaded via HTTP endpoint)
-	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, nil, apiGatewayURL)
-
-	// Initialize storage service client for profile photo uploads
+	// Initialize storage service client for file uploads.
 	storageServiceAddr := getEnv("STORAGE_SERVICE_ADDR", "storage-service:50060")
 	var storageClient storagepb.FileStorageServiceClient
 	storageConn, err := grpcutil.NewClient(storageServiceAddr)
 	if err != nil {
-		log.Printf("Warning: Failed to connect to storage service: %v (profile photo uploads will fail)", err)
+		log.Printf("Warning: Failed to connect to storage service: %v (file uploads will fail)", err)
 		storageClient = nil
 	} else {
 		defer func() { _ = storageConn.Close() }()
 		storageClient = storagepb.NewFileStorageServiceClient(storageConn)
 		log.Printf("Successfully connected to storage service at %s", storageServiceAddr)
 	}
+	fileStorage := service.NewGRPCFileStorage(storageClient)
+
+	kycService := service.NewKYCService(kycRepo, userRepo, fileStorage, apiGatewayURL)
+	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, fileStorage, apiGatewayURL)
 
 	// Initialize user events service
 	userEventsService := service.NewUserEventsService(activityRepo, userRepo)
@@ -302,28 +303,54 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
-	// Create profile photo handler instance (needed by auth handler)
-	profilePhotoHandler := &handler.ProfilePhotoHandler{
-		ProfilePhotoService: profilePhotoService,
-		StorageClient:       storageClient,
-		APIGatewayURL:       apiGatewayURL,
-	}
+	// Create profile photo handler instance (needed by auth handler for URL resolution).
+	profilePhotoHandler := handler.NewProfilePhotoHandler(profilePhotoService)
 
-	// Register handlers
+	// Register handlers and keep instances for in-process HTTP routing.
 	projectLocale := getEnv("PROJECT_LOCALE", "EN")
 	handler.SetProjectLocale(projectLocale)
-	handler.RegisterAuthHandler(grpcServer, authService, tokenRepo, profilePhotoHandler, projectLocale)
-	handler.RegisterWalletConnectionHandler(grpcServer, walletConnectionService, projectLocale)
-	handler.RegisterUserHandler(grpcServer, userService, profileLimitationService, helperService)
-	handler.RegisterKYCHandler(grpcServer, kycService, storageClient, apiGatewayURL)
-	handler.RegisterCitizenHandler(grpcServer, citizenService)
-	handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
-	handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)
-	// Register profile photo handler (also register it separately for its own gRPC service)
+	authHandler := handler.RegisterAuthHandler(grpcServer, authService, tokenRepo, profilePhotoService, projectLocale)
+	walletHandler := handler.RegisterWalletConnectionHandler(grpcServer, walletConnectionService, projectLocale)
+	userHandler := handler.RegisterUserHandler(grpcServer, userService, profileLimitationService, helperService)
+	kycHandler := handler.RegisterKYCHandler(grpcServer, kycService, apiGatewayURL)
+	citizenHandler := handler.RegisterCitizenHandler(grpcServer, citizenService)
+	personalInfoHandler := handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
+	profileLimitationHandler := handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)
 	pb.RegisterProfilePhotoServiceServer(grpcServer, profilePhotoHandler)
-	handler.RegisterSettingsHandler(grpcServer, settingsService)
-	handler.RegisterUserEventsHandler(grpcServer, userEventsService, userRepo)
-	handler.RegisterSearchHandler(grpcServer, searchService)
+	settingsHandler := handler.RegisterSettingsHandler(grpcServer, settingsService)
+	userEventsHandler := handler.RegisterUserEventsHandler(grpcServer, userEventsService, userRepo)
+	searchHandler := handler.RegisterSearchHandler(grpcServer, searchService)
+
+	localClients := handler.NewLocalClients(
+		authHandler,
+		userHandler,
+		kycHandler,
+		citizenHandler,
+		personalInfoHandler,
+		profileLimitationHandler,
+		profilePhotoHandler,
+		settingsHandler,
+		userEventsHandler,
+		searchHandler,
+		walletHandler,
+	)
+
+	// Optional levels-service client for /api/auth/me level enrichment.
+	var levelClient levelspb.LevelServiceClient
+	levelsAddr := getEnv("LEVELS_SERVICE_ADDR", "levels-service:50054")
+	if levelsConn, err := grpcutil.NewClient(levelsAddr); err != nil {
+		log.Printf("Warning: Failed to connect to levels service: %v (GetMe level enrichment disabled)", err)
+	} else {
+		defer func() { _ = levelsConn.Close() }()
+		levelClient = levelspb.NewLevelServiceClient(levelsConn)
+		log.Printf("Connected to levels service at %s", levelsAddr)
+	}
+
+	httpAuthHandler := handler.NewHTTPAuthHandler(localClients, levelClient, projectLocale)
+	httpWalletHandler := handler.NewHTTPWalletHandler(localClients.WalletConnection, projectLocale)
+	authMiddleware := middleware.AuthMiddleware(tokenValidator)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokenValidator)
+	guestMiddleware := middleware.GuestMiddleware(tokenValidator)
 
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50051")
@@ -332,12 +359,22 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Auth service listening on port %s", port)
+	log.Printf("Auth service listening on gRPC port %s", port)
 
-	// Graceful shutdown
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpPort := getEnv("HTTP_PORT", "8066")
+	go func() {
+		log.Printf("Auth service listening on HTTP port %s", httpPort)
+		if err := handler.StartHTTPServer(handler.HTTPServerHandlers{
+			Auth:   httpAuthHandler,
+			Wallet: httpWalletHandler,
+		}, httpPort, authMiddleware, optionalAuthMiddleware, guestMiddleware); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

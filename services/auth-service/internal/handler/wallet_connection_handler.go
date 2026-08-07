@@ -21,11 +21,13 @@ type walletConnectionHandler struct {
 	locale        string
 }
 
-func RegisterWalletConnectionHandler(grpcServer *grpc.Server, walletService service.WalletConnectionService, locale string) {
-	pb.RegisterWalletConnectionServiceServer(grpcServer, &walletConnectionHandler{
+func RegisterWalletConnectionHandler(grpcServer *grpc.Server, walletService service.WalletConnectionService, locale string) pb.WalletConnectionServiceServer {
+	h := &walletConnectionHandler{
 		walletService: walletService,
 		locale:        lang.NormalizeLocale(locale),
-	})
+	}
+	pb.RegisterWalletConnectionServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *walletConnectionHandler) GetLinkNonce(ctx context.Context, req *pb.GetWalletLinkNonceRequest) (*pb.GetWalletNonceResponse, error) {

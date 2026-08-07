@@ -19,10 +19,15 @@ var (
 	ErrMissingRequiredFields  = errors.New("missing required fields")
 )
 
+type GeneralSettings struct {
+	ID            uint64
+	Notifications map[string]bool
+}
+
 type SettingsService interface {
 	GetSettings(ctx context.Context, userID uint64) (*models.Settings, error)
 	UpdateSettings(ctx context.Context, userID uint64, checkoutDaysCount *uint32, automaticLogout *int32, setting *string, status *bool) error
-	GetGeneralSettings(ctx context.Context, userID uint64) (map[string]bool, error)
+	GetGeneralSettings(ctx context.Context, userID uint64) (*GeneralSettings, error)
 	UpdateGeneralSettings(ctx context.Context, userID uint64, settingID uint64, notifications map[string]bool) (map[string]bool, error)
 	GetPrivacySettings(ctx context.Context, userID uint64) (map[string]int, error)
 	UpdatePrivacySettings(ctx context.Context, userID uint64, key string, value int32) error
@@ -101,13 +106,16 @@ func (s *settingsService) UpdateSettings(ctx context.Context, userID uint64, che
 	return nil
 }
 
-func (s *settingsService) GetGeneralSettings(ctx context.Context, userID uint64) (map[string]bool, error) {
+func (s *settingsService) GetGeneralSettings(ctx context.Context, userID uint64) (*GeneralSettings, error) {
 	settings, err := s.settingsRepo.FindByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get settings: %w", err)
 	}
 
-	return settings.Notifications, nil
+	return &GeneralSettings{
+		ID:            settings.ID,
+		Notifications: settings.Notifications,
+	}, nil
 }
 
 func (s *settingsService) UpdateGeneralSettings(ctx context.Context, userID uint64, settingID uint64, notifications map[string]bool) (map[string]bool, error) {

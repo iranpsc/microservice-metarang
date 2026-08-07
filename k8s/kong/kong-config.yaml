@@ -1,21 +1,34 @@
 _format_version: "3.0"
 
 services:
-  # Auth Service
+  # Auth Service (HTTP REST — migrated off grpc-gateway)
   - name: auth-service
-    url: grpc://auth-service.metarang.svc.cluster.local:50051
-    protocol: grpc
+    url: http://auth-service.metarang.svc.cluster.local:8066
+    protocol: http
     routes:
-      - name: auth-register
+      - name: auth-api
         paths:
-          - /api/auth/register
-        methods:
-          - POST
+          - /api/auth
+          - /api/account
+          - /api/wallet
+          - /api/users
+          - /api/user/wallet
+          - /api/user/profile
+          - ~/api/user$
+          - /api/search
+          - /api/kyc
+          - /api/bank-accounts
+          - /api/personal-info
+          - /api/profile-limitations
+          - /api/profilePhotos
+          - /api/profile-photos
+          - /api/settings
+          - /api/general-settings
+          - /api/privacy
+          - /api/events
+          - /api/citizen
         strip_path: false
         plugins:
-          - name: grpc-gateway
-            config:
-              proto: /kong/protos/auth.proto
           - name: cors
             config:
               origins:
@@ -33,56 +46,11 @@ services:
                 - Content-Type
               credentials: true
               max_age: 3600
-      
-      - name: auth-redirect
-        paths:
-          - /api/auth/redirect
-        methods:
-          - GET
-        strip_path: false
-        plugins:
-          - name: grpc-gateway
-          - name: cors
-      
-      - name: auth-callback
-        paths:
-          - /api/auth/callback
-        methods:
-          - GET
-        strip_path: false
-        plugins:
-          - name: grpc-gateway
-          - name: cors
-      
-      - name: auth-me
-        paths:
-          - /api/auth/me
-        methods:
-          - POST
-        strip_path: false
-        plugins:
-          - name: grpc-gateway
-          - name: cors
-          - name: request-validator
+          - name: rate-limiting
             config:
-              body_schema: |
-                {
-                  "type": "object",
-                  "required": ["token"],
-                  "properties": {
-                    "token": {"type": "string"}
-                  }
-                }
-      
-      - name: auth-logout
-        paths:
-          - /api/auth/logout
-        methods:
-          - POST
-        strip_path: false
-        plugins:
-          - name: grpc-gateway
-          - name: cors
+              minute: 60
+              hour: 1000
+              policy: local
 
   # Financial Service (HTTP REST — migrated off grpc-gateway)
   - name: financial-service
@@ -128,28 +96,11 @@ services:
               hour: 1000
               policy: local
 
-  # Commercial Service
+  # Commercial Service (HTTP REST — migrated off grpc-gateway; user wallet balance stays on auth-service HTTP)
   - name: commercial-service
-    url: grpc://commercial-service.metarang.svc.cluster.local:50052
-    protocol: grpc
+    url: http://commercial-service.metarang.svc.cluster.local:8067
+    protocol: http
     routes:
-      - name: user-wallet
-        paths:
-          - /api/user/wallet
-        methods:
-          - GET
-        strip_path: false
-        plugins:
-          - name: grpc-gateway
-            config:
-              proto: /kong/protos/commercial.proto
-          - name: cors
-          - name: rate-limiting
-            config:
-              minute: 60
-              hour: 1000
-              policy: local
-      
       - name: user-transactions
         paths:
           - /api/user/transactions
@@ -157,24 +108,27 @@ services:
           - GET
         strip_path: false
         plugins:
-          - name: grpc-gateway
           - name: cors
           - name: rate-limiting
             config:
               minute: 120
               hour: 2000
               policy: local
-      
-      - name: user-transactions-latest
+
+      - name: citizen-wallet-history
         paths:
-          - /api/user/transactions/latest
+          - ~/api/citizen/[^/]+/wallet/history
         methods:
           - GET
         strip_path: false
         plugins:
-          - name: grpc-gateway
           - name: cors
-      
+          - name: rate-limiting
+            config:
+              minute: 120
+              hour: 2000
+              policy: local
+
   # Prometheus metrics (required for Grafana golden signals / API traffic dashboards)
   - name: prometheus
     config:

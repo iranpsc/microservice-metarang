@@ -23,8 +23,10 @@ type userHandler struct {
 	helperService            service.HelperService
 }
 
-func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService, profileLimitationService service.ProfileLimitationService, helperService service.HelperService) {
-	pb.RegisterUserServiceServer(grpcServer, NewUserHandler(userService, profileLimitationService, helperService))
+func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService, profileLimitationService service.ProfileLimitationService, helperService service.HelperService) pb.UserServiceServer {
+	h := NewUserHandler(userService, profileLimitationService, helperService)
+	pb.RegisterUserServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.User, error) {
@@ -177,7 +179,7 @@ func (h *userHandler) GetUserLevel(ctx context.Context, req *pb.GetUserLevelRequ
 }
 
 func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProfileLimitationsRequest) (*pb.GetProfileLimitationsResponse, error) {
-	callerUserID, err := authenticatedUserID(ctx)
+	callerUserID, err := resolveProfileLimitationCaller(ctx, req.GetCallerUserId())
 	if err != nil {
 		return nil, err
 	}
@@ -198,6 +200,19 @@ func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProf
 	return &pb.GetProfileLimitationsResponse{
 		Data: convertProfileLimitationToProto(limitation, callerUserID),
 	}, nil
+}
+
+// resolveProfileLimitationCaller returns the authenticated user for user-facing calls.
+// Trusted inter-service callers (valid service token) may supply caller_user_id explicitly
+// so social-service can check both pair and self profile limitations without a user bearer.
+func resolveProfileLimitationCaller(ctx context.Context, requestedCallerID uint64) (uint64, error) {
+	if sharedauth.HasValidServiceToken(ctx) {
+		if requestedCallerID == 0 {
+			return 0, status.Error(codes.InvalidArgument, "caller_user_id is required")
+		}
+		return requestedCallerID, nil
+	}
+	return authenticatedUserID(ctx)
 }
 
 // ListUsers handles GET /api/users

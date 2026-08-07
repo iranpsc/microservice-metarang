@@ -118,31 +118,6 @@ func writeError(w http.ResponseWriter, statusCode int, message string) {
 	_, _ = w.Write([]byte(`{"error":"` + message + `"}`))
 }
 
-// GuestMiddleware creates an HTTP middleware that only allows unauthenticated users.
-// If a valid authentication token is present, the request is rejected.
-// This is useful for routes like registration and login that should only be accessible to guests.
-func GuestMiddleware(authClient pb.AuthServiceClient) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Extract token from Authorization header
-			token := extractTokenFromHeader(r)
-			if token != "" {
-				// Validate token with auth service
-				validateReq := &pb.ValidateTokenRequest{Token: token}
-				validateResp, err := authClient.ValidateToken(r.Context(), validateReq)
-				// If token is valid, reject the request (user is already authenticated)
-				if err == nil && validateResp.Valid {
-					writeError(w, http.StatusForbidden, "Forbidden")
-					return
-				}
-			}
-
-			// No valid token found, allow request to proceed
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // GetUserFromRequest retrieves user context from the HTTP request context
 func GetUserFromRequest(r *http.Request) (*authpkg.UserContext, error) {
 	return authpkg.GetUserFromContext(r.Context())

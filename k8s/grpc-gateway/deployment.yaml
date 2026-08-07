@@ -36,8 +36,6 @@ spec:
           value: "auth-service:50051"
         - name: DYNASTY_SERVICE_ADDR
           value: "dynasty-service:50055"
-        - name: COMMERCIAL_SERVICE_ADDR
-          value: "commercial-service:50052"
         - name: LEVELS_SERVICE_ADDR
           value: "levels-service:50054"
         - name: TRAINING_SERVICE_ADDR

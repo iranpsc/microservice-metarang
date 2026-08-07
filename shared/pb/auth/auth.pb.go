@@ -5114,6 +5114,7 @@ func (x *GetGeneralSettingsResponse) GetData() *NotificationSettingsData {
 
 type NotificationSettingsData struct {
 	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Id                     uint64                 `protobuf:"varint,11,opt,name=id,proto3" json:"id,omitempty"`
 	AnnouncementsSms       bool                   `protobuf:"varint,1,opt,name=announcements_sms,json=announcementsSms,proto3" json:"announcements_sms,omitempty"`
 	AnnouncementsEmail     bool                   `protobuf:"varint,2,opt,name=announcements_email,json=announcementsEmail,proto3" json:"announcements_email,omitempty"`
 	ReportsSms             bool                   `protobuf:"varint,3,opt,name=reports_sms,json=reportsSms,proto3" json:"reports_sms,omitempty"`
@@ -5156,6 +5157,13 @@ func (x *NotificationSettingsData) ProtoReflect() protoreflect.Message {
 // Deprecated: Use NotificationSettingsData.ProtoReflect.Descriptor instead.
 func (*NotificationSettingsData) Descriptor() ([]byte, []int) {
 	return file_auth_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *NotificationSettingsData) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
 }
 
 func (x *NotificationSettingsData) GetAnnouncementsSms() bool {
@@ -8470,8 +8478,9 @@ const file_auth_proto_rawDesc = "" +
 	"\x19GetGeneralSettingsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\"P\n" +
 	"\x1aGetGeneralSettingsResponse\x122\n" +
-	"\x04data\x18\x01 \x01(\v2\x1e.auth.NotificationSettingsDataR\x04data\"\xca\x03\n" +
-	"\x18NotificationSettingsData\x12+\n" +
+	"\x04data\x18\x01 \x01(\v2\x1e.auth.NotificationSettingsDataR\x04data\"\xda\x03\n" +
+	"\x18NotificationSettingsData\x12\x0e\n" +
+	"\x02id\x18\v \x01(\x04R\x02id\x12+\n" +
 	"\x11announcements_sms\x18\x01 \x01(\bR\x10announcementsSms\x12/\n" +
 	"\x13announcements_email\x18\x02 \x01(\bR\x12announcementsEmail\x12\x1f\n" +
 	"\vreports_sms\x18\x03 \x01(\bR\n" +

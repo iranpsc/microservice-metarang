@@ -225,15 +225,18 @@ func TestSettingsService_GetGeneralSettings(t *testing.T) {
 	svc := service.NewSettingsService(mockRepo)
 	ctx := context.Background()
 
-	t.Run("returns notification settings", func(t *testing.T) {
-		notifications, err := svc.GetGeneralSettings(ctx, 1)
+	t.Run("returns notification settings with id", func(t *testing.T) {
+		generalSettings, err := svc.GetGeneralSettings(ctx, 1)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if notifications == nil {
-			t.Fatal("expected notifications map")
+		if generalSettings == nil {
+			t.Fatal("expected general settings")
 		}
-		if len(notifications) == 0 {
+		if generalSettings.ID != 1 {
+			t.Errorf("expected settings id 1, got %d", generalSettings.ID)
+		}
+		if len(generalSettings.Notifications) == 0 {
 			t.Error("expected non-empty notifications map")
 		}
 	})

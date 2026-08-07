@@ -25,9 +25,10 @@ func NewTransactionHandler(transactionService service.TransactionService) *Trans
 	}
 }
 
-func RegisterTransactionHandler(grpcServer *grpc.Server, transactionService service.TransactionService) {
+func RegisterTransactionHandler(grpcServer *grpc.Server, transactionService service.TransactionService) *TransactionHandler {
 	handler := NewTransactionHandler(transactionService)
 	pb.RegisterTransactionServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *TransactionHandler) ListTransactions(ctx context.Context, req *pb.ListTransactionsRequest) (*pb.ListTransactionsResponse, error) {

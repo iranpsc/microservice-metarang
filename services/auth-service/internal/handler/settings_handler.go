@@ -18,10 +18,10 @@ type settingsHandler struct {
 	settingsService service.SettingsService
 }
 
-func RegisterSettingsHandler(grpcServer *grpc.Server, settingsService service.SettingsService) {
-	pb.RegisterSettingsServiceServer(grpcServer, &settingsHandler{
-		settingsService: settingsService,
-	})
+func RegisterSettingsHandler(grpcServer *grpc.Server, settingsService service.SettingsService) pb.SettingsServiceServer {
+	h := &settingsHandler{settingsService: settingsService}
+	pb.RegisterSettingsServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *settingsHandler) GetSettings(ctx context.Context, req *pb.GetSettingsRequest) (*pb.GetSettingsResponse, error) {
@@ -100,23 +100,24 @@ func (h *settingsHandler) GetGeneralSettings(ctx context.Context, req *pb.GetGen
 		return nil, err
 	}
 
-	notifications, err := h.settingsService.GetGeneralSettings(ctx, userID)
+	generalSettings, err := h.settingsService.GetGeneralSettings(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", lang.Tf(locale, "failed to get general settings: %v", err))
 	}
 
 	return &pb.GetGeneralSettingsResponse{
 		Data: &pb.NotificationSettingsData{
-			AnnouncementsSms:       notifications["announcements_sms"],
-			AnnouncementsEmail:     notifications["announcements_email"],
-			ReportsSms:             notifications["reports_sms"],
-			ReportsEmail:           notifications["reports_email"],
-			LoginVerificationSms:   notifications["login_verification_sms"],
-			LoginVerificationEmail: notifications["login_verification_email"],
-			TransactionsSms:        notifications["transactions_sms"],
-			TransactionsEmail:      notifications["transactions_email"],
-			TradesSms:              notifications["trades_sms"],
-			TradesEmail:            notifications["trades_email"],
+			Id:                     generalSettings.ID,
+			AnnouncementsSms:       generalSettings.Notifications["announcements_sms"],
+			AnnouncementsEmail:     generalSettings.Notifications["announcements_email"],
+			ReportsSms:             generalSettings.Notifications["reports_sms"],
+			ReportsEmail:           generalSettings.Notifications["reports_email"],
+			LoginVerificationSms:   generalSettings.Notifications["login_verification_sms"],
+			LoginVerificationEmail: generalSettings.Notifications["login_verification_email"],
+			TransactionsSms:        generalSettings.Notifications["transactions_sms"],
+			TransactionsEmail:      generalSettings.Notifications["transactions_email"],
+			TradesSms:              generalSettings.Notifications["trades_sms"],
+			TradesEmail:            generalSettings.Notifications["trades_email"],
 		},
 	}, nil
 }

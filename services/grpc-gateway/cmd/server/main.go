@@ -61,7 +61,7 @@ func main() {
 	log.Printf("✅ Created auth service client for %s (connection will be established on first RPC call)", cfg.AuthServiceAddr)
 
 	// Create connections to other services (with fallback if not configured)
-	var dynastyConn, commercialConn, levelsConn, trainingConn, supportConn *grpc.ClientConn
+	var dynastyConn, trainingConn, supportConn *grpc.ClientConn
 
 	if cfg.DynastyServiceAddr != "" {
 		dynastyConn, err = grpcutil.NewClient(
@@ -72,30 +72,6 @@ func main() {
 		} else {
 			defer func() { _ = dynastyConn.Close() }()
 			log.Printf("✅ Connected to dynasty service at %s", cfg.DynastyServiceAddr)
-		}
-	}
-
-	if cfg.CommercialServiceAddr != "" {
-		commercialConn, err = grpcutil.NewClient(
-			cfg.CommercialServiceAddr,
-		)
-		if err != nil {
-			log.Printf("⚠️  Failed to connect to commercial service: %v", err)
-		} else {
-			defer func() { _ = commercialConn.Close() }()
-			log.Printf("✅ Connected to commercial service at %s", cfg.CommercialServiceAddr)
-		}
-	}
-
-	if cfg.LevelsServiceAddr != "" {
-		levelsConn, err = grpcutil.NewClient(
-			cfg.LevelsServiceAddr,
-		)
-		if err != nil {
-			log.Printf("⚠️  Failed to connect to levels service: %v", err)
-		} else {
-			defer func() { _ = levelsConn.Close() }()
-			log.Printf("✅ Connected to levels service at %s", cfg.LevelsServiceAddr)
 		}
 	}
 
@@ -127,30 +103,16 @@ func main() {
 		}
 	}
 
-	// Create auth client for middleware
+	// Create auth client for middleware (non-auth routes still validate tokens via auth-service gRPC).
 	authClient := pb.NewAuthServiceClient(authConn)
 
 	// Create authentication middleware
 	authMiddleware := middleware.AuthMiddleware(authClient)
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(authClient)
-	guestMiddleware := middleware.GuestMiddleware(authClient)
-
-	// Create handlers (levels optional: enriches /api/auth/me level.fbx_file from level gem via levels-service)
-	authHandler := handler.NewAuthHandler(authConn, levelsConn, cfg.Locale)
-	walletHandler := handler.NewWalletHandler(authConn, cfg.Locale)
 
 	var dynastyHandler *handler.DynastyHandler
 	if dynastyConn != nil {
 		dynastyHandler = handler.NewDynastyHandler(dynastyConn, authConn)
-	}
-
-	var commercialHandler *handler.CommercialHandler
-	var citizenWalletHandler *handler.CitizenWalletHandler
-	if commercialConn != nil {
-		commercialHandler = handler.NewCommercialHandler(commercialConn, cfg.Locale)
-		if authConn != nil {
-			citizenWalletHandler = handler.NewCitizenWalletHandler(authConn, commercialConn, cfg.Locale)
-		}
 	}
 
 	var trainingHandler *handler.TrainingHandler
@@ -184,236 +146,7 @@ func main() {
 		_, _ = w.Write([]byte("OK"))
 	})
 
-	// Guest-only auth routes (only accessible to unauthenticated users)
-	mux.Handle("/api/auth/register", guestMiddleware(http.HandlerFunc(authHandler.Register)))
-	mux.Handle("/api/auth/redirect", guestMiddleware(http.HandlerFunc(authHandler.Redirect)))
-
-	// Public auth routes (no authentication required)
-	mux.HandleFunc("/api/auth/callback", authHandler.Callback)
-	mux.HandleFunc("/api/auth/validate", authHandler.ValidateToken)
-
-	// Protected auth routes (authentication required)
-	mux.Handle("/api/auth/me", authMiddleware(http.HandlerFunc(authHandler.GetMe)))
-	mux.Handle("/api/auth/logout", authMiddleware(http.HandlerFunc(authHandler.Logout)))
-
-	// Account security verification requests are rate limited in auth-service (production only).
-	mux.Handle("/api/account/security", authMiddleware(http.HandlerFunc(authHandler.RequestAccountSecurity)))
-	mux.Handle("/api/account/security/verify", authMiddleware(http.HandlerFunc(authHandler.VerifyAccountSecurity)))
-
-	mux.Handle("/api/wallet/link/nonce", authMiddleware(http.HandlerFunc(walletHandler.GetLinkNonce)))
-	mux.Handle("/api/wallet/link", authMiddleware(http.HandlerFunc(walletHandler.LinkWallet)))
-	mux.Handle("/api/wallet/security/nonce", authMiddleware(http.HandlerFunc(walletHandler.GetSecurityNonce)))
-	mux.Handle("/api/wallet/security/verify", authMiddleware(http.HandlerFunc(walletHandler.VerifySecuritySignature)))
-
-	// User routes - register /api/users FIRST before any other user routes
-	mux.Handle("/api/users", optionalAuthMiddleware(http.HandlerFunc(authHandler.ListUsers)))
-	mux.Handle("/api/user", authMiddleware(http.HandlerFunc(authHandler.GetUser)))
-	mux.Handle("/api/user/wallet", authMiddleware(http.HandlerFunc(authHandler.GetAuthenticatedUserWallet)))
-	mux.Handle("/api/user/profile", authMiddleware(http.HandlerFunc(authHandler.UpdateProfile)))
-
-	mux.Handle("GET /api/users/{user}/profile-limitations", authMiddleware(http.HandlerFunc(authHandler.GetProfileLimitations)))
-
-	// Dynamic /api/users/{user}/... routes
-	// Must be registered AFTER /api/users to avoid prefix matching conflicts
-	mux.Handle("/api/users/", optionalAuthMiddleware(http.HandlerFunc(authHandler.HandleUsersRoutes)))
-
-	// Citizen routes (public, no authentication required)
-	mux.HandleFunc("/api/citizen/", func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/citizen/"), "/")
-		// /api/citizen/{code}/wallet/history/{summary|chart}
-		if len(parts) >= 4 && parts[1] == "wallet" && parts[2] == "history" {
-			if citizenWalletHandler == nil {
-				http.Error(w, `{"error":"commercial service unavailable"}`, http.StatusServiceUnavailable)
-				return
-			}
-			citizenWalletHandler.Handle(w, r, parts[0], parts[3:])
-			return
-		}
-		authHandler.HandleCitizenRoutes(w, r)
-	})
-
-	// Search routes
-	mux.Handle("/api/search/users", optionalAuthMiddleware(http.HandlerFunc(authHandler.SearchUsers)))
-	mux.Handle("/api/search/features", optionalAuthMiddleware(http.HandlerFunc(authHandler.SearchFeatures)))
-	mux.Handle("/api/search/isic-codes", optionalAuthMiddleware(http.HandlerFunc(authHandler.SearchIsicCodes)))
-
-	// Account security routes (already handled above, but keeping for consistency)
-	// These are already registered as protected routes above
-
-	mux.Handle("/api/kyc", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch handler.EffectiveHTTPMethod(r) {
-		case http.MethodGet:
-			authHandler.GetKYC(w, r)
-		case http.MethodPut, http.MethodPatch:
-			authHandler.UpdateKYC(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/kyc/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch handler.EffectiveHTTPMethod(r) {
-		case http.MethodGet:
-			authHandler.GetKYC(w, r)
-		case http.MethodPut, http.MethodPatch:
-			authHandler.UpdateKYC(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	// Bank Accounts routes - registered at /api/bank-accounts per documentation
-	bankAccountsVerified := func(next http.Handler) http.Handler {
-		return authMiddleware(authHandler.RequireVerifiedEmail(next))
-	}
-	mux.Handle("/api/bank-accounts", bankAccountsVerified(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			authHandler.ListBankAccounts(w, r)
-		case http.MethodPost:
-			authHandler.CreateBankAccount(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/bank-accounts/", bankAccountsVerified(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		id := strings.TrimPrefix(path, "/api/bank-accounts/")
-		if id == "" {
-			http.NotFound(w, r)
-			return
-		}
-		switch handler.EffectiveHTTPMethod(r) {
-		case http.MethodGet:
-			authHandler.GetBankAccount(w, r)
-		case http.MethodPut, http.MethodPatch:
-			authHandler.UpdateBankAccount(w, r)
-		case http.MethodDelete:
-			authHandler.DeleteBankAccount(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-
-	personalInfoHandler := authMiddleware(handler.PersonalInfoRoutes(authHandler))
-	mux.Handle("/api/personal-info", personalInfoHandler)
-	mux.Handle("/api/personal-info/", personalInfoHandler)
-
-	// Profile Limitation routes (no undocumented GET-by-ID)
-	mux.Handle("/api/profile-limitations/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPut, http.MethodPatch:
-			authHandler.UpdateProfileLimitation(w, r)
-		case http.MethodDelete:
-			authHandler.DeleteProfileLimitation(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/profile-limitations", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			authHandler.CreateProfileLimitation(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})))
-
-	// Profile Photo routes
-	mux.Handle("/api/profilePhotos", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			authHandler.ListProfilePhotos(w, r)
-		case http.MethodPost:
-			authHandler.UploadProfilePhoto(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/profile-photos", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			authHandler.ListProfilePhotos(w, r)
-		case http.MethodPost:
-			authHandler.UploadProfilePhoto(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/profilePhotos/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			authHandler.GetProfilePhoto(w, r)
-		case http.MethodDelete:
-			authHandler.DeleteProfilePhoto(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/profile-photos/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			authHandler.GetProfilePhoto(w, r)
-		case http.MethodDelete:
-			authHandler.DeleteProfilePhoto(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-
-	// Settings routes
-	mux.Handle("/api/settings", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			authHandler.GetSettings(w, r)
-		case http.MethodPost:
-			authHandler.UpdateSettings(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/general-settings", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			authHandler.GetGeneralSettings(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/general-settings/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if handler.EffectiveHTTPMethod(r) == http.MethodPut {
-			authHandler.UpdateGeneralSettings(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/privacy", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			authHandler.GetPrivacySettings(w, r)
-		case http.MethodPost:
-			authHandler.UpdatePrivacySettings(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})))
-
-	// User Events routes (auth-service)
-	mux.Handle("/api/events", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			authHandler.ListUserEvents(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})))
-	mux.Handle("/api/events/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if strings.Contains(path, "/report/response/") {
-			authHandler.SendReportResponse(w, r)
-		} else if strings.Contains(path, "/report/close/") {
-			authHandler.CloseEventReport(w, r)
-		} else if strings.Contains(path, "/report/") {
-			authHandler.ReportUserEvent(w, r)
-		} else {
-			authHandler.GetUserEvent(w, r)
-		}
-	})))
+	// Auth-domain routes are served directly by auth-service HTTP (see services/auth-service).
 
 	// Dynasty routes
 	if dynastyHandler != nil {
@@ -543,12 +276,6 @@ func main() {
 				http.NotFound(w, r)
 			}
 		})))
-	}
-
-	// Commercial routes (wallet + transactions for authenticated user)
-	if commercialHandler != nil {
-		mux.Handle("/api/user/transactions/latest", authMiddleware(http.HandlerFunc(commercialHandler.GetLatestTransaction)))
-		mux.Handle("/api/user/transactions", authMiddleware(http.HandlerFunc(commercialHandler.ListTransactions)))
 	}
 
 	// Training routes

@@ -21,8 +21,10 @@ type profileLimitationHandler struct {
 	limitationService service.ProfileLimitationService
 }
 
-func RegisterProfileLimitationHandler(grpcServer *grpc.Server, limitationService service.ProfileLimitationService) {
-	pb.RegisterProfileLimitationServiceServer(grpcServer, NewProfileLimitationHandler(limitationService))
+func RegisterProfileLimitationHandler(grpcServer *grpc.Server, limitationService service.ProfileLimitationService) pb.ProfileLimitationServiceServer {
+	h := NewProfileLimitationHandler(limitationService)
+	pb.RegisterProfileLimitationServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *profileLimitationHandler) CreateProfileLimitation(ctx context.Context, req *pb.CreateProfileLimitationRequest) (*pb.ProfileLimitationResponse, error) {

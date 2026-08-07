@@ -71,6 +71,10 @@ func (m *mockKYCService) GetKYC(ctx context.Context, userID uint64) (*models.KYC
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockKYCService) SubmitKYC(ctx context.Context, userID uint64, input service.KYCSubmission) (*models.KYC, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockKYCService) UpdateKYC(ctx context.Context, userID uint64, fname, lname, melliCode, birthdate, province, melliCard, videoURL string, verifyTextID uint64, gender string) (*models.KYC, error) {
 	return nil, errors.New("not implemented")
 }
@@ -95,7 +99,7 @@ func TestKYCHandler_ListBankAccounts(t *testing.T) {
 			}, nil
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.ListBankAccountsRequest{
 			UserId: 1,
@@ -123,7 +127,7 @@ func TestKYCHandler_ListBankAccounts(t *testing.T) {
 			return []*models.BankAccount{}, nil
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.ListBankAccountsRequest{
 			UserId: 1,
@@ -145,7 +149,7 @@ func TestKYCHandler_ListBankAccounts(t *testing.T) {
 			return nil, errors.New("database error")
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.ListBankAccountsRequest{
 			UserId: 1,
@@ -184,7 +188,7 @@ func TestKYCHandler_CreateBankAccount(t *testing.T) {
 			}, nil
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.CreateBankAccountRequest{
 			UserId:   1,
@@ -221,7 +225,7 @@ func TestKYCHandler_CreateBankAccount(t *testing.T) {
 			return nil, service.ErrUserNotVerified
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.CreateBankAccountRequest{
 			UserId:   1,
@@ -250,7 +254,7 @@ func TestKYCHandler_CreateBankAccount(t *testing.T) {
 			return nil, service.ErrInvalidBankName
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.CreateBankAccountRequest{
 			UserId:   1,
@@ -279,7 +283,7 @@ func TestKYCHandler_CreateBankAccount(t *testing.T) {
 			return nil, service.ErrShabaNumNotUnique
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.CreateBankAccountRequest{
 			UserId:   1,
@@ -321,7 +325,7 @@ func TestKYCHandler_GetBankAccount(t *testing.T) {
 			}, nil
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.GetBankAccountRequest{
 			UserId:        1,
@@ -350,7 +354,7 @@ func TestKYCHandler_GetBankAccount(t *testing.T) {
 			return nil, service.ErrBankAccountNotFound
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.GetBankAccountRequest{
 			UserId:        1,
@@ -377,7 +381,7 @@ func TestKYCHandler_GetBankAccount(t *testing.T) {
 			return nil, service.ErrBankAccountNotOwned
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.GetBankAccountRequest{
 			UserId:        1,
@@ -413,7 +417,7 @@ func TestKYCHandler_GetBankAccount(t *testing.T) {
 			}, nil
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.GetBankAccountRequest{
 			UserId:        1,
@@ -449,7 +453,7 @@ func TestKYCHandler_UpdateBankAccount(t *testing.T) {
 			}, nil
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.UpdateBankAccountRequest{
 			UserId:        1,
@@ -481,7 +485,7 @@ func TestKYCHandler_UpdateBankAccount(t *testing.T) {
 			return nil, service.ErrBankAccountNotFound
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.UpdateBankAccountRequest{
 			UserId:        1,
@@ -511,7 +515,7 @@ func TestKYCHandler_UpdateBankAccount(t *testing.T) {
 			return nil, service.ErrBankAccountNotRejected
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.UpdateBankAccountRequest{
 			UserId:        1,
@@ -545,7 +549,7 @@ func TestKYCHandler_DeleteBankAccount(t *testing.T) {
 			return nil
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.DeleteBankAccountRequest{
 			UserId:        1,
@@ -564,7 +568,7 @@ func TestKYCHandler_DeleteBankAccount(t *testing.T) {
 			return service.ErrBankAccountNotFound
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.DeleteBankAccountRequest{
 			UserId:        1,
@@ -591,7 +595,7 @@ func TestKYCHandler_DeleteBankAccount(t *testing.T) {
 			return service.ErrBankAccountNotOwned
 		}
 
-		h := handler.NewKYCHandler(mockService, nil, "")
+		h := handler.NewKYCHandler(mockService, "")
 
 		req := &pb.DeleteBankAccountRequest{
 			UserId:        1,

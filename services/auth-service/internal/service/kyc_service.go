@@ -14,35 +14,41 @@ import (
 )
 
 var (
-	ErrKYCNotFound            = errors.New("kyc not found")
-	ErrKYCNotOwned            = errors.New("kyc does not belong to user")
-	ErrKYCNotRejected         = errors.New("kyc must be rejected to update")
-	ErrInvalidFname           = errors.New("fname must be between 2 and 255 characters")
-	ErrInvalidLname           = errors.New("lname must be between 2 and 255 characters")
-	ErrInvalidMelliCode       = errors.New("invalid Iranian national code")
-	ErrMelliCodeNotUnique     = errors.New("melli code already exists")
-	ErrInvalidBirthdate       = errors.New("invalid birthdate format")
-	ErrInvalidProvince        = errors.New("province must be at most 255 characters")
-	ErrProvinceRequired       = errors.New("province is required")
-	ErrInvalidGender          = errors.New("gender must be one of: male, female, other")
-	ErrGenderRequired         = errors.New("gender is required")
-	ErrVerifyTextIDRequired   = errors.New("verify_text_id is required")
-	ErrVerifyTextIDNotFound   = errors.New("verify_text_id does not exist")
-	ErrVideoRequired          = errors.New("video is required")
-	ErrMelliCardRequired      = errors.New("melli_card is required")
-	ErrBankAccountNotFound    = errors.New("bank account not found")
-	ErrBankAccountNotOwned    = errors.New("bank account does not belong to user")
-	ErrBankAccountNotRejected = errors.New("bank account must be rejected to update")
-	ErrUserNotVerified        = errors.New("user must be verified to create bank account")
-	ErrInvalidBankName        = errors.New("bank name must be at least 2 characters")
-	ErrInvalidShabaNum        = errors.New("invalid Iranian sheba number")
-	ErrInvalidCardNum         = errors.New("invalid Iranian bank card number")
-	ErrShabaNumNotUnique      = errors.New("sheba number already exists")
-	ErrCardNumNotUnique       = errors.New("card number already exists")
+	ErrKYCNotFound                  = errors.New("kyc not found")
+	ErrKYCNotOwned                  = errors.New("kyc does not belong to user")
+	ErrKYCNotRejected               = errors.New("kyc must be rejected to update")
+	ErrInvalidFname                 = errors.New("fname must be between 2 and 255 characters")
+	ErrInvalidLname                 = errors.New("lname must be between 2 and 255 characters")
+	ErrInvalidMelliCode             = errors.New("invalid Iranian national code")
+	ErrMelliCodeNotUnique           = errors.New("melli code already exists")
+	ErrInvalidBirthdate             = errors.New("invalid birthdate format")
+	ErrInvalidProvince              = errors.New("province must be at most 255 characters")
+	ErrProvinceRequired             = errors.New("province is required")
+	ErrInvalidGender                = errors.New("gender must be one of: male, female, other")
+	ErrGenderRequired               = errors.New("gender is required")
+	ErrVerifyTextIDRequired         = errors.New("verify_text_id is required")
+	ErrVerifyTextIDNotFound         = errors.New("verify_text_id does not exist")
+	ErrVideoRequired                = errors.New("video is required")
+	ErrMelliCardRequired            = errors.New("melli_card is required")
+	ErrMelliCardFilenameRequired    = errors.New("melli_card_filename is required")
+	ErrMelliCardContentTypeRequired = errors.New("melli_card_content_type is required")
+	ErrMelliCardTooLarge            = errors.New("melli_card file size exceeds maximum of 5MB")
+	ErrInvalidMelliCardType         = errors.New("melli_card must be a PNG or JPEG image")
+	ErrInvalidMelliCardExtension    = errors.New("melli_card filename must have .png, .jpg, or .jpeg extension")
+	ErrBankAccountNotFound          = errors.New("bank account not found")
+	ErrBankAccountNotOwned          = errors.New("bank account does not belong to user")
+	ErrBankAccountNotRejected       = errors.New("bank account must be rejected to update")
+	ErrUserNotVerified              = errors.New("user must be verified to create bank account")
+	ErrInvalidBankName              = errors.New("bank name must be at least 2 characters")
+	ErrInvalidShabaNum              = errors.New("invalid Iranian sheba number")
+	ErrInvalidCardNum               = errors.New("invalid Iranian bank card number")
+	ErrShabaNumNotUnique            = errors.New("sheba number already exists")
+	ErrCardNumNotUnique             = errors.New("card number already exists")
 )
 
 type KYCService interface {
 	GetKYC(ctx context.Context, userID uint64) (*models.KYC, error)
+	SubmitKYC(ctx context.Context, userID uint64, input KYCSubmission) (*models.KYC, error)
 	UpdateKYC(ctx context.Context, userID uint64, fname, lname, melliCode, birthdate, province, melliCard, videoURL string, verifyTextID uint64, gender string) (*models.KYC, error)
 	ListBankAccounts(ctx context.Context, userID uint64) ([]*models.BankAccount, error)
 	CreateBankAccount(ctx context.Context, userID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error)
@@ -52,14 +58,18 @@ type KYCService interface {
 }
 
 type kycService struct {
-	kycRepo  repository.KYCRepository
-	userRepo repository.UserRepository
+	kycRepo       repository.KYCRepository
+	userRepo      repository.UserRepository
+	fileStorage   FileStorage
+	apiGatewayURL string
 }
 
-func NewKYCService(kycRepo repository.KYCRepository, userRepo repository.UserRepository) KYCService {
+func NewKYCService(kycRepo repository.KYCRepository, userRepo repository.UserRepository, fileStorage FileStorage, apiGatewayURL string) KYCService {
 	return &kycService{
-		kycRepo:  kycRepo,
-		userRepo: userRepo,
+		kycRepo:       kycRepo,
+		userRepo:      userRepo,
+		fileStorage:   fileStorage,
+		apiGatewayURL: apiGatewayURL,
 	}
 }
 

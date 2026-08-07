@@ -20,10 +20,10 @@ type citizenHandler struct {
 	citizenService service.CitizenService
 }
 
-func RegisterCitizenHandler(grpcServer *grpc.Server, citizenService service.CitizenService) {
-	pb.RegisterCitizenServiceServer(grpcServer, &citizenHandler{
-		citizenService: citizenService,
-	})
+func RegisterCitizenHandler(grpcServer *grpc.Server, citizenService service.CitizenService) pb.CitizenServiceServer {
+	h := &citizenHandler{citizenService: citizenService}
+	pb.RegisterCitizenServiceServer(grpcServer, h)
+	return h
 }
 
 // GetCitizenUserInfo returns user_id + privacy for public citizen feature assets.
