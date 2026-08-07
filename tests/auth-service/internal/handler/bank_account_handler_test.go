@@ -29,6 +29,9 @@ type mockKYCService struct {
 	getBankAccountFunc    func(ctx context.Context, userID uint64, bankAccountID uint64) (*models.BankAccount, error)
 	updateBankAccountFunc func(ctx context.Context, userID uint64, bankAccountID uint64, bankName, shabaNum, cardNum string) (*models.BankAccount, error)
 	deleteBankAccountFunc func(ctx context.Context, userID uint64, bankAccountID uint64) error
+	getKYCFunc            func(ctx context.Context, userID uint64) (*models.KYC, error)
+	submitKYCFunc         func(ctx context.Context, userID uint64, input service.KYCSubmission) (*models.KYC, error)
+	updateKYCFunc         func(ctx context.Context, userID uint64, fname, lname, melliCode, birthdate, province, melliCard, videoURL string, verifyTextID uint64, gender string) (*models.KYC, error)
 }
 
 func (m *mockKYCService) ListBankAccounts(ctx context.Context, userID uint64) ([]*models.BankAccount, error) {
@@ -68,14 +71,23 @@ func (m *mockKYCService) DeleteBankAccount(ctx context.Context, userID uint64, b
 
 // Implement other KYCService methods as no-ops for compilation
 func (m *mockKYCService) GetKYC(ctx context.Context, userID uint64) (*models.KYC, error) {
+	if m.getKYCFunc != nil {
+		return m.getKYCFunc(ctx, userID)
+	}
 	return nil, errors.New("not implemented")
 }
 
 func (m *mockKYCService) SubmitKYC(ctx context.Context, userID uint64, input service.KYCSubmission) (*models.KYC, error) {
+	if m.submitKYCFunc != nil {
+		return m.submitKYCFunc(ctx, userID, input)
+	}
 	return nil, errors.New("not implemented")
 }
 
 func (m *mockKYCService) UpdateKYC(ctx context.Context, userID uint64, fname, lname, melliCode, birthdate, province, melliCard, videoURL string, verifyTextID uint64, gender string) (*models.KYC, error) {
+	if m.updateKYCFunc != nil {
+		return m.updateKYCFunc(ctx, userID, fname, lname, melliCode, birthdate, province, melliCard, videoURL, verifyTextID, gender)
+	}
 	return nil, errors.New("not implemented")
 }
 

@@ -14,7 +14,21 @@ import (
 )
 
 type fakeUserRepository struct {
-	users map[uint64]*models.User
+	users                       map[uint64]*models.User
+	updateFunc                  func(context.Context, *models.User) error
+	listUsersFunc               func(context.Context, string, string, int32, int32) ([]*repository.UserWithRelations, int32, error)
+	getUsersLevelsForListFunc   func(context.Context, []uint64) (map[uint64]*repository.UserListLevels, error)
+	getUserLatestLevelFunc      func(context.Context, uint64) (*repository.UserLevel, error)
+	getLevelsBelowScoreFunc     func(context.Context, int32) ([]*repository.UserLevel, error)
+	getNextLevelScoreFunc       func(context.Context, int32) (int32, error)
+	getFollowersCountFunc       func(context.Context, uint64) (int32, error)
+	getFollowingCountFunc       func(context.Context, uint64) (int32, error)
+	getAllProfilePhotoURLsFunc  func(context.Context, uint64) ([]string, error)
+	getFeatureCountsFunc        func(context.Context, uint64) (int32, int32, int32, error)
+	getSettingsFunc                func(context.Context, uint64) (*models.Settings, error)
+	getKYCFunc                     func(context.Context, uint64) (*models.KYC, error)
+	getUnreadNotificationsCountFunc func(context.Context, uint64) (int32, error)
+	getLatestProfilePhotoURLFunc   func(context.Context, uint64) (string, error)
 }
 
 func newFakeUserRepository(users map[uint64]*models.User) *fakeUserRepository {
@@ -36,7 +50,10 @@ func (f *fakeUserRepository) FindByID(_ context.Context, id uint64) (*models.Use
 	return nil, nil
 }
 
-func (f *fakeUserRepository) Update(context.Context, *models.User) error {
+func (f *fakeUserRepository) Update(ctx context.Context, user *models.User) error {
+	if f.updateFunc != nil {
+		return f.updateFunc(ctx, user)
+	}
 	panic("unexpected call to Update")
 }
 
@@ -56,24 +73,41 @@ func (f *fakeUserRepository) FindByCode(_ context.Context, code string) (*models
 	return nil, nil
 }
 
-func (f *fakeUserRepository) GetSettings(context.Context, uint64) (*models.Settings, error) {
+func (f *fakeUserRepository) GetSettings(ctx context.Context, userID uint64) (*models.Settings, error) {
+	if f.getSettingsFunc != nil {
+		return f.getSettingsFunc(ctx, userID)
+	}
 	panic("unexpected call to GetSettings")
 }
 
-func (f *fakeUserRepository) CreateSettings(context.Context, *models.Settings) error {
-	panic("unexpected call to CreateSettings")
+func (f *fakeUserRepository) CreateSettings(_ context.Context, settings *models.Settings) error {
+	if f.getSettingsFunc != nil {
+		// allow Create then Get via getSettingsFunc store pattern
+	}
+	_ = settings
+	return nil
 }
 
-func (f *fakeUserRepository) GetKYC(context.Context, uint64) (*models.KYC, error) {
+func (f *fakeUserRepository) GetKYC(ctx context.Context, userID uint64) (*models.KYC, error) {
+	if f.getKYCFunc != nil {
+		return f.getKYCFunc(ctx, userID)
+	}
 	panic("unexpected call to GetKYC")
 }
 
-func (f *fakeUserRepository) GetUnreadNotificationsCount(context.Context, uint64) (int32, error) {
-	panic("unexpected call to GetUnreadNotificationsCount")
+func (f *fakeUserRepository) GetUnreadNotificationsCount(ctx context.Context, userID uint64) (int32, error) {
+	if f.getUnreadNotificationsCountFunc != nil {
+		return f.getUnreadNotificationsCountFunc(ctx, userID)
+	}
+	return 0, nil
 }
 
-func (f *fakeUserRepository) MarkEmailAsVerified(context.Context, uint64) error {
-	panic("unexpected call to MarkEmailAsVerified")
+func (f *fakeUserRepository) MarkEmailAsVerified(_ context.Context, userID uint64) error {
+	if user, ok := f.users[userID]; ok {
+		user.EmailVerifiedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		return nil
+	}
+	return nil
 }
 
 func (f *fakeUserRepository) UpdatePhone(_ context.Context, userID uint64, phone string) error {
@@ -112,43 +146,73 @@ func (f *fakeUserRepository) IsPhoneTaken(_ context.Context, phone string, exclu
 	return false, nil
 }
 
-func (f *fakeUserRepository) ListUsers(context.Context, string, string, int32, int32) ([]*repository.UserWithRelations, int32, error) {
+func (f *fakeUserRepository) ListUsers(ctx context.Context, search, orderBy string, page, limit int32) ([]*repository.UserWithRelations, int32, error) {
+	if f.listUsersFunc != nil {
+		return f.listUsersFunc(ctx, search, orderBy, page, limit)
+	}
 	panic("unexpected call to ListUsers")
 }
 
-func (f *fakeUserRepository) GetUsersLevelsForList(context.Context, []uint64) (map[uint64]*repository.UserListLevels, error) {
+func (f *fakeUserRepository) GetUsersLevelsForList(ctx context.Context, userIDs []uint64) (map[uint64]*repository.UserListLevels, error) {
+	if f.getUsersLevelsForListFunc != nil {
+		return f.getUsersLevelsForListFunc(ctx, userIDs)
+	}
 	panic("unexpected call to GetUsersLevelsForList")
 }
 
-func (f *fakeUserRepository) GetFollowersCount(context.Context, uint64) (int32, error) {
+func (f *fakeUserRepository) GetFollowersCount(ctx context.Context, userID uint64) (int32, error) {
+	if f.getFollowersCountFunc != nil {
+		return f.getFollowersCountFunc(ctx, userID)
+	}
 	panic("unexpected call to GetFollowersCount")
 }
 
-func (f *fakeUserRepository) GetFollowingCount(context.Context, uint64) (int32, error) {
+func (f *fakeUserRepository) GetFollowingCount(ctx context.Context, userID uint64) (int32, error) {
+	if f.getFollowingCountFunc != nil {
+		return f.getFollowingCountFunc(ctx, userID)
+	}
 	panic("unexpected call to GetFollowingCount")
 }
 
-func (f *fakeUserRepository) GetLatestProfilePhotoURL(context.Context, uint64) (string, error) {
+func (f *fakeUserRepository) GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error) {
+	if f.getLatestProfilePhotoURLFunc != nil {
+		return f.getLatestProfilePhotoURLFunc(ctx, userID)
+	}
 	return "", nil
 }
 
-func (f *fakeUserRepository) GetAllProfilePhotoURLs(context.Context, uint64) ([]string, error) {
+func (f *fakeUserRepository) GetAllProfilePhotoURLs(ctx context.Context, userID uint64) ([]string, error) {
+	if f.getAllProfilePhotoURLsFunc != nil {
+		return f.getAllProfilePhotoURLsFunc(ctx, userID)
+	}
 	panic("unexpected call to GetAllProfilePhotoURLs")
 }
 
-func (f *fakeUserRepository) GetUserLatestLevel(context.Context, uint64) (*repository.UserLevel, error) {
+func (f *fakeUserRepository) GetUserLatestLevel(ctx context.Context, userID uint64) (*repository.UserLevel, error) {
+	if f.getUserLatestLevelFunc != nil {
+		return f.getUserLatestLevelFunc(ctx, userID)
+	}
 	panic("unexpected call to GetUserLatestLevel")
 }
 
-func (f *fakeUserRepository) GetLevelsBelowScore(context.Context, int32) ([]*repository.UserLevel, error) {
+func (f *fakeUserRepository) GetLevelsBelowScore(ctx context.Context, score int32) ([]*repository.UserLevel, error) {
+	if f.getLevelsBelowScoreFunc != nil {
+		return f.getLevelsBelowScoreFunc(ctx, score)
+	}
 	panic("unexpected call to GetLevelsBelowScore")
 }
 
-func (f *fakeUserRepository) GetNextLevelScore(context.Context, int32) (int32, error) {
+func (f *fakeUserRepository) GetNextLevelScore(ctx context.Context, currentScore int32) (int32, error) {
+	if f.getNextLevelScoreFunc != nil {
+		return f.getNextLevelScoreFunc(ctx, currentScore)
+	}
 	panic("unexpected call to GetNextLevelScore")
 }
 
-func (f *fakeUserRepository) GetFeatureCounts(context.Context, uint64) (int32, int32, int32, error) {
+func (f *fakeUserRepository) GetFeatureCounts(ctx context.Context, userID uint64) (int32, int32, int32, error) {
+	if f.getFeatureCountsFunc != nil {
+		return f.getFeatureCountsFunc(ctx, userID)
+	}
 	panic("unexpected call to GetFeatureCounts")
 }
 
@@ -232,11 +296,29 @@ func (f *fakeAccountSecurityRepository) DeleteOtp(_ context.Context, otpID uint6
 var _ repository.AccountSecurityRepository = (*fakeAccountSecurityRepository)(nil)
 
 type fakeActivityRepository struct {
-	events []*models.UserEvent
+	events                          []*models.UserEvent
+	reports                         map[uint64]*models.UserEventReport
+	responses                       map[uint64][]*models.UserEventReportResponse
+	nextReportID                    uint64
+	nextResponseID                  uint64
+	getUserEventsByUserIDFunc       func(context.Context, uint64, int32) ([]*models.UserEvent, error)
+	getUserEventByIDFunc            func(context.Context, uint64, uint64) (*models.UserEvent, error)
+	getUserEventReportByEventIDFunc func(context.Context, uint64) (*models.UserEventReport, error)
+	getUserEventReportResponsesFunc func(context.Context, uint64) ([]*models.UserEventReportResponse, error)
+	activities                      []*models.UserActivity
+	latestActivity                  map[uint64]*models.UserActivity
+	userLogs                        map[uint64]*models.UserLog
 }
 
 func newFakeActivityRepository() *fakeActivityRepository {
-	return &fakeActivityRepository{}
+	return &fakeActivityRepository{
+		reports:        make(map[uint64]*models.UserEventReport),
+		responses:      make(map[uint64][]*models.UserEventReportResponse),
+		nextReportID:   1,
+		nextResponseID: 1,
+		latestActivity: make(map[uint64]*models.UserActivity),
+		userLogs:       make(map[uint64]*models.UserLog),
+	}
 }
 
 func (f *fakeActivityRepository) CreateUserEvent(_ context.Context, event *models.UserEvent) error {
@@ -244,68 +326,124 @@ func (f *fakeActivityRepository) CreateUserEvent(_ context.Context, event *model
 	return nil
 }
 
-func (f *fakeActivityRepository) CreateActivity(context.Context, *models.UserActivity) error {
-	panic("unexpected call to CreateActivity")
+func (f *fakeActivityRepository) CreateActivity(_ context.Context, activity *models.UserActivity) error {
+	f.activities = append(f.activities, activity)
+	f.latestActivity[activity.UserID] = activity
+	return nil
 }
 
-func (f *fakeActivityRepository) GetLatestActivity(context.Context, uint64) (*models.UserActivity, error) {
-	panic("unexpected call to GetLatestActivity")
+func (f *fakeActivityRepository) GetLatestActivity(_ context.Context, userID uint64) (*models.UserActivity, error) {
+	return f.latestActivity[userID], nil
 }
 
-func (f *fakeActivityRepository) UpdateActivity(context.Context, *models.UserActivity) error {
-	panic("unexpected call to UpdateActivity")
+func (f *fakeActivityRepository) UpdateActivity(_ context.Context, activity *models.UserActivity) error {
+	f.latestActivity[activity.UserID] = activity
+	return nil
 }
 
 func (f *fakeActivityRepository) GetTotalActivityMinutes(context.Context, uint64) (int32, error) {
-	panic("unexpected call to GetTotalActivityMinutes")
+	return 120, nil
 }
 
-func (f *fakeActivityRepository) GetUserLog(context.Context, uint64) (*models.UserLog, error) {
-	panic("unexpected call to GetUserLog")
+func (f *fakeActivityRepository) GetUserLog(_ context.Context, userID uint64) (*models.UserLog, error) {
+	return f.userLogs[userID], nil
 }
 
-func (f *fakeActivityRepository) CreateUserLog(context.Context, *models.UserLog) error {
-	panic("unexpected call to CreateUserLog")
+func (f *fakeActivityRepository) CreateUserLog(_ context.Context, log *models.UserLog) error {
+	f.userLogs[log.UserID] = log
+	return nil
 }
 
-func (f *fakeActivityRepository) UpdateUserLog(context.Context, *models.UserLog) error {
-	panic("unexpected call to UpdateUserLog")
+func (f *fakeActivityRepository) UpdateUserLog(_ context.Context, log *models.UserLog) error {
+	f.userLogs[log.UserID] = log
+	return nil
 }
 
-func (f *fakeActivityRepository) IncrementLogField(context.Context, uint64, string, float64) error {
-	panic("unexpected call to IncrementLogField")
+func (f *fakeActivityRepository) IncrementLogField(_ context.Context, userID uint64, _ string, amount float64) error {
+	log := f.userLogs[userID]
+	if log == nil {
+		log = &models.UserLog{UserID: userID}
+		f.userLogs[userID] = log
+	}
+	log.Score += amount
+	return nil
 }
 
-func (f *fakeActivityRepository) CloseUserEventReport(context.Context, uint64) error {
-	panic("unexpected call to CloseUserEventReport")
+func (f *fakeActivityRepository) CloseUserEventReport(_ context.Context, reportID uint64) error {
+	for _, report := range f.reports {
+		if report.ID == reportID {
+			report.Closed = true
+			return nil
+		}
+	}
+	return nil
 }
 
-func (f *fakeActivityRepository) CreateUserEventReport(context.Context, *models.UserEventReport) error {
-	panic("unexpected call to CreateUserEventReport")
+func (f *fakeActivityRepository) CreateUserEventReport(_ context.Context, report *models.UserEventReport) error {
+	if report.ID == 0 {
+		report.ID = f.nextReportID
+		f.nextReportID++
+	}
+	f.reports[report.UserEventID] = report
+	return nil
 }
 
-func (f *fakeActivityRepository) CreateUserEventReportResponse(context.Context, *models.UserEventReportResponse) error {
-	panic("unexpected call to CreateUserEventReportResponse")
+func (f *fakeActivityRepository) CreateUserEventReportResponse(_ context.Context, response *models.UserEventReportResponse) error {
+	if response.ID == 0 {
+		response.ID = f.nextResponseID
+		f.nextResponseID++
+	}
+	f.responses[response.UserEventReportID] = append(f.responses[response.UserEventReportID], response)
+	return nil
 }
 
-func (f *fakeActivityRepository) GetUserEventByID(context.Context, uint64, uint64) (*models.UserEvent, error) {
-	panic("unexpected call to GetUserEventByID")
-}
-
-func (f *fakeActivityRepository) GetUserEventsByUserID(context.Context, uint64, int32) ([]*models.UserEvent, error) {
-	panic("unexpected call to GetUserEventsByUserID")
-}
-
-func (f *fakeActivityRepository) GetUserEventReportByEventID(context.Context, uint64) (*models.UserEventReport, error) {
+func (f *fakeActivityRepository) GetUserEventByID(ctx context.Context, userID, eventID uint64) (*models.UserEvent, error) {
+	if f.getUserEventByIDFunc != nil {
+		return f.getUserEventByIDFunc(ctx, userID, eventID)
+	}
+	for _, event := range f.events {
+		if event.ID == eventID && event.UserID == userID {
+			return event, nil
+		}
+	}
 	return nil, nil
 }
 
-func (f *fakeActivityRepository) UpdateUserEventReportStatus(context.Context, uint64, int32) error {
-	panic("unexpected call to UpdateUserEventReportStatus")
+func (f *fakeActivityRepository) GetUserEventsByUserID(ctx context.Context, userID uint64, page int32) ([]*models.UserEvent, error) {
+	if f.getUserEventsByUserIDFunc != nil {
+		return f.getUserEventsByUserIDFunc(ctx, userID, page)
+	}
+	var out []*models.UserEvent
+	for _, event := range f.events {
+		if event.UserID == userID {
+			out = append(out, event)
+		}
+	}
+	return out, nil
 }
 
-func (f *fakeActivityRepository) GetUserEventReportResponses(context.Context, uint64) ([]*models.UserEventReportResponse, error) {
-	panic("unexpected call to GetUserEventReportResponses")
+func (f *fakeActivityRepository) GetUserEventReportByEventID(ctx context.Context, eventID uint64) (*models.UserEventReport, error) {
+	if f.getUserEventReportByEventIDFunc != nil {
+		return f.getUserEventReportByEventIDFunc(ctx, eventID)
+	}
+	return f.reports[eventID], nil
+}
+
+func (f *fakeActivityRepository) UpdateUserEventReportStatus(_ context.Context, reportID uint64, status int32) error {
+	for _, report := range f.reports {
+		if report.ID == reportID {
+			report.Status = status
+			return nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeActivityRepository) GetUserEventReportResponses(ctx context.Context, reportID uint64) ([]*models.UserEventReportResponse, error) {
+	if f.getUserEventReportResponsesFunc != nil {
+		return f.getUserEventReportResponsesFunc(ctx, reportID)
+	}
+	return f.responses[reportID], nil
 }
 
 var _ repository.ActivityRepository = (*fakeActivityRepository)(nil)
