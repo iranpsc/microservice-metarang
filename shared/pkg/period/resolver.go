@@ -35,7 +35,7 @@ type PreviousWindow struct {
 
 // ResolvePeriod resolves a reporting window and chart buckets.
 // registeredAt is used for yearly periods (one bucket per Jalali year since registration).
-// When registeredAt is zero, yearly falls back to the current Gregorian year only.
+// When registeredAt is zero, yearly falls back to the current Jalali year only.
 func ResolvePeriod(period string, reference time.Time, registeredAt time.Time) (*PeriodWindow, error) {
 	if !isValidPeriod(period) {
 		return nil, fmt.Errorf("invalid period [%s] provided", period)
@@ -51,7 +51,7 @@ func ResolvePeriod(period string, reference time.Time, registeredAt time.Time) (
 	case "monthly":
 		start = startOfMonth(end.AddDate(0, -11, 0))
 	case "yearly":
-		start = startOfYear(registrationYear(registeredAt, end))
+		start = startOfJalaliYear(registrationYear(registeredAt, end))
 	}
 
 	return &PeriodWindow{
@@ -177,24 +177,24 @@ func monthlyBuckets(end time.Time, months int) []PeriodBucket {
 }
 
 func yearlyBuckets(registeredAt, end time.Time) []PeriodBucket {
-	startYear := registeredAt.Year()
-	endYear := end.Year()
+	startYear := ptime.New(registeredAt).Year()
+	endYear := ptime.New(end).Year()
 	if startYear > endYear {
 		startYear = endYear
 	}
 
+	loc := end.Location()
 	buckets := make([]PeriodBucket, 0, endYear-startYear+1)
 	for year := startYear; year <= endYear; year++ {
-		bucketStart := startOfYear(time.Date(year, 1, 1, 0, 0, 0, 0, end.Location()))
-		bucketEnd := endOfYear(time.Date(year, 1, 1, 0, 0, 0, 0, end.Location()))
+		bucketStart := ptime.Date(year, ptime.Farvardin, 1, 0, 0, 0, 0, loc).Time()
+		bucketEnd := endOfDay(ptime.Date(year, ptime.Farvardin, 1, 0, 0, 0, 0, loc).LastYearDay().Time())
 		if bucketEnd.After(end) {
 			bucketEnd = end
 		}
-		pt := ptime.New(bucketStart)
 		buckets = append(buckets, PeriodBucket{
 			Start: bucketStart,
 			End:   bucketEnd,
-			Label: strconv.Itoa(pt.Year()),
+			Label: strconv.Itoa(year),
 		})
 	}
 	return buckets
@@ -235,11 +235,6 @@ func endOfMonth(t time.Time) time.Time {
 	return startOfMonth(t).AddDate(0, 1, 0).Add(-time.Nanosecond)
 }
 
-func startOfYear(t time.Time) time.Time {
-	y, _, _ := t.Date()
-	return time.Date(y, 1, 1, 0, 0, 0, 0, t.Location())
-}
-
-func endOfYear(t time.Time) time.Time {
-	return startOfYear(t).AddDate(1, 0, 0).Add(-time.Nanosecond)
+func startOfJalaliYear(t time.Time) time.Time {
+	return ptime.New(t).BeginningOfYear().Time()
 }

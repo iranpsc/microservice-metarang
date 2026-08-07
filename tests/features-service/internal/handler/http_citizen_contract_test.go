@@ -19,6 +19,7 @@ import (
 )
 
 var (
+	// 2026-05-15 → Jalali 1405; 2024-03-01 (before Nowruz) → Jalali 1402
 	citizenContractRef          = time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local)
 	citizenContractRegisteredAt = time.Date(2024, 3, 1, 0, 0, 0, 0, time.Local)
 )
@@ -142,7 +143,16 @@ func expectedYearlyBucketCount(t *testing.T) int {
 	t.Helper()
 	window, err := period.ResolvePeriod("yearly", citizenContractRef, citizenContractRegisteredAt)
 	require.NoError(t, err)
+	require.Equal(t, []string{"1402", "1403", "1404", "1405"}, yearlyLabels(window))
 	return len(window.Buckets)
+}
+
+func yearlyLabels(window *period.PeriodWindow) []string {
+	labels := make([]string, len(window.Buckets))
+	for i, bucket := range window.Buckets {
+		labels[i] = bucket.Label
+	}
+	return labels
 }
 
 func TestHTTPCitizenFeaturesSummary_PeriodInResponse(t *testing.T) {
@@ -284,6 +294,13 @@ func TestHTTPCitizenBuildingsChart_PeriodAndBucketCounts(t *testing.T) {
 			assert.True(t, hasKarbari)
 			assert.True(t, hasLabel)
 			assert.True(t, hasAmount)
+			if test.wantPeriod == "yearly" {
+				gotLabels := make([]string, len(data))
+				for i, point := range data {
+					gotLabels[i] = point.(map[string]interface{})["label"].(string)
+				}
+				assert.Equal(t, []string{"1402", "1403", "1404", "1405"}, gotLabels)
+			}
 		})
 	}
 }

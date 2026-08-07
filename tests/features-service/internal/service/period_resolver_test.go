@@ -81,6 +81,7 @@ func TestPeriodResolver_Monthly(t *testing.T) {
 }
 
 func TestPeriodResolver_YearlySinceRegistration(t *testing.T) {
+	// 2023-08-20 → Jalali 1402; 2026-05-15 → Jalali 1405
 	ref := time.Date(2026, 5, 15, 14, 30, 45, 0, time.Local)
 	registeredAt := time.Date(2023, 8, 20, 10, 0, 0, 0, time.Local)
 	window, err := period.ResolvePeriod("yearly", ref, registeredAt)
@@ -91,17 +92,37 @@ func TestPeriodResolver_YearlySinceRegistration(t *testing.T) {
 	assert.Equal(t, 4, len(window.Buckets))
 
 	expectedEnd := ref.Truncate(time.Second).Add(time.Second - time.Nanosecond)
-	expectedStart := startOfYearLocal(time.Date(2023, 1, 1, 0, 0, 0, 0, time.Local))
-	assert.True(t, window.Start.Equal(expectedStart))
+	expectedStart := ptime.New(registeredAt).BeginningOfYear().Time()
+	assert.True(t, window.Start.Equal(expectedStart), "start=%v expected=%v", window.Start, expectedStart)
 	assert.True(t, window.End.Equal(expectedEnd))
 
+	assert.Equal(t, []string{"1402", "1403", "1404", "1405"}, bucketLabels(window.Buckets))
+
 	first := window.Buckets[0]
-	pt := ptime.New(first.Start)
-	assert.Equal(t, strconv.Itoa(pt.Year()), first.Label)
+	assert.Equal(t, ptime.New(registeredAt).Year(), ptime.New(first.Start).Year())
+	assert.True(t, first.Start.Equal(ptime.New(registeredAt).BeginningOfYear().Time()))
 
 	last := window.Buckets[len(window.Buckets)-1]
-	lastPT := ptime.New(last.Start)
-	assert.Equal(t, strconv.Itoa(lastPT.Year()), last.Label)
+	assert.Equal(t, "1405", last.Label)
+	assert.True(t, last.End.Equal(expectedEnd), "current Jalali year bucket must end at reference")
+}
+
+func TestPeriodResolver_YearlyUsesJalaliYearsNotGregorian(t *testing.T) {
+	// User registered in Gregorian 2022 after Nowruz → Jalali 1401.
+	// Reference in Gregorian Aug 2026 → Jalali 1405.
+	// Must start at 1401 (not 1400 from Jan 1 2022) and include 1405 (not stop at 1404).
+	ref := time.Date(2026, 8, 7, 12, 0, 0, 0, time.Local)
+	registeredAt := time.Date(2022, 6, 15, 10, 0, 0, 0, time.Local)
+	require.Equal(t, 1401, ptime.New(registeredAt).Year())
+	require.Equal(t, 1405, ptime.New(ref).Year())
+
+	window, err := period.ResolvePeriod("yearly", ref, registeredAt)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"1401", "1402", "1403", "1404", "1405"}, bucketLabels(window.Buckets))
+	assert.True(t, window.Start.Equal(ptime.New(registeredAt).BeginningOfYear().Time()))
+	assert.Equal(t, "1401", window.Buckets[0].Label)
+	assert.Equal(t, "1405", window.Buckets[len(window.Buckets)-1].Label)
 }
 
 func TestPeriodResolver_YearlyWithoutRegistrationFallsBackToCurrentYear(t *testing.T) {
@@ -110,7 +131,8 @@ func TestPeriodResolver_YearlyWithoutRegistrationFallsBackToCurrentYear(t *testi
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(window.Buckets))
-	assert.True(t, window.Start.Equal(startOfYearLocal(ref)))
+	assert.Equal(t, "1405", window.Buckets[0].Label)
+	assert.True(t, window.Start.Equal(ptime.New(ref).BeginningOfYear().Time()))
 }
 
 func TestPeriodResolver_ResolvePrevious(t *testing.T) {
@@ -141,7 +163,10 @@ func startOfMonthLocal(t time.Time) time.Time {
 	return time.Date(y, m, 1, 0, 0, 0, 0, t.Location())
 }
 
-func startOfYearLocal(t time.Time) time.Time {
-	y, _, _ := t.Date()
-	return time.Date(y, 1, 1, 0, 0, 0, 0, t.Location())
+func bucketLabels(buckets []period.PeriodBucket) []string {
+	labels := make([]string, len(buckets))
+	for i, bucket := range buckets {
+		labels[i] = bucket.Label
+	}
+	return labels
 }

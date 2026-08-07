@@ -26,49 +26,6 @@ func requestHasBody(r *http.Request) bool {
 	return r.ContentLength > 0 || r.ContentLength < 0
 }
 
-// decodeRequest decodes request data from query parameters, JSON body, or form-data
-// It tries query parameters first, then falls back to body (JSON or form-data)
-// This allows handlers to accept data from multiple sources
-func decodeRequest(r *http.Request, v interface{}) error {
-	// First, try to populate from query parameters
-	queryErr := decodeQueryParams(r, v)
-
-	// Check if body exists and has content
-	if !requestHasBody(r) {
-		// If no body, return query params result (even if empty, that's OK)
-		return queryErr
-	}
-
-	// If we have a body, try to decode it
-	contentType := r.Header.Get("Content-Type")
-	var bodyErr error
-
-	// Handle JSON requests
-	if strings.HasPrefix(contentType, "application/json") {
-		bodyErr = decodeJSONBody(r, v)
-	} else if strings.HasPrefix(contentType, "multipart/form-data") || strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
-		// Handle form-data requests
-		bodyErr = decodeFormData(r, v)
-	} else {
-		// Default to JSON if content type is not specified or unknown
-		bodyErr = decodeJSONBody(r, v)
-	}
-
-	// If body decoding succeeded, use it (body takes precedence over query params for same fields)
-	// If body decoding failed but query params succeeded, use query params
-	if bodyErr == nil {
-		return nil
-	}
-
-	// If body decoding failed but query params succeeded, return query params result
-	if queryErr == nil {
-		return nil
-	}
-
-	// Both failed, return body error (more specific)
-	return bodyErr
-}
-
 // decodeRequestBody decodes request body from JSON or form-data (multipart/form-data or application/x-www-form-urlencoded)
 // It automatically detects the content type and handles both formats
 // If the body is empty, it will also check query string parameters

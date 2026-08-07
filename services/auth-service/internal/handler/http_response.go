@@ -80,10 +80,6 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
-func writeGRPCError(w http.ResponseWriter, err error) {
-	writeGRPCErrorWithLocale(w, err, "en")
-}
-
 func writeGRPCErrorWithLocale(w http.ResponseWriter, err error, locale string) {
 	st, ok := status.FromError(err)
 	if !ok {
