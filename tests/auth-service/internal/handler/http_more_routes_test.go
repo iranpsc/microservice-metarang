@@ -108,4 +108,53 @@ func TestHTTPWalletHandler(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
 	}
+
+	t.Run("error branches", func(t *testing.T) {
+		cases := []struct {
+			name string
+			call func(http.ResponseWriter, *http.Request)
+			req  *http.Request
+			code int
+		}{
+			{"link nonce unauth", h.GetLinkNonce, httptest.NewRequest(http.MethodGet, "/api/wallet/link/nonce?address="+addr, nil), http.StatusUnauthorized},
+			{"link wallet unauth", h.LinkWallet, httptest.NewRequest(http.MethodPost, "/api/wallet/link", strings.NewReader(`{}`)), http.StatusUnauthorized},
+			{"security nonce unauth", h.GetSecurityNonce, httptest.NewRequest(http.MethodGet, "/api/wallet/security/nonce?address="+addr, nil), http.StatusUnauthorized},
+			{"verify unauth", h.VerifySecuritySignature, httptest.NewRequest(http.MethodPost, "/api/wallet/security/verify", strings.NewReader(`{}`)), http.StatusUnauthorized},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				rr := httptest.NewRecorder()
+				tc.call(rr, tc.req)
+				if rr.Code != tc.code {
+					t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+				}
+			})
+		}
+
+		empty := withAuth(httptest.NewRequest(http.MethodPost, "/api/wallet/link", strings.NewReader("")))
+		empty.Header.Set("Content-Type", "application/json")
+		empty.ContentLength = -1
+		rr := httptest.NewRecorder()
+		h.LinkWallet(rr, empty)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("empty body code=%d body=%s", rr.Code, rr.Body.String())
+		}
+
+		bad := withAuth(httptest.NewRequest(http.MethodPost, "/api/wallet/link", strings.NewReader(`{`)))
+		bad.Header.Set("Content-Type", "application/json")
+		rr = httptest.NewRecorder()
+		h.LinkWallet(rr, bad)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("bad json code=%d", rr.Code)
+		}
+
+		emptySec := withAuth(httptest.NewRequest(http.MethodPost, "/api/wallet/security/verify", strings.NewReader("")))
+		emptySec.Header.Set("Content-Type", "application/json")
+		emptySec.ContentLength = -1
+		rr = httptest.NewRecorder()
+		h.VerifySecuritySignature(rr, emptySec)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("verify empty code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
 }

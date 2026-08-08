@@ -315,3 +315,143 @@ func TestHTTPPersonalInfoAndWalletErrorBranches(t *testing.T) {
 		}
 	})
 }
+
+func TestHTTPAuthErrorMatrix(t *testing.T) {
+	s := grpc.NewServer()
+	defer s.Stop()
+
+	authSvc := &mockAuthService{}
+	authSvc.registerFunc = func(context.Context, string, string) (string, error) {
+		return "", status.Error(codes.Internal, "boom")
+	}
+	authSvc.validateTokenFunc = func(context.Context, string) (*models.User, error) {
+		return nil, status.Error(codes.Unauthenticated, "bad token")
+	}
+	authSvc.requestAccountSecurityFunc = func(context.Context, uint64, int32, string) error {
+		return status.Error(codes.InvalidArgument, "bad")
+	}
+	tokenRepo := &mockTokenRepository{}
+	authServer := handler.NewAuthHandler(authSvc, tokenRepo, &mockProfilePhotoService{}, "en")
+	kycServer := handler.NewKYCHandler(&mockKYCService{}, "https://gw")
+	settingsServer := handler.RegisterSettingsHandler(s, &settingsSvcMock{})
+	eventsServer := handler.RegisterUserEventsHandler(s, &mockUserEventsService{}, &mockUserRepo{
+		findByIDFunc: func(context.Context, uint64) (*models.User, error) {
+			return &models.User{ID: 1}, nil
+		},
+	})
+	userServer := handler.RegisterUserHandler(s, &mockUserService{}, &mockProfileLimitationService{}, &mockHelperService{})
+	photoServer := handler.NewProfilePhotoHandler(&mockProfilePhotoService{})
+	plServer := handler.NewProfileLimitationHandler(&mockProfileLimitationService{})
+
+	clients := handler.NewLocalClients(
+		authServer, userServer, kycServer,
+		&pb.UnimplementedCitizenServiceServer{},
+		&pb.UnimplementedPersonalInfoServiceServer{},
+		plServer, photoServer, settingsServer, eventsServer,
+		&pb.UnimplementedSearchServiceServer{},
+		&pb.UnimplementedWalletConnectionServiceServer{},
+	)
+	httpH := handler.NewHTTPAuthHandler(clients, nil, "en")
+
+	unauth := []struct {
+		name string
+		fn   func(http.ResponseWriter, *http.Request)
+		req  *http.Request
+	}{
+		{"create bank", httpH.CreateBankAccount, httptest.NewRequest(http.MethodPost, "/api/bank-accounts", strings.NewReader(`{}`))},
+		{"update bank", httpH.UpdateBankAccount, httptest.NewRequest(http.MethodPut, "/api/bank-accounts/1", strings.NewReader(`{}`))},
+		{"get bank", httpH.GetBankAccount, httptest.NewRequest(http.MethodGet, "/api/bank-accounts/1", nil)},
+		{"delete bank", httpH.DeleteBankAccount, httptest.NewRequest(http.MethodDelete, "/api/bank-accounts/1", nil)},
+		{"list bank", httpH.ListBankAccounts, httptest.NewRequest(http.MethodGet, "/api/bank-accounts", nil)},
+		{"update profile", httpH.UpdateProfile, httptest.NewRequest(http.MethodPut, "/api/user/profile", strings.NewReader(`{}`))},
+		{"get user", httpH.GetUser, httptest.NewRequest(http.MethodGet, "/api/user", nil)},
+		{"get kyc", httpH.GetKYC, httptest.NewRequest(http.MethodGet, "/api/kyc", nil)},
+		{"update general", httpH.UpdateGeneralSettings, httptest.NewRequest(http.MethodPut, "/api/general-settings/1", strings.NewReader(`{}`))},
+		{"update privacy", httpH.UpdatePrivacySettings, httptest.NewRequest(http.MethodPost, "/api/privacy", strings.NewReader(`{}`))},
+		{"list photos", httpH.ListProfilePhotos, httptest.NewRequest(http.MethodGet, "/api/profilePhotos", nil)},
+		{"delete photo", httpH.DeleteProfilePhoto, httptest.NewRequest(http.MethodDelete, "/api/profilePhotos/1", nil)},
+		{"report event", httpH.ReportUserEvent, httptest.NewRequest(http.MethodPost, "/api/events/report/1", strings.NewReader(`{}`))},
+		{"send report", httpH.SendReportResponse, httptest.NewRequest(http.MethodPost, "/api/events/report/response/1", strings.NewReader(`{}`))},
+		{"close report", httpH.CloseEventReport, httptest.NewRequest(http.MethodPost, "/api/events/report/close/1", nil)},
+		{"get event", httpH.GetUserEvent, httptest.NewRequest(http.MethodGet, "/api/events/1", nil)},
+		{"account security", httpH.RequestAccountSecurity, httptest.NewRequest(http.MethodPost, "/api/account/security", strings.NewReader(`{}`))},
+		{"verify security", httpH.VerifyAccountSecurity, httptest.NewRequest(http.MethodPost, "/api/account/security/verify", strings.NewReader(`{}`))},
+		{"update pl", httpH.UpdateProfileLimitation, httptest.NewRequest(http.MethodPut, "/api/profile-limitations/1", strings.NewReader(`{}`))},
+		{"delete pl", httpH.DeleteProfileLimitation, httptest.NewRequest(http.MethodDelete, "/api/profile-limitations/1", nil)},
+	}
+	for _, tc := range unauth {
+		t.Run("unauth_"+tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			tc.fn(rr, tc.req)
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+
+	emptyJSON := func(method, url string) *http.Request {
+		r := withUser(httptest.NewRequest(method, url, strings.NewReader("")), 1)
+		r.Header.Set("Content-Type", "application/json")
+		r.ContentLength = -1
+		return r
+	}
+	badJSON := func(method, url string) *http.Request {
+		r := withUser(httptest.NewRequest(method, url, strings.NewReader(`{`)), 1)
+		r.Header.Set("Content-Type", "application/json")
+		return r
+	}
+
+	bodyCases := []struct {
+		name string
+		fn   func(http.ResponseWriter, *http.Request)
+		req  *http.Request
+	}{
+		{"register empty", httpH.Register, emptyJSON(http.MethodPost, "/api/auth/register")},
+		{"register bad", httpH.Register, badJSON(http.MethodPost, "/api/auth/register")},
+		{"validate empty", httpH.ValidateToken, emptyJSON(http.MethodPost, "/api/auth/validate")},
+		{"validate bad", httpH.ValidateToken, badJSON(http.MethodPost, "/api/auth/validate")},
+		{"create bank empty", httpH.CreateBankAccount, emptyJSON(http.MethodPost, "/api/bank-accounts")},
+		{"create bank bad", httpH.CreateBankAccount, badJSON(http.MethodPost, "/api/bank-accounts")},
+		{"update bank empty", httpH.UpdateBankAccount, emptyJSON(http.MethodPut, "/api/bank-accounts/1")},
+		{"update profile empty", httpH.UpdateProfile, emptyJSON(http.MethodPut, "/api/user/profile")},
+		{"update profile bad", httpH.UpdateProfile, badJSON(http.MethodPut, "/api/user/profile")},
+		{"update general empty", httpH.UpdateGeneralSettings, emptyJSON(http.MethodPut, "/api/general-settings/1")},
+		{"update general bad", httpH.UpdateGeneralSettings, badJSON(http.MethodPut, "/api/general-settings/1")},
+		{"update privacy empty", httpH.UpdatePrivacySettings, emptyJSON(http.MethodPost, "/api/privacy")},
+		{"update privacy bad", httpH.UpdatePrivacySettings, badJSON(http.MethodPost, "/api/privacy")},
+		{"report empty", httpH.ReportUserEvent, emptyJSON(http.MethodPost, "/api/events/report/1")},
+		{"report bad", httpH.ReportUserEvent, badJSON(http.MethodPost, "/api/events/report/1")},
+		{"send report empty", httpH.SendReportResponse, emptyJSON(http.MethodPost, "/api/events/report/response/1")},
+		{"account security empty", httpH.RequestAccountSecurity, emptyJSON(http.MethodPost, "/api/account/security")},
+		{"account security bad", httpH.RequestAccountSecurity, badJSON(http.MethodPost, "/api/account/security")},
+	}
+	for _, tc := range bodyCases {
+		t.Run("body_"+tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			tc.fn(rr, tc.req)
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+
+	t.Run("general settings invalid id", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := withUser(httptest.NewRequest(http.MethodPut, "/api/general-settings/abc", strings.NewReader(`{}`)), 1)
+		req.Header.Set("Content-Type", "application/json")
+		httpH.UpdateGeneralSettings(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("general settings missing id", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := withUser(httptest.NewRequest(http.MethodPut, "/api/general-settings/", strings.NewReader(`{}`)), 1)
+		req.Header.Set("Content-Type", "application/json")
+		httpH.UpdateGeneralSettings(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+}
