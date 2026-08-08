@@ -17,9 +17,10 @@ type ReplyHandler struct {
 	service *service.ReplyService
 }
 
-func RegisterReplyHandler(grpcServer *grpc.Server, svc *service.ReplyService) {
+func RegisterReplyHandler(grpcServer *grpc.Server, svc *service.ReplyService) *ReplyHandler {
 	handler := &ReplyHandler{service: svc}
 	trainingpb.RegisterReplyServiceServer(grpcServer, handler)
+	return handler
 }
 
 // GetReplies retrieves replies for a comment
@@ -134,6 +135,10 @@ func (h *ReplyHandler) buildReplyResponse(reply *service.CommentDetails) *traini
 			DislikesCount: reply.Stats.DislikesCount,
 			RepliesCount:  reply.Stats.RepliesCount,
 		}
+	}
+
+	if reply.UserInteraction != nil {
+		resp.UserInteraction = reply.UserInteraction
 	}
 
 	return resp

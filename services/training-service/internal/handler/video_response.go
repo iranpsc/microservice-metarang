@@ -64,6 +64,10 @@ func buildVideoResponse(video *service.VideoDetails) (*trainingpb.VideoResponse,
 		}
 	}
 
+	if video.UserInteraction != nil {
+		resp.UserInteraction = video.UserInteraction
+	}
+
 	return resp, nil
 }
 

@@ -17,9 +17,10 @@ type VideoHandler struct {
 	service *service.VideoService
 }
 
-func RegisterVideoHandler(grpcServer *grpc.Server, svc *service.VideoService) {
+func RegisterVideoHandler(grpcServer *grpc.Server, svc *service.VideoService) *VideoHandler {
 	handler := &VideoHandler{service: svc}
 	trainingpb.RegisterVideoServiceServer(grpcServer, handler)
+	return handler
 }
 
 // GetVideos retrieves paginated videos

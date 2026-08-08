@@ -20,12 +20,13 @@ type CategoryHandler struct {
 	videoService    *service.VideoService
 }
 
-func RegisterCategoryHandler(grpcServer *grpc.Server, categorySvc *service.CategoryService, videoSvc *service.VideoService) {
+func RegisterCategoryHandler(grpcServer *grpc.Server, categorySvc *service.CategoryService, videoSvc *service.VideoService) *CategoryHandler {
 	handler := &CategoryHandler{
 		categoryService: categorySvc,
 		videoService:    videoSvc,
 	}
 	trainingpb.RegisterCategoryServiceServer(grpcServer, handler)
+	return handler
 }
 
 // GetCategories retrieves paginated categories

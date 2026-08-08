@@ -36,8 +36,6 @@ spec:
           value: "auth-service:50051"
         - name: LEVELS_SERVICE_ADDR
           value: "levels-service:50054"
-        - name: TRAINING_SERVICE_ADDR
-          value: "training-service:50057"
         - name: SUPPORT_SERVICE_ADDR
           value: "support-service:50056"
         - name: STORAGE_SERVICE_ADDR

@@ -19,6 +19,7 @@ This service provides gRPC endpoints for:
 - **Language**: Go 1.25+
 - **Database**: MySQL (shared instance, utf8mb4)
 - **gRPC**: Inter-service communication (port `50057`)
+- **HTTP**: Public REST API for Kong (port `8069`)
 - **Protocol Buffers**: Service definitions in `shared/proto/training.proto`
 
 ### Layered Architecture
@@ -35,21 +36,22 @@ Database (MySQL)
 
 ### Key Components
 
-- **Handlers**: gRPC request/response conversion, validation, error mapping, Jalali date formatting
+- **Handlers**: gRPC + HTTP request/response conversion, validation, error mapping, Jalali date formatting
 - **Services**: Business logic for videos, categories, comments, and replies
 - **Repositories**: Data access with polymorphic queries (legacy `App\Models\*` type strings)
-- **Auth Client**: gRPC client for user profile data (falls back to direct DB queries if unavailable)
+- **Auth Client**: gRPC client for user profile data and HTTP token validation (falls back to direct DB queries if unavailable)
+- **Middleware**: Bearer/cookie auth for HTTP routes via auth-service `ValidateToken`
 
 ### Service Dependencies
 
 | Service | Purpose | Required |
 |---------|---------|----------|
-| **Auth Service** | User profile retrieval via gRPC | No (falls back to DB) |
-| **grpc-gateway** | REST-to-gRPC translation for HTTP clients | Yes (for HTTP access) |
+| **Auth Service** | User profile retrieval + HTTP token validation | No for profiles (falls back to DB); yes for authenticated HTTP routes |
+| **Kong** | Routes `/api/tutorials`, `/api/video-tutorials`, `/api/comments` to this service | Yes (for public HTTP access) |
 
 ## API Endpoints
 
-All HTTP endpoints are exposed via the `grpc-gateway` service and maintain legacy-compatible JSON responses. Public viewing routes use optional authentication; write actions require a bearer token.
+All HTTP endpoints are served directly by training-service (port `8069`) behind Kong and maintain legacy-compatible JSON responses. Public viewing routes use optional authentication; write actions require a bearer token.
 
 ### Video Tutorials
 
@@ -169,10 +171,13 @@ DB_DATABASE=metarang_db
 # gRPC Server
 GRPC_PORT=50057
 
+# HTTP Server (Kong /api/tutorials, /api/video-tutorials, /api/comments)
+HTTP_PORT=8069
+
 # Metrics (Prometheus)
 METRICS_PORT=9090
 
-# Auth Service (optional — falls back to direct DB queries)
+# Auth Service (user profiles + HTTP token validation)
 AUTH_SERVICE_ADDR=auth-service:50051
 ```
 
@@ -248,7 +253,7 @@ Sentry error tracking is initialized from environment variables via `shared/pkg/
 ```bash
 # From repository root
 docker build -t metarang/training-service:latest -f services/training-service/Dockerfile .
-docker run -p 50057:50057 --env-file services/training-service/config.env metarang/training-service:latest
+docker run -p 50057:50057 -p 8069:8069 --env-file services/training-service/config.env metarang/training-service:latest
 ```
 
 ### Docker Compose
@@ -261,7 +266,7 @@ docker compose up -d training-service
 make dev-up
 ```
 
-The `grpc-gateway` must have `TRAINING_SERVICE_ADDR=training-service:50057` set to register HTTP routes.
+Kong routes `/api/tutorials`, `/api/video-tutorials`, and `/api/comments` directly to `training-service:8069`.
 
 ## Troubleshooting
 
@@ -269,13 +274,13 @@ The `grpc-gateway` must have `TRAINING_SERVICE_ADDR=training-service:50057` set 
 
 - Verify MySQL is reachable and schema is applied
 - Check `config.env` values (especially `DB_*` variables)
-- Confirm port `50057` is not in use
+- Confirm ports `50057` / `8069` are not in use
 
-### Training routes unavailable in grpc-gateway
+### Training HTTP routes unavailable
 
-- Ensure `TRAINING_SERVICE_ADDR` is set in grpc-gateway config
-- Verify training-service is running and healthy
-- Check grpc-gateway logs for connection errors
+- Ensure `HTTP_PORT=8069` and Kong `training-api` route are configured
+- Verify training-service `/health` on port 8069 is healthy
+- Check Kong logs for upstream connection errors
 
 ### Auth client warnings
 

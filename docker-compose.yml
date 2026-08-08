@@ -155,15 +155,12 @@ services:
     environment:
       HTTP_PORT: 8080
       AUTH_SERVICE_ADDR: auth-service:50051
-      TRAINING_SERVICE_ADDR: training-service:50057
       SUPPORT_SERVICE_ADDR: support-service:50056
       STORAGE_SERVICE_ADDR: storage-service:8059
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
       <<: *grpc-certs-depends
       auth-service:
-        condition: service_started
-      training-service:
         condition: service_started
       storage-service:
         condition: service_started
@@ -548,11 +545,13 @@ services:
       context: .
       dockerfile: ./services/training-service/Dockerfile
     container_name: metarang-training-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC is internal-only; HTTP is for Kong /api/tutorials, /api/video-tutorials, /api/comments
     env_file:
       - ./services/training-service/config.env
     environment:
       GRPC_PORT: 50057
+      HTTP_PORT: 8069
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -572,10 +571,11 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50057"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8069/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 10s
     develop:
       watch:
         - action: rebuild

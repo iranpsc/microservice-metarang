@@ -123,6 +123,17 @@ services:
     read_timeout: 60000
     retries: 3
 
+  # Training REST API — served directly by training-service (migrated off grpc-gateway)
+  - name: training-service
+    url: http://training-service:8069
+    protocol: http
+    host: training-service
+    port: 8069
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
   - name: swagger-ui
     url: http://swagger-ui:8080
     protocol: http
@@ -357,6 +368,34 @@ routes:
       - name: rate-limiting
         config:
           minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+
+  # Training API — higher priority than catch-all /api → grpc-gateway
+  - name: training-api
+    service: training-service
+    paths:
+      - /api/tutorials
+      - /api/video-tutorials
+      - /api/comments
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 120
           policy: redis
           redis:
             host: redis

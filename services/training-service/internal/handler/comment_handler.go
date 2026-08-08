@@ -17,9 +17,10 @@ type CommentHandler struct {
 	service *service.CommentService
 }
 
-func RegisterCommentHandler(grpcServer *grpc.Server, svc *service.CommentService) {
+func RegisterCommentHandler(grpcServer *grpc.Server, svc *service.CommentService) *CommentHandler {
 	handler := &CommentHandler{service: svc}
 	trainingpb.RegisterCommentServiceServer(grpcServer, handler)
+	return handler
 }
 
 // GetComments retrieves top-level comments for a video
@@ -36,7 +37,7 @@ func (h *CommentHandler) GetComments(ctx context.Context, req *trainingpb.GetCom
 		}
 	}
 
-	userID := userIDFromContext(ctx, 0)
+	userID := userIDFromContext(ctx, req.UserId)
 	comments, total, err := h.service.GetComments(ctx, req.VideoId, page, perPage, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get comments: %v", err)
@@ -157,6 +158,10 @@ func (h *CommentHandler) buildCommentResponse(comment *service.CommentDetails) *
 			DislikesCount: comment.Stats.DislikesCount,
 			RepliesCount:  comment.Stats.RepliesCount,
 		}
+	}
+
+	if comment.UserInteraction != nil {
+		resp.UserInteraction = comment.UserInteraction
 	}
 
 	return resp
