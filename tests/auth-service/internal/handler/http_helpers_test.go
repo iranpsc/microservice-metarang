@@ -268,6 +268,20 @@ func TestFlexibleUnmarshal(t *testing.T) {
 	if s != "" {
 		t.Fatalf("got %q", s)
 	}
+	s, err = handler.UnmarshalFlexibleStringForTest([]byte(`  `))
+	require.NoError(t, err)
+	if s != "" {
+		t.Fatalf("got %q", s)
+	}
+	s, err = handler.UnmarshalFlexibleStringForTest([]byte(`3.14`))
+	require.NoError(t, err)
+	if s != "3.14" && s != "3" {
+		t.Fatalf("got %q", s)
+	}
+	_, err = handler.UnmarshalFlexibleStringForTest([]byte(`{"a":1}`))
+	if err == nil {
+		t.Fatal("expected flexible string error")
+	}
 
 	n, err := handler.UnmarshalFlexibleInt32ForTest([]byte(`"۱۵"`))
 	require.NoError(t, err)
@@ -284,9 +298,23 @@ func TestFlexibleUnmarshal(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("got %d", n)
 	}
+	n, err = handler.UnmarshalFlexibleInt32ForTest([]byte(`""`))
+	require.NoError(t, err)
+	if n != 0 {
+		t.Fatalf("got %d", n)
+	}
+	n, err = handler.UnmarshalFlexibleInt32ForTest([]byte(`9.7`))
+	require.NoError(t, err)
+	if n != 9 {
+		t.Fatalf("got %d", n)
+	}
 	_, err = handler.UnmarshalFlexibleInt32ForTest([]byte(`"abc"`))
 	if err == nil {
 		t.Fatal("expected error")
+	}
+	_, err = handler.UnmarshalFlexibleInt32ForTest([]byte(`true`))
+	if err == nil {
+		t.Fatal("expected int error for bool")
 	}
 }
 

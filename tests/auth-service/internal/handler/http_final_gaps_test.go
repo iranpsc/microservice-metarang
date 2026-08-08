@@ -27,16 +27,16 @@ func TestHTTPPersonalInfoKYCSearchWalletErrors(t *testing.T) {
 	pi := &mockPersonalInfoService{}
 	pi.getFunc = func(context.Context, uint64) (*models.PersonalInfo, error) {
 		return &models.PersonalInfo{
-			Occupation: sql.NullString{String: "eng", Valid: true},
-			Education:  sql.NullString{String: "bs", Valid: true},
-			Memory:     sql.NullString{String: "m", Valid: true},
-			LovedCity:  sql.NullString{String: "c", Valid: true},
-			LovedCountry: sql.NullString{String: "ir", Valid: true},
-			LovedLanguage: sql.NullString{String: "fa", Valid: true},
+			Occupation:     sql.NullString{String: "eng", Valid: true},
+			Education:      sql.NullString{String: "bs", Valid: true},
+			Memory:         sql.NullString{String: "m", Valid: true},
+			LovedCity:      sql.NullString{String: "c", Valid: true},
+			LovedCountry:   sql.NullString{String: "ir", Valid: true},
+			LovedLanguage:  sql.NullString{String: "fa", Valid: true},
 			ProblemSolving: sql.NullString{String: "ps", Valid: true},
-			Prediction: sql.NullString{String: "pr", Valid: true},
-			About: sql.NullString{String: "a", Valid: true},
-			Passions: map[string]bool{"music": true},
+			Prediction:     sql.NullString{String: "pr", Valid: true},
+			About:          sql.NullString{String: "a", Valid: true},
+			Passions:       map[string]bool{"music": true},
 		}, nil
 	}
 	piServer := handler.RegisterPersonalInfoHandler(s, pi)
@@ -46,10 +46,10 @@ func TestHTTPPersonalInfoKYCSearchWalletErrors(t *testing.T) {
 		return &models.KYC{
 			ID: 1, UserID: 1, Fname: "a", Lname: "b", MelliCode: "0123456789",
 			MelliCard: "/c.png", Province: "Tehran", Status: -1,
-			Video: sql.NullString{String: "/v.mp4", Valid: true},
-			Gender: sql.NullString{String: "male", Valid: true},
+			Video:     sql.NullString{String: "/v.mp4", Valid: true},
+			Gender:    sql.NullString{String: "male", Valid: true},
 			Birthdate: sql.NullTime{Time: time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
-			Errors: sql.NullString{String: `["bad"]`, Valid: true},
+			Errors:    sql.NullString{String: `["bad"]`, Valid: true},
 		}, nil
 	}
 	kycServer := handler.NewKYCHandler(kycMock, "https://gw")
@@ -197,4 +197,121 @@ func TestHTTPAuthAccountCorePaths(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
 	httpH.ValidateToken(rr, req)
+}
+
+func TestHTTPPersonalInfoAndWalletErrorBranches(t *testing.T) {
+	s := grpc.NewServer()
+	defer s.Stop()
+
+	pi := &mockPersonalInfoService{}
+	pi.getFunc = func(context.Context, uint64) (*models.PersonalInfo, error) {
+		return &models.PersonalInfo{}, nil
+	}
+	pi.updateFunc = func(context.Context, uint64, string, string, string, string, string, string, string, string, string, map[string]bool) error {
+		return status.Error(codes.Internal, "boom")
+	}
+	piServer := handler.RegisterPersonalInfoHandler(s, pi)
+
+	userServer := handler.RegisterUserHandler(
+		s,
+		&mockUserService{},
+		&mockProfileLimitationService{},
+		&mockHelperService{wallet: &service.WalletInfo{Psc: "1", Irr: "2"}},
+	)
+
+	clients := handler.NewLocalClients(
+		&pb.UnimplementedAuthServiceServer{},
+		userServer,
+		&pb.UnimplementedKYCServiceServer{},
+		&pb.UnimplementedCitizenServiceServer{},
+		piServer,
+		&pb.UnimplementedProfileLimitationServiceServer{},
+		&pb.UnimplementedProfilePhotoServiceServer{},
+		&pb.UnimplementedSettingsServiceServer{},
+		&pb.UnimplementedUserEventsServiceServer{},
+		&pb.UnimplementedSearchServiceServer{},
+		&pb.UnimplementedWalletConnectionServiceServer{},
+	)
+	httpH := handler.NewHTTPAuthHandler(clients, nil, "en")
+
+	t.Run("get personal info empty", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		httpH.GetPersonalInfo(rr, withUser(httptest.NewRequest(http.MethodGet, "/api/personal-info", nil), 1))
+		if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"data":[]`) {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("get personal info unauth", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		httpH.GetPersonalInfo(rr, httptest.NewRequest(http.MethodGet, "/api/personal-info", nil))
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("code=%d", rr.Code)
+		}
+	})
+
+	t.Run("update personal info method not allowed", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		httpH.UpdatePersonalInfo(rr, withUser(httptest.NewRequest(http.MethodGet, "/api/personal-info", nil), 1))
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("code=%d", rr.Code)
+		}
+	})
+
+	t.Run("update personal info unauth", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/api/personal-info", strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		httpH.UpdatePersonalInfo(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("code=%d", rr.Code)
+		}
+	})
+
+	t.Run("update personal info empty body", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := withUser(httptest.NewRequest(http.MethodPut, "/api/personal-info", strings.NewReader("")), 1)
+		req.Header.Set("Content-Type", "application/json")
+		req.ContentLength = -1
+		httpH.UpdatePersonalInfo(rr, req)
+		if rr.Code != http.StatusBadRequest || !strings.Contains(rr.Body.String(), "request body is required") {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("update personal info invalid json", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := withUser(httptest.NewRequest(http.MethodPut, "/api/personal-info", strings.NewReader(`{`)), 1)
+		req.Header.Set("Content-Type", "application/json")
+		httpH.UpdatePersonalInfo(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("code=%d", rr.Code)
+		}
+	})
+
+	t.Run("update personal info grpc error", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := withUser(httptest.NewRequest(http.MethodPut, "/api/personal-info", strings.NewReader(`{"occupation":"x"}`)), 1)
+		req.Header.Set("Content-Type", "application/json")
+		httpH.UpdatePersonalInfo(rr, req)
+		if rr.Code < 400 {
+			t.Fatalf("expected error, code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("wallet method not allowed", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		httpH.GetAuthenticatedUserWallet(rr, withUser(httptest.NewRequest(http.MethodPost, "/api/wallet", nil), 1))
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("code=%d", rr.Code)
+		}
+	})
+
+	t.Run("wallet unauth", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		httpH.GetAuthenticatedUserWallet(rr, httptest.NewRequest(http.MethodGet, "/api/wallet", nil))
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("code=%d", rr.Code)
+		}
+	})
 }
