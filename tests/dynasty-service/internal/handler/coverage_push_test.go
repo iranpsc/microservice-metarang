@@ -127,7 +127,7 @@ func TestPrizeHandler_GetPrizesHappyPath(t *testing.T) {
 		}).AddRow(3, 1, 1, "m", now, now, 1, "offspring", 0.1, 0.2, 0.3, 0.4, 1000))
 
 	resp, err := h.GetPrizes(context.Background(), &dynastypb.GetPrizesRequest{
-		UserId: 1,
+		UserId:     1,
 		Pagination: &commonpb.PaginationRequest{Page: 0, PerPage: 0},
 	})
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestJoinRequestHandler_AcceptAndSearchAndDefaults(t *testing.T) {
 		repository.NewFamilyRepository(db),
 		repository.NewDynastyRepository(db),
 	)
-	searchSvc := service.NewUserSearchService(db)
+	searchSvc := service.NewUserSearchService(db, nil, nil)
 	h := handler.NewJoinRequestHandler(joinSvc, permSvc, searchSvc)
 	ctx := context.Background()
 	fromUser, toUser := uint64(10), uint64(20)
@@ -203,14 +203,14 @@ func TestJoinRequestHandler_AcceptAndSearchAndDefaults(t *testing.T) {
 	mock.ExpectQuery("SELECT url FROM images").
 		WithArgs(uint64(1)).
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("SELECT l.title").
-		WithArgs(uint64(1)).
-		WillReturnError(sql.ErrNoRows)
 
 	search, err := h.SearchUsers(ctx, &dynastypb.SearchUsersRequest{SearchTerm: "ali"})
 	require.NoError(t, err)
 	require.NotNil(t, search)
 	require.Len(t, search.Data, 1)
+	assert.False(t, search.Data[0].Verified)
+	assert.Equal(t, int32(0), search.Data[0].Age)
+	assert.Empty(t, search.Data[0].Levels)
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }

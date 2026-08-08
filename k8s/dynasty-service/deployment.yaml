@@ -77,6 +77,8 @@ spec:
           value: "auth-service:50051"
         - name: FEATURES_SERVICE_ADDR
           value: "features-service:50053"
+        - name: LEVELS_SERVICE_ADDR
+          value: "levels-service:50054"
         - name: APP_URL
           valueFrom:
             configMapKeyRef:

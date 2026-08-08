@@ -787,7 +787,7 @@ func (h *HTTPDynastyHandler) SearchUsers(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"data": resp.Data})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": buildUserSearchHTTPResponse(resp)})
 }
 
 // GetDefaultPermissions handles POST /api/dynasty/add/member/get/permissions

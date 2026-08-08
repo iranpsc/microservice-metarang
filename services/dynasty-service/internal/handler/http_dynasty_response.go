@@ -248,3 +248,62 @@ func splitJalaliDateTime(value string) (string, string) {
 
 	return parts[0], parts[1]
 }
+
+func buildUserSearchHTTPResponse(resp *dynastypb.SearchUsersResponse) []map[string]interface{} {
+	if resp == nil || len(resp.Data) == 0 {
+		return []map[string]interface{}{}
+	}
+
+	out := make([]map[string]interface{}, 0, len(resp.Data))
+	for _, item := range resp.Data {
+		if item == nil {
+			continue
+		}
+		row := map[string]interface{}{
+			"id":       item.Id,
+			"code":     item.Code,
+			"name":     item.Name,
+			"image":    nilIfEmpty(item.Image),
+			"level":    item.Level,
+			"verified": item.Verified,
+			"age":      item.Age,
+			"levels":   buildUserSearchLevelsHTTP(item.Levels),
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func buildUserSearchLevelsHTTP(levels []*dynastypb.UserSearchLevelItem) []map[string]interface{} {
+	if len(levels) == 0 {
+		return []map[string]interface{}{}
+	}
+
+	out := make([]map[string]interface{}, 0, len(levels))
+	for _, lvl := range levels {
+		if lvl == nil {
+			continue
+		}
+		item := map[string]interface{}{
+			"id":   lvl.Id,
+			"slug": lvl.Slug,
+			"gem":  nil,
+		}
+		if lvl.Gem != nil {
+			item["gem"] = map[string]interface{}{
+				"id":    lvl.Gem.Id,
+				"name":  lvl.Gem.Name,
+				"image": lvl.Gem.Image,
+			}
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func nilIfEmpty(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}

@@ -177,6 +177,21 @@ message UserSearchResult {
   string name = 3;
   string image = 4;
   string level = 5;
+  bool verified = 6;
+  int32 age = 7;
+  repeated UserSearchLevelItem levels = 8;
+}
+
+message UserSearchLevelGem {
+  uint64 id = 1;
+  string name = 2;
+  string image = 3; // gem png_file
+}
+
+message UserSearchLevelItem {
+  uint64 id = 1;
+  string slug = 2;
+  UserSearchLevelGem gem = 3;
 }
 
 message GetFamilyRequest {

@@ -117,13 +117,39 @@ func main() {
 		}()
 	}
 
+	var kycPort service.KYCPort
+	authServiceAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	if ac, err := client.NewAuthClient(authServiceAddr); err != nil {
+		log.Printf("Warning: auth service client unavailable (%v); search KYC enrichment disabled", err)
+	} else {
+		kycPort = ac
+		defer func() {
+			if err := ac.Close(); err != nil {
+				log.Printf("auth client close: %v", err)
+			}
+		}()
+	}
+
+	var levelsPort service.LevelsPort
+	levelsAddr := getEnv("LEVELS_SERVICE_ADDR", "levels-service:50054")
+	if lc, err := client.NewLevelsClient(levelsAddr); err != nil {
+		log.Printf("Warning: levels service unavailable (%v); search levels enrichment disabled", err)
+	} else {
+		levelsPort = lc
+		defer func() {
+			if err := lc.Close(); err != nil {
+				log.Printf("levels client close: %v", err)
+			}
+		}()
+	}
+
 	// Initialize services
 	dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, notificationServiceAddr)
 	joinRequestService := service.NewJoinRequestService(joinRequestRepo, dynastyRepo, familyRepo, prizeRepo, notificationPort, notificationServiceAddr)
 	familyService := service.NewFamilyService(familyRepo, dynastyRepo)
 	prizeService := service.NewPrizeService(db, prizeRepo, variableRepo, userVariableRepo, walletPort)
 	permissionService := service.NewPermissionService(permissionRepo, joinRequestRepo, familyRepo, dynastyRepo)
-	userSearchService := service.NewUserSearchService(db)
+	userSearchService := service.NewUserSearchService(db, kycPort, levelsPort)
 
 	// Create gRPC server
 	serviceMetrics := metrics.NewMetrics("dynasty_service")

@@ -17,9 +17,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"metarang/dynasty-service/internal/handler"
-	authpkg "metarang/shared/pkg/auth"
 	commonpb "metarang/shared/pb/common"
 	dynastypb "metarang/shared/pb/dynasty"
+	authpkg "metarang/shared/pkg/auth"
 )
 
 type fakeDynastyAPI struct {
@@ -115,8 +115,8 @@ func (f *fakeJoinRequestAPI) SearchUsers(ctx context.Context, req *dynastypb.Sea
 }
 
 type fakeFamilyAPI struct {
-	GetFamilyFunc            func(context.Context, *dynastypb.GetFamilyRequest) (*dynastypb.FamilyResponse, error)
-	SetChildPermissionsFunc  func(context.Context, *dynastypb.SetChildPermissionsRequest) (*commonpb.Empty, error)
+	GetFamilyFunc           func(context.Context, *dynastypb.GetFamilyRequest) (*dynastypb.FamilyResponse, error)
+	SetChildPermissionsFunc func(context.Context, *dynastypb.SetChildPermissionsRequest) (*commonpb.Empty, error)
 }
 
 func (f *fakeFamilyAPI) GetFamily(ctx context.Context, req *dynastypb.GetFamilyRequest) (*dynastypb.FamilyResponse, error) {
@@ -201,10 +201,10 @@ func TestHTTPDynastyHandler_GetDynasty(t *testing.T) {
 				assert.Equal(t, uint64(7), req.UserId)
 				return &dynastypb.DynastyResponse{
 					UserHasDynasty: true,
-					Id:            11,
-					FamilyId:      22,
-					CreatedAt:     "1403/01/01",
-					ProfileImage:  photo,
+					Id:             11,
+					FamilyId:       22,
+					CreatedAt:      "1403/01/01",
+					ProfileImage:   photo,
 					DynastyFeature: &dynastypb.DynastyFeature{
 						Id: 100, PropertiesId: "p1", Area: "a", Density: "d",
 						FeatureProfitIncrease: "0.5", FamilyMembersCount: 3, LastUpdated: "1403/01/02",
@@ -313,7 +313,7 @@ func TestHTTPDynastyHandler_JoinRequestFlows(t *testing.T) {
 			assert.Equal(t, int32(2), req.Pagination.Page)
 			return &dynastypb.JoinRequestsResponse{Requests: []*dynastypb.JoinRequestResponse{{
 				Id: 1, Status: 0, Relationship: "brother", CreatedAt: "1403/01/01 10:00",
-				ToUserInfo: &commonpb.UserBasic{Id: 2, Code: "C2", Name: "Bob", ProfilePhoto: "x"},
+				ToUserInfo:   &commonpb.UserBasic{Id: 2, Code: "C2", Name: "Bob", ProfilePhoto: "x"},
 				RequestPrize: &dynastypb.DynastyPrize{Id: 9, Psc: 1, Member: "brother", Satisfaction: "s"},
 			}}}, nil
 		},
@@ -375,6 +375,68 @@ func TestHTTPDynastyHandler_JoinRequestFlows(t *testing.T) {
 	rr = httptest.NewRecorder()
 	h.AcceptJoinRequest(rr, withUser(1, httptest.NewRequest(http.MethodPost, "/api/dynasty/requests/recieved/abc", nil)))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestHTTPDynastyHandler_SearchUsers_IncludesVerifiedAgeLevels(t *testing.T) {
+	join := &fakeJoinRequestAPI{
+		SearchUsersFunc: func(context.Context, *dynastypb.SearchUsersRequest) (*dynastypb.SearchUsersResponse, error) {
+			return &dynastypb.SearchUsersResponse{
+				Data: []*dynastypb.UserSearchResult{
+					{
+						Id:       7,
+						Code:     "U7",
+						Name:     "Sara",
+						Image:    "https://img/s.png",
+						Level:    "Gold",
+						Verified: true,
+						Age:      22,
+						Levels: []*dynastypb.UserSearchLevelItem{
+							{
+								Id:   3,
+								Slug: "3",
+								Gem: &dynastypb.UserSearchLevelGem{
+									Id: 13, Name: "Gold Gem", Image: "https://gem/gold.png",
+								},
+							},
+							{
+								Id:   1,
+								Slug: "1",
+								Gem: &dynastypb.UserSearchLevelGem{
+									Id: 11, Name: "Bronze Gem", Image: "https://gem/bronze.png",
+								},
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+	h := newHTTPHandler(nil, join, nil, nil)
+	rr := httptest.NewRecorder()
+	h.SearchUsers(rr, withUser(1, httptest.NewRequest(
+		http.MethodPost,
+		"/api/dynasty/search",
+		strings.NewReader(`{"searchTerm":"sara"}`),
+	)))
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
+	data, ok := body["data"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, data, 1)
+	item := data[0].(map[string]interface{})
+	assert.Equal(t, true, item["verified"])
+	assert.Equal(t, float64(22), item["age"])
+	assert.Equal(t, "Gold", item["level"])
+	levels := item["levels"].([]interface{})
+	require.Len(t, levels, 2)
+	first := levels[0].(map[string]interface{})
+	assert.Equal(t, float64(3), first["id"])
+	assert.Equal(t, "3", first["slug"])
+	gem := first["gem"].(map[string]interface{})
+	assert.Equal(t, "Gold Gem", gem["name"])
+	assert.Equal(t, "https://gem/gold.png", gem["image"])
 }
 
 func TestHTTPDynastyHandler_PrizesSearchPermissionsChildren(t *testing.T) {

@@ -359,6 +359,7 @@ services:
       NOTIFICATION_SERVICE_ADDR: notifications-service:50058
       AUTH_SERVICE_ADDR: auth-service:50051
       FEATURES_SERVICE_ADDR: features-service:50053
+      LEVELS_SERVICE_ADDR: levels-service:50054
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8068/health"]
@@ -370,6 +371,14 @@ services:
       <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
+      auth-service:
+        condition: service_started
+      levels-service:
+        condition: service_started
+      notifications-service:
+        condition: service_started
+      commercial-service:
+        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
