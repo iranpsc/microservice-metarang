@@ -277,6 +277,88 @@ func TestHTTPCitizenWalletHistory_ServiceUnavailableWithoutDeps(t *testing.T) {
 	}
 }
 
+func TestHTTPCitizenWalletHistory_MissingCode(t *testing.T) {
+	h := newCitizenWalletHandler(&mockCitizenUserInfoAPI{}, &mockWalletHistoryAPI{})
+	req := httptest.NewRequest(http.MethodGet, "/api/citizen//wallet/history/summary?period=weekly", nil)
+	req.SetPathValue("code", "")
+	w := httptest.NewRecorder()
+	h.GetCitizenWalletHistorySummary(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHTTPCitizenWalletHistory_CitizenLookupError(t *testing.T) {
+	citizen := &mockCitizenUserInfoAPI{}
+	citizen.GetCitizenUserInfoFunc = func(context.Context, *authpb.GetCitizenUserInfoRequest) (*authpb.GetCitizenUserInfoResponse, error) {
+		return nil, status.Error(codes.Unavailable, "auth down")
+	}
+	h := newCitizenWalletHandler(citizen, &mockWalletHistoryAPI{})
+	mux := http.NewServeMux()
+	h.RegisterHTTPRoutes(mux, passThroughAuth)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizen/HM-1/wallet/history/summary?period=weekly", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHTTPCitizenWalletHistoryChart_ServiceError(t *testing.T) {
+	history := &mockWalletHistoryAPI{}
+	history.GetWalletHistoryChartFunc = func(context.Context, *commercialpb.GetWalletHistoryChartRequest) (*commercialpb.GetWalletHistoryChartResponse, error) {
+		return nil, status.Error(codes.Internal, "chart failed")
+	}
+	h := newCitizenWalletHandler(&mockCitizenUserInfoAPI{}, history)
+	mux := http.NewServeMux()
+	h.RegisterHTTPRoutes(mux, passThroughAuth)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizen/HM-1/wallet/history/chart?period=daily", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHTTPCitizenWalletHistorySummary_ServiceError(t *testing.T) {
+	history := &mockWalletHistoryAPI{}
+	history.GetWalletHistorySummaryFunc = func(context.Context, *commercialpb.GetWalletHistorySummaryRequest) (*commercialpb.GetWalletHistorySummaryResponse, error) {
+		return nil, status.Error(codes.PermissionDenied, "private")
+	}
+	h := newCitizenWalletHandler(&mockCitizenUserInfoAPI{}, history)
+	mux := http.NewServeMux()
+	h.RegisterHTTPRoutes(mux, passThroughAuth)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizen/HM-1/wallet/history/summary?period=yearly&asset=psc", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHTTPCitizenWalletHistory_AssetDedupAndSingleAsset(t *testing.T) {
+	history := &mockWalletHistoryAPI{}
+	history.GetWalletHistorySummaryFunc = func(_ context.Context, req *commercialpb.GetWalletHistorySummaryRequest) (*commercialpb.GetWalletHistorySummaryResponse, error) {
+		if len(req.Assets) != 1 || req.Assets[0] != "yellow" {
+			t.Fatalf("assets=%v", req.Assets)
+		}
+		return &commercialpb.GetWalletHistorySummaryResponse{}, nil
+	}
+	h := newCitizenWalletHandler(&mockCitizenUserInfoAPI{}, history)
+	mux := http.NewServeMux()
+	h.RegisterHTTPRoutes(mux, passThroughAuth)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizen/HM-1/wallet/history/summary?period=weekly&assets=yellow&assets=yellow&assets=", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func passThroughAuth(next http.Handler) http.Handler {
 	return next
 }

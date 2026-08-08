@@ -75,6 +75,19 @@ func TestTransactionRepository_UpdateAndLatest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
+	mock.ExpectQuery("SELECT id, user_id, asset").
+		WithArgs(uint64(99)).
+		WillReturnError(sql.ErrNoRows)
+	tx, err = repo.FindLatestByUserID(context.Background(), 99)
+	require.NoError(t, err)
+	assert.Nil(t, tx)
+
+	mock.ExpectQuery("SELECT id, user_id, asset").
+		WithArgs(uint64(2)).
+		WillReturnError(assert.AnError)
+	_, err = repo.FindLatestByUserID(context.Background(), 2)
+	require.Error(t, err)
+
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -110,6 +123,17 @@ func TestTransactionRepository_FindByUserID(t *testing.T) {
 	_, err = repo.FindByUserID(context.Background(), 2, map[string]interface{}{
 		"asset": "psc, irr",
 		"type":  "trade,order",
+	})
+	require.NoError(t, err)
+
+	// Unknown type maps to empty payable type and is skipped.
+	mock.ExpectQuery("SELECT id, user_id, asset").
+		WithArgs(uint64(3)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "asset", "amount", "action", "status", "token", "ref_id", "payable_type", "payable_id", "created_at", "updated_at",
+		}))
+	_, err = repo.FindByUserID(context.Background(), 3, map[string]interface{}{
+		"type": "unknown-type",
 	})
 	require.NoError(t, err)
 

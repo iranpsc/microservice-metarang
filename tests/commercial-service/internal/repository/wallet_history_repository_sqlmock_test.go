@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -204,6 +205,45 @@ func TestWalletHistoryRepository_GetCurrentBalanceAndRate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1.0, rate)
 
+	mock.ExpectQuery("FROM variables").
+		WillReturnError(sql.ErrNoRows)
+	rate, err = repo.GetPSCRate(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, rate)
+
+	mock.ExpectQuery("FROM variables").
+		WillReturnRows(sqlmock.NewRows([]string{"price"}).AddRow(1.25))
+	rate, err = repo.GetPSCRate(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1.25, rate)
+
 	require.NoError(t, mock.ExpectationsWereMet())
 	require.NoError(t, mock2.ExpectationsWereMet())
+}
+
+func TestWalletHistoryRepository_GetUserCreatedAt(t *testing.T) {
+	repo, mock := newMockRepo(t)
+	now := time.Now()
+
+	mock.ExpectQuery("SELECT created_at FROM users").
+		WithArgs(uint64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(now))
+	got, err := repo.GetUserCreatedAt(context.Background(), 1)
+	require.NoError(t, err)
+	assert.WithinDuration(t, now, got, time.Second)
+
+	mock.ExpectQuery("SELECT created_at FROM users").
+		WithArgs(uint64(99)).
+		WillReturnError(sql.ErrNoRows)
+	got, err = repo.GetUserCreatedAt(context.Background(), 99)
+	require.NoError(t, err)
+	assert.True(t, got.IsZero())
+
+	mock.ExpectQuery("SELECT created_at FROM users").
+		WithArgs(uint64(2)).
+		WillReturnError(assert.AnError)
+	_, err = repo.GetUserCreatedAt(context.Background(), 2)
+	require.Error(t, err)
+
+	require.NoError(t, mock.ExpectationsWereMet())
 }

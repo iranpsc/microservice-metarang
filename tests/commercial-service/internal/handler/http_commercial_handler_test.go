@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -235,6 +236,74 @@ func TestHTTPGetLatestTransaction_Empty(t *testing.T) {
 	data := body["data"].(map[string]interface{})
 	if len(data) != 0 {
 		t.Fatalf("expected empty data, got %v", data)
+	}
+}
+
+func TestHTTPListTransactions_HandlerErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		code int
+	}{
+		{"unauthenticated", status.Error(codes.Unauthenticated, "no auth"), http.StatusUnauthorized},
+		{"not_found", status.Error(codes.NotFound, "missing"), http.StatusNotFound},
+		{"invalid", status.Error(codes.InvalidArgument, "bad"), http.StatusBadRequest},
+		{"forbidden", status.Error(codes.PermissionDenied, "denied"), http.StatusForbidden},
+		{"conflict", status.Error(codes.AlreadyExists, "exists"), http.StatusConflict},
+		{"precondition", status.Error(codes.FailedPrecondition, "pre"), http.StatusPreconditionFailed},
+		{"unavailable", status.Error(codes.Unavailable, "down"), http.StatusServiceUnavailable},
+		{"internal", status.Error(codes.Internal, "boom"), http.StatusInternalServerError},
+		{"plain", assertAnError{}, http.StatusInternalServerError},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			api := &mockTransactionAPI{}
+			api.ListTransactionsFunc = func(context.Context, *commercialpb.ListTransactionsRequest) (*commercialpb.ListTransactionsResponse, error) {
+				return nil, tc.err
+			}
+			h := handler.NewHTTPCommercialHandler(api, nil, nil)
+			req := withUser(httptest.NewRequest(http.MethodGet, "/api/user/transactions", nil), 1)
+			w := httptest.NewRecorder()
+			h.ListTransactions(w, req)
+			if w.Code != tc.code {
+				t.Fatalf("status=%d body=%s want=%d", w.Code, w.Body.String(), tc.code)
+			}
+		})
+	}
+}
+
+type assertAnError struct{}
+
+func (assertAnError) Error() string { return "plain error" }
+
+func TestHTTPPublicBaseURL_FallbackHost(t *testing.T) {
+	_ = os.Unsetenv("APP_URL")
+	api := &mockTransactionAPI{}
+	api.ListTransactionsFunc = func(context.Context, *commercialpb.ListTransactionsRequest) (*commercialpb.ListTransactionsResponse, error) {
+		return &commercialpb.ListTransactionsResponse{
+			Transactions: []*commercialpb.TransactionResource{},
+			CurrentPage:  1,
+			HasMorePages: false,
+		}, nil
+	}
+	h := handler.NewHTTPCommercialHandler(api, nil, nil)
+	req := withUser(httptest.NewRequest(http.MethodGet, "/api/user/transactions", nil), 1)
+	req.Host = "commercial.local"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	w := httptest.NewRecorder()
+	h.ListTransactions(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	links := body["links"].(map[string]interface{})
+	first := links["first"].(string)
+	if !strings.HasPrefix(first, "https://commercial.local/") {
+		t.Fatalf("first link=%s", first)
 	}
 }
 

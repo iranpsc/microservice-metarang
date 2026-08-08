@@ -122,3 +122,67 @@ func TestWalletRepository_LockAndUnlockBalance(t *testing.T) {
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestWalletRepository_BalanceOpErrors(t *testing.T) {
+	repo, mock := newWalletRepo(t)
+
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnError(assert.AnError)
+	require.Error(t, repo.Update(context.Background(), &models.Wallet{ID: 1}))
+
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnError(assert.AnError)
+	require.Error(t, repo.AddBalance(context.Background(), 1, "psc", decimal.NewFromInt(1)))
+
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnError(assert.AnError)
+	require.Error(t, repo.DeductBalance(context.Background(), 1, "psc", decimal.NewFromInt(1)))
+
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnResult(sqlmock.NewErrorResult(assert.AnError))
+	require.Error(t, repo.DeductBalance(context.Background(), 1, "psc", decimal.NewFromInt(1)))
+
+	mock.ExpectBegin().WillReturnError(assert.AnError)
+	require.Error(t, repo.LockBalance(context.Background(), 1, "psc", decimal.NewFromInt(1), "hold"))
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	require.Error(t, repo.LockBalance(context.Background(), 1, "psc", decimal.NewFromInt(1), "hold"))
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnError(assert.AnError)
+	require.Error(t, repo.LockBalance(context.Background(), 1, "psc", decimal.NewFromInt(1), "hold"))
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO locked_assets").
+		WillReturnError(assert.AnError)
+	require.Error(t, repo.LockBalance(context.Background(), 1, "psc", decimal.NewFromInt(1), "hold"))
+
+	mock.ExpectBegin().WillReturnError(assert.AnError)
+	require.Error(t, repo.UnlockBalance(context.Background(), 1, "psc", decimal.NewFromInt(1)))
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE wallets").
+		WillReturnError(assert.AnError)
+	require.Error(t, repo.UnlockBalance(context.Background(), 1, "psc", decimal.NewFromInt(1)))
+
+	mock.ExpectQuery("SELECT id, user_id, psc").
+		WithArgs(uint64(3)).
+		WillReturnError(assert.AnError)
+	_, err := repo.Create(context.Background(), 3)
+	require.Error(t, err)
+
+	mock.ExpectQuery("SELECT id, user_id, psc").
+		WithArgs(uint64(4)).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO wallets").
+		WillReturnError(assert.AnError)
+	_, err = repo.Create(context.Background(), 4)
+	require.Error(t, err)
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}

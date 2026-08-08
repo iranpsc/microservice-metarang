@@ -188,3 +188,44 @@ func (m *errRepo) SumTradeBuys(ctx context.Context, userID uint64, asset string,
 	}
 	return 0, nil
 }
+
+func (m *errRepo) SumHourlyProfits(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "hourly" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumTradeSells(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "tradeSells" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumReferralBonuses(ctx context.Context, userID uint64, start, end time.Time) (float64, error) {
+	if m.failOn == "referrals" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumFirstOrderBonuses(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "firstOrders" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumLevelRewards(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "level" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+
+func TestIncomeCalculator_PropagatesEachRepoError(t *testing.T) {
+	for _, failOn := range []string{"hourly", "tradeSells", "referrals", "firstOrders", "level"} {
+		t.Run(failOn, func(t *testing.T) {
+			calc := service.NewIncomeCalculator(&errRepo{failOn: failOn})
+			_, err := calc.CalcIncome(context.Background(), 1, "psc", time.Now().Add(-time.Hour), time.Now())
+			require.Error(t, err)
+		})
+	}
+}

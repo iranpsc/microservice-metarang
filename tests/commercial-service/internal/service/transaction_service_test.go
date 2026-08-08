@@ -54,21 +54,27 @@ func (stubJalaliConverter) FormatJalaliTime(t time.Time) string {
 
 func TestTransactionService_ListTransactions(t *testing.T) {
 	payableType := `App\Models\Trade`
+	orderType := `App\Models\Order`
+	unknownType := `App\Models\SomethingElse`
 	now := time.Now()
 	repo := &mockTransactionRepo{
 		transactions: []*models.Transaction{
 			{ID: "TR-1", Asset: "psc", Amount: 10.5, Action: "deposit", Status: 1, PayableType: &payableType, CreatedAt: now},
 			{ID: "TR-2", Asset: "psc", Amount: 5, Action: "withdraw", Status: 1, CreatedAt: now},
+			{ID: "TR-3", Asset: "irr", Amount: 2, Action: "deposit", Status: 1, PayableType: &orderType, CreatedAt: now},
+			{ID: "TR-4", Asset: "irr", Amount: 1, Action: "deposit", Status: 1, PayableType: &unknownType, CreatedAt: now},
 		},
 	}
 	svc := service.NewTransactionService(repo, stubJalaliConverter{})
 
 	dtos, err := svc.ListTransactions(context.Background(), 1, nil)
 	require.NoError(t, err)
-	require.Len(t, dtos, 2)
+	require.Len(t, dtos, 4)
 	assert.Equal(t, "trade", dtos[0].Type)
 	assert.Equal(t, "10.5", dtos[0].Amount)
 	assert.Equal(t, "", dtos[1].Type)
+	assert.Equal(t, "order", dtos[2].Type)
+	assert.Equal(t, "unknown", dtos[3].Type)
 
 	repo.findErr = errors.New("db")
 	_, err = svc.ListTransactions(context.Background(), 1, nil)
