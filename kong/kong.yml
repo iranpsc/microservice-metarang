@@ -112,6 +112,17 @@ services:
     read_timeout: 60000
     retries: 3
 
+  # Dynasty REST API — served directly by dynasty-service (migrated off grpc-gateway)
+  - name: dynasty-service
+    url: http://dynasty-service:8068
+    protocol: http
+    host: dynasty-service
+    port: 8068
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
   - name: swagger-ui
     url: http://swagger-ui:8080
     protocol: http
@@ -321,6 +332,31 @@ routes:
       - name: rate-limiting
         config:
           minute: 120
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+
+  # Dynasty API — higher priority than catch-all /api → grpc-gateway
+  - name: dynasty-api
+    service: dynasty-service
+    paths:
+      - /api/dynasty
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - DELETE
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
           policy: redis
           redis:
             host: redis

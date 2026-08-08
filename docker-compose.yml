@@ -155,7 +155,6 @@ services:
     environment:
       HTTP_PORT: 8080
       AUTH_SERVICE_ADDR: auth-service:50051
-      DYNASTY_SERVICE_ADDR: dynasty-service:50055
       TRAINING_SERVICE_ADDR: training-service:50057
       SUPPORT_SERVICE_ADDR: support-service:50056
       STORAGE_SERVICE_ADDR: storage-service:8059
@@ -338,17 +337,19 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Dynasty Service - Family & Dynasty Management
+  # Dynasty Service - Family & Dynasty Management (gRPC internal + HTTP for Kong /api/dynasty)
   dynasty-service:
     build:
       context: .
       dockerfile: ./services/dynasty-service/Dockerfile
     container_name: metarang-dynasty-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; Kong reaches HTTP on metarang-network
     env_file:
       - ./services/dynasty-service/config.env
     environment:
       GRPC_PORT: 50055
+      HTTP_PORT: 8068
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -359,6 +360,12 @@ services:
       AUTH_SERVICE_ADDR: auth-service:50051
       FEATURES_SERVICE_ADDR: features-service:50053
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8068/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
     depends_on:
       <<: *grpc-certs-depends
       mysql:

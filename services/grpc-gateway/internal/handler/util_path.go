@@ -40,3 +40,17 @@ func extractIDFromPath(path, prefix string) string {
 	}
 	return id
 }
+
+func splitJalaliDateTime(value string) (string, string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", ""
+	}
+
+	parts := strings.Fields(value)
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+
+	return parts[0], parts[1]
+}

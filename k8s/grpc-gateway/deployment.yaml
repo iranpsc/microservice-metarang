@@ -34,8 +34,6 @@ spec:
           value: "8080"
         - name: AUTH_SERVICE_ADDR
           value: "auth-service:50051"
-        - name: DYNASTY_SERVICE_ADDR
-          value: "dynasty-service:50055"
         - name: LEVELS_SERVICE_ADDR
           value: "levels-service:50054"
         - name: TRAINING_SERVICE_ADDR

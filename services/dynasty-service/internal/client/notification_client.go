@@ -30,6 +30,14 @@ func NewNotificationClient(address string) (*NotificationClient, error) {
 	}, nil
 }
 
+// NewNotificationClientFromGRPC builds a NotificationClient from an existing gRPC stub (used in tests).
+func NewNotificationClientFromGRPC(notificationClient pb.NotificationServiceClient, conn *grpc.ClientConn) *NotificationClient {
+	return &NotificationClient{
+		notificationClient: notificationClient,
+		conn:               conn,
+	}
+}
+
 // Close closes the gRPC connection
 func (c *NotificationClient) Close() error {
 	if c.conn != nil {

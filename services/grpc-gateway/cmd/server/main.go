@@ -61,19 +61,7 @@ func main() {
 	log.Printf("✅ Created auth service client for %s (connection will be established on first RPC call)", cfg.AuthServiceAddr)
 
 	// Create connections to other services (with fallback if not configured)
-	var dynastyConn, trainingConn, supportConn *grpc.ClientConn
-
-	if cfg.DynastyServiceAddr != "" {
-		dynastyConn, err = grpcutil.NewClient(
-			cfg.DynastyServiceAddr,
-		)
-		if err != nil {
-			log.Printf("⚠️  Failed to connect to dynasty service: %v", err)
-		} else {
-			defer func() { _ = dynastyConn.Close() }()
-			log.Printf("✅ Connected to dynasty service at %s", cfg.DynastyServiceAddr)
-		}
-	}
+	var trainingConn, supportConn *grpc.ClientConn
 
 	if cfg.TrainingServiceAddr != "" {
 		trainingConn, err = grpcutil.NewClient(
@@ -110,11 +98,6 @@ func main() {
 	authMiddleware := middleware.AuthMiddleware(authClient)
 	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(authClient)
 
-	var dynastyHandler *handler.DynastyHandler
-	if dynastyConn != nil {
-		dynastyHandler = handler.NewDynastyHandler(dynastyConn, authConn)
-	}
-
 	var trainingHandler *handler.TrainingHandler
 	if trainingConn != nil {
 		trainingHandler = handler.NewTrainingHandler(trainingConn, authConn)
@@ -147,136 +130,7 @@ func main() {
 	})
 
 	// Auth-domain routes are served directly by auth-service HTTP (see services/auth-service).
-
-	// Dynasty routes
-	if dynastyHandler != nil {
-		// GET /api/dynasty - Get user's dynasty or available features/intro prizes
-		mux.Handle("/api/dynasty", authMiddleware(http.HandlerFunc(dynastyHandler.GetDynasty)))
-
-		// POST /api/dynasty/create/{feature} - Create dynasty with feature
-		mux.Handle("/api/dynasty/create/", authMiddleware(http.HandlerFunc(dynastyHandler.CreateDynasty)))
-
-		// POST /api/dynasty/{dynasty}/update/{feature} - Update dynasty feature
-		mux.Handle("/api/dynasty/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.Path
-			// Handle /api/dynasty/{dynasty}/update/{feature}
-			if strings.Contains(path, "/update/") {
-				if r.Method == http.MethodPost {
-					dynastyHandler.UpdateDynastyFeature(w, r)
-				} else {
-					http.NotFound(w, r)
-				}
-				return
-			}
-			// Handle /api/dynasty/{dynasty}/family/{family}
-			if strings.Contains(path, "/family/") {
-				if r.Method == http.MethodGet {
-					dynastyHandler.GetFamily(w, r)
-				} else {
-					http.NotFound(w, r)
-				}
-				return
-			}
-			http.NotFound(w, r)
-		})))
-
-		// GET /api/dynasty/requests/sent - List sent join requests
-		mux.Handle("/api/dynasty/requests/sent", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				dynastyHandler.GetSentRequests(w, r)
-			} else {
-				http.NotFound(w, r)
-			}
-		})))
-		// GET /api/dynasty/requests/sent/{joinRequest} - View sent request
-		// DELETE /api/dynasty/requests/sent/{joinRequest} - Delete sent request
-		mux.Handle("/api/dynasty/requests/sent/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				dynastyHandler.GetSentRequest(w, r)
-			case http.MethodDelete:
-				dynastyHandler.DeleteJoinRequest(w, r)
-			default:
-				http.NotFound(w, r)
-			}
-		})))
-
-		// GET /api/dynasty/requests/recieved - List received join requests
-		mux.Handle("/api/dynasty/requests/recieved", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				dynastyHandler.GetReceivedRequests(w, r)
-			} else {
-				http.NotFound(w, r)
-			}
-		})))
-		// GET /api/dynasty/requests/recieved/{joinRequest} - View received request
-		// POST /api/dynasty/requests/recieved/{joinRequest} - Accept request
-		// DELETE /api/dynasty/requests/recieved/{joinRequest} - Reject request
-		mux.Handle("/api/dynasty/requests/recieved/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				dynastyHandler.GetReceivedRequest(w, r)
-			case http.MethodPost:
-				dynastyHandler.AcceptJoinRequest(w, r)
-			case http.MethodDelete:
-				dynastyHandler.RejectJoinRequest(w, r)
-			default:
-				http.NotFound(w, r)
-			}
-		})))
-
-		// POST /api/dynasty/add/member/get/permissions - Get default permissions
-		mux.Handle("/api/dynasty/add/member/get/permissions", authMiddleware(http.HandlerFunc(dynastyHandler.GetDefaultPermissions)))
-
-		// POST /api/dynasty/add/member - Send join request
-		mux.Handle("/api/dynasty/add/member", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPost {
-				dynastyHandler.SendJoinRequest(w, r)
-			} else {
-				http.NotFound(w, r)
-			}
-		})))
-
-		// POST /api/dynasty/search - Search users
-		mux.Handle("/api/dynasty/search", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPost {
-				dynastyHandler.SearchUsers(w, r)
-			} else {
-				http.NotFound(w, r)
-			}
-		})))
-
-		// GET /api/dynasty/prizes - List prizes
-		// GET /api/dynasty/prizes/{recievedPrize} - View prize
-		// POST /api/dynasty/prizes/{recievedPrize} - Claim prize
-		mux.Handle("/api/dynasty/prizes", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				dynastyHandler.GetPrizes(w, r)
-			} else {
-				http.NotFound(w, r)
-			}
-		})))
-		mux.Handle("/api/dynasty/prizes/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				// View prize handler would go here
-				http.NotFound(w, r)
-			case http.MethodPost:
-				dynastyHandler.ClaimPrize(w, r)
-			default:
-				http.NotFound(w, r)
-			}
-		})))
-
-		// POST /api/dynasty/children/{user} - Update child permissions
-		mux.Handle("/api/dynasty/children/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPost {
-				dynastyHandler.UpdateChildPermissions(w, r)
-			} else {
-				http.NotFound(w, r)
-			}
-		})))
-	}
+	// Dynasty routes are served directly by dynasty-service HTTP (see services/dynasty-service).
 
 	// Training routes
 	if trainingHandler != nil {

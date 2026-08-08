@@ -33,6 +33,15 @@ func NewAuthClient(address string) (*AuthClient, error) {
 	}, nil
 }
 
+// NewAuthClientFromGRPC builds an AuthClient from existing gRPC stubs (used in tests).
+func NewAuthClientFromGRPC(userClient pb.UserServiceClient, kycClient pb.KYCServiceClient, conn *grpc.ClientConn) *AuthClient {
+	return &AuthClient{
+		userClient: userClient,
+		kycClient:  kycClient,
+		conn:       conn,
+	}
+}
+
 // Close closes the gRPC connection
 func (c *AuthClient) Close() error {
 	if c.conn != nil {

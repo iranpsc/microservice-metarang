@@ -17,9 +17,11 @@ import (
 
 	"metarang/dynasty-service/internal/client"
 	"metarang/dynasty-service/internal/handler"
+	"metarang/dynasty-service/internal/middleware"
 	"metarang/dynasty-service/internal/repository"
 	"metarang/dynasty-service/internal/service"
 
+	authpb "metarang/shared/pb/auth"
 	dynastypb "metarang/shared/pb/dynasty"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
@@ -150,6 +152,18 @@ func main() {
 	dynastypb.RegisterFamilyServiceServer(grpcServer, familyHandler)
 	dynastypb.RegisterDynastyPrizeServiceServer(grpcServer, prizeHandler)
 
+	// Auth client for HTTP middleware (ValidateToken)
+	var authClient authpb.AuthServiceClient
+	authAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, err := grpcutil.NewClient(authAddr)
+	if err != nil {
+		log.Printf("Warning: failed to connect to auth service at %s: %v", authAddr, err)
+	} else {
+		defer func() { _ = authConn.Close() }()
+		authClient = authpb.NewAuthServiceClient(authConn)
+		log.Printf("Created auth service client for %s", authAddr)
+	}
+
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50055")
 	listener, err := net.Listen("tcp", ":"+port)
@@ -157,12 +171,22 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Dynasty service listening on port %s", port)
+	log.Printf("gRPC server listening on port %s", port)
 
-	// Graceful shutdown
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPDynastyHandler(dynastyHandler, joinRequestHandler, familyHandler, prizeHandler)
+	httpPort := getEnv("HTTP_PORT", "8068")
+	authMW := middleware.AuthMiddleware(authClient)
+
+	log.Printf("HTTP server listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

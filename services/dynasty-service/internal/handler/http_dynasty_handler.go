@@ -1,53 +1,221 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"google.golang.org/grpc"
-
-	"metarang/grpc-gateway/internal/middleware"
-	pb "metarang/shared/pb/auth"
+	"metarang/dynasty-service/internal/middleware"
 	commonpb "metarang/shared/pb/common"
 	dynastypb "metarang/shared/pb/dynasty"
+	"metarang/shared/pkg/sentry"
 )
 
-type DynastyHandler struct {
-	dynastyClient     dynastypb.DynastyServiceClient
-	joinRequestClient dynastypb.JoinRequestServiceClient
-	familyClient      dynastypb.FamilyServiceClient
-	prizeClient       dynastypb.DynastyPrizeServiceClient
-	authClient        pb.AuthServiceClient
+type dynastyAPI interface {
+	GetUserDynasty(context.Context, *dynastypb.GetUserDynastyRequest) (*dynastypb.DynastyResponse, error)
+	CreateDynasty(context.Context, *dynastypb.CreateDynastyRequest) (*dynastypb.DynastyResponse, error)
+	UpdateDynastyFeature(context.Context, *dynastypb.UpdateDynastyFeatureRequest) (*dynastypb.DynastyResponse, error)
 }
 
-func NewDynastyHandler(dynastyConn, authConn *grpc.ClientConn) *DynastyHandler {
-	return &DynastyHandler{
-		dynastyClient:     dynastypb.NewDynastyServiceClient(dynastyConn),
-		joinRequestClient: dynastypb.NewJoinRequestServiceClient(dynastyConn),
-		familyClient:      dynastypb.NewFamilyServiceClient(dynastyConn),
-		prizeClient:       dynastypb.NewDynastyPrizeServiceClient(dynastyConn),
-		authClient:        pb.NewAuthServiceClient(authConn),
+type joinRequestAPI interface {
+	SendJoinRequest(context.Context, *dynastypb.SendJoinRequestRequest) (*dynastypb.JoinRequestResponse, error)
+	GetSentRequests(context.Context, *dynastypb.GetSentRequestsRequest) (*dynastypb.JoinRequestsResponse, error)
+	GetReceivedRequests(context.Context, *dynastypb.GetReceivedRequestsRequest) (*dynastypb.JoinRequestsResponse, error)
+	GetJoinRequest(context.Context, *dynastypb.GetJoinRequestRequest) (*dynastypb.JoinRequestResponse, error)
+	AcceptJoinRequest(context.Context, *dynastypb.AcceptJoinRequestRequest) (*commonpb.Empty, error)
+	RejectJoinRequest(context.Context, *dynastypb.RejectJoinRequestRequest) (*commonpb.Empty, error)
+	DeleteJoinRequest(context.Context, *dynastypb.DeleteJoinRequestRequest) (*commonpb.Empty, error)
+	GetDefaultPermissions(context.Context, *dynastypb.GetDefaultPermissionsRequest) (*dynastypb.DefaultPermissionsResponse, error)
+	SearchUsers(context.Context, *dynastypb.SearchUsersRequest) (*dynastypb.SearchUsersResponse, error)
+}
+
+type familyAPI interface {
+	GetFamily(context.Context, *dynastypb.GetFamilyRequest) (*dynastypb.FamilyResponse, error)
+	SetChildPermissions(context.Context, *dynastypb.SetChildPermissionsRequest) (*commonpb.Empty, error)
+}
+
+type prizeAPI interface {
+	GetPrizes(context.Context, *dynastypb.GetPrizesRequest) (*dynastypb.PrizesResponse, error)
+	ClaimPrize(context.Context, *dynastypb.ClaimPrizeRequest) (*commonpb.Empty, error)
+}
+
+// HTTPDynastyHandler serves Kong-facing REST routes for dynasty-service.
+type HTTPDynastyHandler struct {
+	dynasty     dynastyAPI
+	joinRequest joinRequestAPI
+	family      familyAPI
+	prize       prizeAPI
+}
+
+// NewHTTPDynastyHandler wraps local gRPC handlers for HTTP use.
+func NewHTTPDynastyHandler(
+	dynasty dynastyAPI,
+	joinRequest joinRequestAPI,
+	family familyAPI,
+	prize prizeAPI,
+) *HTTPDynastyHandler {
+	return &HTTPDynastyHandler{
+		dynasty:     dynasty,
+		joinRequest: joinRequest,
+		family:      family,
+		prize:       prize,
 	}
 }
 
+// RegisterHTTPRoutes registers dynasty REST routes and /health.
+func (h *HTTPDynastyHandler) RegisterHTTPRoutes(
+	mux *http.ServeMux,
+	authMiddleware func(http.Handler) http.Handler,
+) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	mux.Handle("/api/dynasty", authMiddleware(http.HandlerFunc(h.GetDynasty)))
+	mux.Handle("/api/dynasty/create/", authMiddleware(http.HandlerFunc(h.CreateDynasty)))
+
+	mux.Handle("/api/dynasty/requests/sent", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			h.GetSentRequests(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	mux.Handle("/api/dynasty/requests/sent/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.GetSentRequest(w, r)
+		case http.MethodDelete:
+			h.DeleteJoinRequest(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})))
+
+	mux.Handle("/api/dynasty/requests/recieved", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			h.GetReceivedRequests(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	mux.Handle("/api/dynasty/requests/recieved/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.GetReceivedRequest(w, r)
+		case http.MethodPost:
+			h.AcceptJoinRequest(w, r)
+		case http.MethodDelete:
+			h.RejectJoinRequest(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})))
+
+	mux.Handle("/api/dynasty/add/member/get/permissions", authMiddleware(http.HandlerFunc(h.GetDefaultPermissions)))
+	mux.Handle("/api/dynasty/add/member", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			h.SendJoinRequest(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+
+	mux.Handle("/api/dynasty/search", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			h.SearchUsers(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+
+	mux.Handle("/api/dynasty/prizes", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			h.GetPrizes(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	mux.Handle("/api/dynasty/prizes/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			http.NotFound(w, r)
+		case http.MethodPost:
+			h.ClaimPrize(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})))
+
+	mux.Handle("/api/dynasty/children/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			h.UpdateChildPermissions(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+
+	// Catch-all for /api/dynasty/{id}/update/{feature} and /api/dynasty/{id}/family/{family}.
+	mux.Handle("/api/dynasty/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if strings.Contains(path, "/update/") {
+			if r.Method == http.MethodPost {
+				h.UpdateDynastyFeature(w, r)
+				return
+			}
+			http.NotFound(w, r)
+			return
+		}
+		if strings.Contains(path, "/family/") {
+			if r.Method == http.MethodGet {
+				h.GetFamily(w, r)
+				return
+			}
+			http.NotFound(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})))
+}
+
+// StartHTTPServer starts the public HTTP server (behind Kong).
+func StartHTTPServer(
+	httpHandler *HTTPDynastyHandler,
+	port string,
+	authMiddleware func(http.Handler) http.Handler,
+) error {
+	mux := http.NewServeMux()
+	httpHandler.RegisterHTTPRoutes(mux, authMiddleware)
+
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: sentry.HTTPMiddleware(mux),
+	}
+	return server.ListenAndServe()
+}
+
 // GetDynasty handles GET /api/dynasty
-func (h *DynastyHandler) GetDynasty(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) GetDynasty(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	grpcReq := &dynastypb.GetUserDynastyRequest{
+	resp, err := h.dynasty.GetUserDynasty(r.Context(), &dynastypb.GetUserDynastyRequest{
 		UserId: userCtx.UserID,
-	}
-
-	resp, err := h.dynastyClient.GetUserDynasty(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -55,15 +223,18 @@ func (h *DynastyHandler) GetDynasty(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateDynasty handles POST /api/dynasty/create/{feature}
-func (h *DynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Extract feature ID from path: /api/dynasty/create/{feature}
 	featureIDStr := extractIDFromPath(r.URL.Path, "/api/dynasty/create/")
 	if featureIDStr == "" {
 		writeError(w, http.StatusBadRequest, "feature_id is required")
@@ -76,14 +247,12 @@ func (h *DynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grpcReq := &dynastypb.CreateDynastyRequest{
+	resp, err := h.dynasty.CreateDynasty(r.Context(), &dynastypb.CreateDynastyRequest{
 		UserId:    userCtx.UserID,
 		FeatureId: featureID,
-	}
-
-	resp, err := h.dynastyClient.CreateDynasty(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -91,15 +260,13 @@ func (h *DynastyHandler) CreateDynasty(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateDynastyFeature handles POST /api/dynasty/{dynasty}/update/{feature}
-func (h *DynastyHandler) UpdateDynastyFeature(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) UpdateDynastyFeature(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	// Extract dynasty and feature IDs from path: /api/dynasty/{dynasty}/update/{feature}
 	path := strings.TrimPrefix(r.URL.Path, "/api/dynasty/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 || parts[1] != "update" {
@@ -119,15 +286,13 @@ func (h *DynastyHandler) UpdateDynastyFeature(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	grpcReq := &dynastypb.UpdateDynastyFeatureRequest{
+	resp, err := h.dynasty.UpdateDynastyFeature(r.Context(), &dynastypb.UpdateDynastyFeatureRequest{
 		DynastyId: dynastyID,
 		FeatureId: featureID,
 		UserId:    userCtx.UserID,
-	}
-
-	resp, err := h.dynastyClient.UpdateDynastyFeature(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -135,21 +300,12 @@ func (h *DynastyHandler) UpdateDynastyFeature(w http.ResponseWriter, r *http.Req
 }
 
 // GetFamily handles GET /api/dynasty/{dynasty}/family/{family}
-func (h *DynastyHandler) GetFamily(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+func (h *HTTPDynastyHandler) GetFamily(w http.ResponseWriter, r *http.Request) {
+	if _, err := middleware.GetUserFromRequest(r); err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	_, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
-		return
-	}
-
-	// Extract dynasty and family IDs from path
 	path := strings.TrimPrefix(r.URL.Path, "/api/dynasty/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 || parts[1] != "family" {
@@ -169,23 +325,20 @@ func (h *DynastyHandler) GetFamily(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grpcReq := &dynastypb.GetFamilyRequest{
+	resp, err := h.family.GetFamily(r.Context(), &dynastypb.GetFamilyRequest{
 		DynastyId: dynastyID,
 		FamilyId:  familyID,
-	}
-
-	resp, err := h.familyClient.GetFamily(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildFamilyMembersHTTPResponse(resp))
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": buildFamilyMembersHTTPResponse(resp)})
 }
 
 // GetSentRequests handles GET /api/dynasty/requests/sent
-func (h *DynastyHandler) GetSentRequests(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) GetSentRequests(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -199,26 +352,23 @@ func (h *DynastyHandler) GetSentRequests(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	grpcReq := &dynastypb.GetSentRequestsRequest{
+	resp, err := h.joinRequest.GetSentRequests(r.Context(), &dynastypb.GetSentRequestsRequest{
 		UserId: userCtx.UserID,
 		Pagination: &commonpb.PaginationRequest{
 			Page:    page,
 			PerPage: 10,
 		},
-	}
-
-	resp, err := h.joinRequestClient.GetSentRequests(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildSentJoinRequestsHTTPResponse(resp))
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": buildSentJoinRequestsHTTPResponse(resp)})
 }
 
 // GetReceivedRequests handles GET /api/dynasty/requests/recieved
-func (h *DynastyHandler) GetReceivedRequests(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) GetReceivedRequests(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -232,26 +382,23 @@ func (h *DynastyHandler) GetReceivedRequests(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	grpcReq := &dynastypb.GetReceivedRequestsRequest{
+	resp, err := h.joinRequest.GetReceivedRequests(r.Context(), &dynastypb.GetReceivedRequestsRequest{
 		UserId: userCtx.UserID,
 		Pagination: &commonpb.PaginationRequest{
 			Page:    page,
 			PerPage: 10,
 		},
-	}
-
-	resp, err := h.joinRequestClient.GetReceivedRequests(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildReceivedJoinRequestsHTTPResponse(resp))
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": buildReceivedJoinRequestsHTTPResponse(resp)})
 }
 
 // SendJoinRequest handles POST /api/dynasty/add/member
-func (h *DynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -290,26 +437,23 @@ func (h *DynastyHandler) SendJoinRequest(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	grpcReq := &dynastypb.SendJoinRequestRequest{
+	resp, err := h.joinRequest.SendJoinRequest(r.Context(), &dynastypb.SendJoinRequestRequest{
 		FromUserId:   userCtx.UserID,
 		ToUserId:     req.User,
 		Relationship: req.Relationship,
 		Message:      req.Message,
 		Permissions:  permissions,
-	}
-
-	resp, err := h.joinRequestClient.SendJoinRequest(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, buildSentJoinRequestHTTP(resp))
+	writeJSON(w, http.StatusCreated, map[string]interface{}{"data": buildSentJoinRequestHTTP(resp)})
 }
 
 // AcceptJoinRequest handles POST /api/dynasty/requests/recieved/{joinRequest}
-func (h *DynastyHandler) AcceptJoinRequest(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) AcceptJoinRequest(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -328,14 +472,12 @@ func (h *DynastyHandler) AcceptJoinRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	grpcReq := &dynastypb.AcceptJoinRequestRequest{
+	_, err = h.joinRequest.AcceptJoinRequest(r.Context(), &dynastypb.AcceptJoinRequestRequest{
 		RequestId: requestID,
 		UserId:    userCtx.UserID,
-	}
-
-	_, err = h.joinRequestClient.AcceptJoinRequest(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -343,8 +485,7 @@ func (h *DynastyHandler) AcceptJoinRequest(w http.ResponseWriter, r *http.Reques
 }
 
 // RejectJoinRequest handles DELETE /api/dynasty/requests/recieved/{joinRequest}
-func (h *DynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -363,14 +504,12 @@ func (h *DynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	grpcReq := &dynastypb.RejectJoinRequestRequest{
+	_, err = h.joinRequest.RejectJoinRequest(r.Context(), &dynastypb.RejectJoinRequestRequest{
 		RequestId: requestID,
 		UserId:    userCtx.UserID,
-	}
-
-	_, err = h.joinRequestClient.RejectJoinRequest(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -378,8 +517,7 @@ func (h *DynastyHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Reques
 }
 
 // GetSentRequest handles GET /api/dynasty/requests/sent/{joinRequest}
-func (h *DynastyHandler) GetSentRequest(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) GetSentRequest(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -398,23 +536,20 @@ func (h *DynastyHandler) GetSentRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	grpcReq := &dynastypb.GetJoinRequestRequest{
+	resp, err := h.joinRequest.GetJoinRequest(r.Context(), &dynastypb.GetJoinRequestRequest{
 		RequestId: requestID,
 		UserId:    userCtx.UserID,
-	}
-
-	resp, err := h.joinRequestClient.GetJoinRequest(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildSentJoinRequestHTTP(resp))
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": buildSentJoinRequestHTTP(resp)})
 }
 
 // GetReceivedRequest handles GET /api/dynasty/requests/recieved/{joinRequest}
-func (h *DynastyHandler) GetReceivedRequest(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) GetReceivedRequest(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -433,23 +568,20 @@ func (h *DynastyHandler) GetReceivedRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	grpcReq := &dynastypb.GetJoinRequestRequest{
+	resp, err := h.joinRequest.GetJoinRequest(r.Context(), &dynastypb.GetJoinRequestRequest{
 		RequestId: requestID,
 		UserId:    userCtx.UserID,
-	}
-
-	resp, err := h.joinRequestClient.GetJoinRequest(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildReceivedJoinRequestHTTP(resp))
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": buildReceivedJoinRequestHTTP(resp)})
 }
 
 // DeleteJoinRequest handles DELETE /api/dynasty/requests/sent/{joinRequest}
-func (h *DynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -468,14 +600,12 @@ func (h *DynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	grpcReq := &dynastypb.DeleteJoinRequestRequest{
+	_, err = h.joinRequest.DeleteJoinRequest(r.Context(), &dynastypb.DeleteJoinRequestRequest{
 		RequestId: requestID,
 		UserId:    userCtx.UserID,
-	}
-
-	_, err = h.joinRequestClient.DeleteJoinRequest(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -483,8 +613,7 @@ func (h *DynastyHandler) DeleteJoinRequest(w http.ResponseWriter, r *http.Reques
 }
 
 // GetPrizes handles GET /api/dynasty/prizes
-func (h *DynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -498,17 +627,15 @@ func (h *DynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	grpcReq := &dynastypb.GetPrizesRequest{
+	resp, err := h.prize.GetPrizes(r.Context(), &dynastypb.GetPrizesRequest{
 		UserId: userCtx.UserID,
 		Pagination: &commonpb.PaginationRequest{
 			Page:    page,
 			PerPage: 10,
 		},
-	}
-
-	resp, err := h.prizeClient.GetPrizes(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -516,8 +643,7 @@ func (h *DynastyHandler) GetPrizes(w http.ResponseWriter, r *http.Request) {
 }
 
 // ClaimPrize handles POST /api/dynasty/prizes/{recievedPrize}
-func (h *DynastyHandler) ClaimPrize(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) ClaimPrize(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -536,14 +662,12 @@ func (h *DynastyHandler) ClaimPrize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grpcReq := &dynastypb.ClaimPrizeRequest{
+	_, err = h.prize.ClaimPrize(r.Context(), &dynastypb.ClaimPrizeRequest{
 		PrizeId: prizeID,
 		UserId:  userCtx.UserID,
-	}
-
-	_, err = h.prizeClient.ClaimPrize(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -551,8 +675,7 @@ func (h *DynastyHandler) ClaimPrize(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateChildPermissions handles POST /api/dynasty/children/{user}
-func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by auth middleware)
+func (h *HTTPDynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.Request) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -585,7 +708,6 @@ func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Validate permission code
 	validPermissions := map[string]bool{
 		"BFR": true, "SF": true, "W": true, "JU": true, "DM": true,
 		"PIUP": true, "PITC": true, "PIC": true, "ESOO": true, "COTB": true,
@@ -595,7 +717,6 @@ func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Build permissions object with only the specified permission set
 	permissions := &dynastypb.ChildPermissions{}
 	switch req.Permission {
 	case "BFR":
@@ -620,34 +741,23 @@ func (h *DynastyHandler) UpdateChildPermissions(w http.ResponseWriter, r *http.R
 		permissions.COTB = req.Status
 	}
 
-	grpcReq := &dynastypb.SetChildPermissionsRequest{
+	_, err = h.family.SetChildPermissions(r.Context(), &dynastypb.SetChildPermissionsRequest{
 		ChildUserId:  childUserID,
 		ParentUserId: userCtx.UserID,
 		Permissions:  permissions,
-	}
-
-	_, err = h.familyClient.SetChildPermissions(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Return empty JSON array per API spec
 	writeJSON(w, http.StatusOK, map[string]interface{}{"data": []interface{}{}})
 }
 
 // SearchUsers handles POST /api/dynasty/search
-func (h *DynastyHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
+func (h *HTTPDynastyHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
+	if _, err := middleware.GetUserFromRequest(r); err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
-	}
-
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	_, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
@@ -669,15 +779,11 @@ func (h *DynastyHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Note: User search would need to be implemented via a gRPC call
-	// For now, return empty array - this needs to be added to proto or handled differently
-	grpcReq := &dynastypb.SearchUsersRequest{
+	resp, err := h.joinRequest.SearchUsers(r.Context(), &dynastypb.SearchUsersRequest{
 		SearchTerm: req.SearchTerm,
-	}
-
-	resp, err := h.joinRequestClient.SearchUsers(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -685,17 +791,14 @@ func (h *DynastyHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetDefaultPermissions handles POST /api/dynasty/add/member/get/permissions
-func (h *DynastyHandler) GetDefaultPermissions(w http.ResponseWriter, r *http.Request) {
-	token := extractTokenFromHeader(r)
-	if token == "" {
-		writeError(w, http.StatusUnauthorized, "authentication required")
+func (h *HTTPDynastyHandler) GetDefaultPermissions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	validateReq := &pb.ValidateTokenRequest{Token: token}
-	_, err := h.authClient.ValidateToken(r.Context(), validateReq)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "invalid or expired token")
+	if _, err := middleware.GetUserFromRequest(r); err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
@@ -717,13 +820,11 @@ func (h *DynastyHandler) GetDefaultPermissions(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	grpcReq := &dynastypb.GetDefaultPermissionsRequest{
+	resp, err := h.joinRequest.GetDefaultPermissions(r.Context(), &dynastypb.GetDefaultPermissionsRequest{
 		Relationship: req.Relationship,
-	}
-
-	resp, err := h.joinRequestClient.GetDefaultPermissions(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
