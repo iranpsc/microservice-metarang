@@ -39,7 +39,7 @@ Notes:
 Use **Actions → Services CI/CD → Run workflow**:
 
 - `services: all` — rebuild every service (replaces the old `all-services.yml`).
-- `services: auth-service,grpc-gateway` — rebuild specific services (comma-separated).
+- `services: auth-service,support-service` — rebuild specific services (comma-separated).
 
 ## Required secrets
 

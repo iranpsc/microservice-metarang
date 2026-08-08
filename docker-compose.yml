@@ -143,51 +143,6 @@ services:
         - action: rebuild
           path: ./shared
 
-  # gRPC Gateway Service - REST to gRPC Translation
-  grpc-gateway:
-    build:
-      context: .
-      dockerfile: ./services/grpc-gateway/Dockerfile
-    container_name: metarang-grpc-gateway
-    # No host port mapping — API is exposed via Kong on :8000
-    env_file:
-      - ./services/grpc-gateway/config.env
-    environment:
-      HTTP_PORT: 8080
-      AUTH_SERVICE_ADDR: auth-service:50051
-      SUPPORT_SERVICE_ADDR: support-service:50056
-      STORAGE_SERVICE_ADDR: storage-service:8059
-      <<: [*sentry-environment, *internal-auth, *grpc-tls]
-    depends_on:
-      <<: *grpc-certs-depends
-      auth-service:
-        condition: service_started
-      storage-service:
-        condition: service_started
-      levels-service:
-        condition: service_started
-    volumes:
-      - *grpc-certs-mount
-    networks:
-      - metarang-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    develop:
-      watch:
-        - action: rebuild
-          path: ./services/grpc-gateway
-          ignore:
-            - "**/_test.go"
-            - "**/tmp"
-            - "**/.git"
-        - action: rebuild
-          path: ./shared
-
   # Commercial Service - Wallets & Transactions
   commercial-service:
     build:
@@ -440,23 +395,27 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Support Service - Tickets & Reports
+  # Support Service - Tickets & Reports (gRPC internal + HTTP for Kong)
   support-service:
     build:
       context: .
       dockerfile: ./services/support-service/Dockerfile
     container_name: metarang-support-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/support-service/config.env
     environment:
       GRPC_PORT: 50056
+      HTTP_PORT: 8070
+      APP_URL: http://localhost:8000
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
       DB_USER: metarang_user
       DB_PASSWORD: metarang_password
+      AUTH_SERVICE_ADDR: auth-service:50051
       NOTIFICATION_SERVICE_ADDR: notifications-service:50058
+      STORAGE_SERVICE_ADDR: storage-service:8059
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
       <<: *grpc-certs-depends
@@ -464,16 +423,21 @@ services:
         condition: service_healthy
       notifications-service:
         condition: service_started
+      auth-service:
+        condition: service_started
+      storage-service:
+        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50056"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8070/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 10s
     develop:
       watch:
         - action: rebuild
@@ -815,7 +779,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # Kong API Gateway - HTTP to gRPC Translation
+  # Kong API Gateway
   kong:
     image: docker.arvancloud.ir/kong:3.9.3
     container_name: metarang-kong
@@ -835,8 +799,6 @@ services:
       - ./kong/kong.yml:/kong/kong.yml:ro
       - ./shared/proto:/kong/protos:ro
     depends_on:
-      grpc-gateway:
-        condition: service_healthy
       auth-service:
         condition: service_started
       commercial-service:
@@ -850,7 +812,7 @@ services:
       calendar-service:
         condition: service_started
       support-service:
-        condition: service_started
+        condition: service_healthy
       training-service:
         condition: service_started
       notifications-service:

@@ -27,9 +27,10 @@ func NewTicketHandler(ticketService service.TicketService) *TicketHandler {
 	}
 }
 
-func RegisterTicketHandler(grpcServer *grpc.Server, ticketService service.TicketService) {
+func RegisterTicketHandler(grpcServer *grpc.Server, ticketService service.TicketService) *TicketHandler {
 	handler := NewTicketHandler(ticketService)
 	pb.RegisterTicketServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *TicketHandler) CreateTicket(ctx context.Context, req *pb.CreateTicketRequest) (*pb.TicketResponse, error) {

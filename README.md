@@ -13,15 +13,14 @@ Microservices implementation for the Metarang platform using Golang/gRPC.
 | features-service | 50053 | Features (Lands), Marketplace |
 | levels-service | 50054 | User Progression, Activities |
 | dynasty-service | 50055 | Dynasty, Family Members |
-| support-service | 50056 | Tickets, Reports |
+| support-service | 50056 (gRPC), 8070 (HTTP) | Tickets, Reports, Notes |
 | training-service | 50057 | Video Tutorials, Comments |
 | notifications-service | 50058 | Multi-channel Notifications |
-| calendar-service | 50059 | Events Management |
+| calendar-service | 50059 (gRPC), 8060 (HTTP) | Events Management |
 | storage-service | 50060 (gRPC), 8059 (HTTP) | File Upload & Management |
 | financial-service | 50062 | Payment Processing |
-| grpc-gateway | 8080 | REST to gRPC Translation |
 | websocket-gateway | 3002 | Real-time Communication |
-| Kong API Gateway | 8000 | HTTP/REST → gRPC |
+| Kong API Gateway | 8000 | HTTP/REST edge gateway |
 | MySQL | 3306 | Shared Database |
 | Redis | 6379 | Caching, Pub/Sub |
 
@@ -61,7 +60,7 @@ cp services/auth-service/config.env.sample services/auth-service/config.env
 # services/notifications-service/config.env
 # services/financial-service/config.env
 # services/storage-service/config.env
-# services/grpc-gateway/config.env
+# services/support-service/config.env
 # services/websocket-gateway/config.env
 # etc.
 ```

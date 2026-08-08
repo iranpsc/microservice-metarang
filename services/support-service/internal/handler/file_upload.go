@@ -193,8 +193,6 @@ func parseNoteFormFields(r *http.Request) (title, content string, err error) {
 }
 
 // resolveNoteAttachmentURL handles note file uploads from multipart form.
-// Frontend sends attachments[] (and current_attachments[] on update).
-// DB stores a single attachment URL; the first uploaded or retained file is used.
 // Returns attachmentURL, clearAttachment, and error.
 func resolveNoteAttachmentURL(r *http.Request, storageAddr, appURL string) (string, bool, error) {
 	contentType := r.Header.Get("Content-Type")
@@ -208,7 +206,6 @@ func resolveNoteAttachmentURL(r *http.Request, storageAddr, appURL string) (stri
 		}
 	}
 
-	// Upload first new file from attachments[]
 	for _, headers := range r.MultipartForm.File["attachments[]"] {
 		if headers == nil {
 			continue
@@ -229,7 +226,6 @@ func resolveNoteAttachmentURL(r *http.Request, storageAddr, appURL string) (stri
 		return url, false, nil
 	}
 
-	// Explicit clear: frontend sends attachments[] with empty value
 	if values, ok := r.MultipartForm.Value["attachments[]"]; ok {
 		for _, v := range values {
 			if v == "" {
@@ -238,7 +234,6 @@ func resolveNoteAttachmentURL(r *http.Request, storageAddr, appURL string) (stri
 		}
 	}
 
-	// Keep existing attachment from current_attachments[] on update
 	if values, ok := r.MultipartForm.Value["current_attachments[]"]; ok {
 		for _, v := range values {
 			if strings.TrimSpace(v) != "" {
@@ -274,6 +269,7 @@ func uploadOpenedFile(storageAddr, appURL, uploadSubdir, filename, contentType s
 	if !allowedExts[ext] {
 		return "", fmt.Errorf("invalid attachment type")
 	}
+	_ = size
 
 	data, err := io.ReadAll(file)
 	if err != nil {
@@ -315,7 +311,7 @@ func parseReportFormFields(r *http.Request) (title, content, subject, url string
 	return "", "", "", "", nil
 }
 
-// uploadReportAttachments uploads report attachment files and returns relative DB paths (e.g. reports/file.png).
+// uploadReportAttachments uploads report attachment files and returns relative DB paths.
 func uploadReportAttachments(r *http.Request, storageAddr, appURL string) ([]string, error) {
 	contentType := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(contentType, "multipart/form-data") {

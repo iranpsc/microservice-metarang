@@ -1,4 +1,4 @@
-# Path and query parameters are auto-discovered from grpc-gateway handlers.
+# Path and query parameters are auto-discovered from service HTTP handlers when available.
 # Run `make openapi` to regenerate openapi/openapi.yaml from this file + handler discovery.
 
 routes:

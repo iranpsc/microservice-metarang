@@ -2,7 +2,7 @@ _format_version: "3.0"
 _transform: true
 
 services:
-  # Static uploaded files (profile photos, KYC, etc.) — not API calls
+  # Static uploaded files + public upload API — storage-service
   - name: storage-uploads
     url: http://storage-service:8059
     protocol: http
@@ -12,17 +12,6 @@ services:
     write_timeout: 60000
     read_timeout: 60000
     retries: 3
-
-  - name: grpc-gateway
-    url: http://grpc-gateway:8080
-    protocol: http
-    host: grpc-gateway
-    port: 8080
-    path: /
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 5
 
   # Calendar REST API — served directly by calendar-service (migrated off grpc-gateway)
   - name: calendar-service
@@ -134,6 +123,17 @@ services:
     read_timeout: 60000
     retries: 3
 
+  # Support REST API — served directly by support-service (migrated off grpc-gateway)
+  - name: support-service
+    url: http://support-service:8070
+    protocol: http
+    host: support-service
+    port: 8070
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
   - name: swagger-ui
     url: http://swagger-ui:8080
     protocol: http
@@ -145,7 +145,7 @@ services:
     retries: 3
 
 routes:
-  # Higher priority: serve files from storage-service, never grpc-gateway
+  # Static files from storage-service
   - name: uploads-static
     service: storage-uploads
     paths:
@@ -161,7 +161,30 @@ routes:
       - HEAD
       - OPTIONS
 
-  # Calendar API — higher priority than catch-all /api → grpc-gateway
+  # Public file upload — storage-service only
+  - name: storage-upload
+    service: storage-uploads
+    paths:
+      - /api/upload
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - POST
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 30
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+
+  # Calendar API
   - name: calendar-api
     service: calendar-service
     paths:
@@ -401,7 +424,7 @@ routes:
             host: redis
             port: 6379
 
-  # Auth API — higher priority than catch-all /api → grpc-gateway.
+  # Auth API
   # /api/user/transactions* and /api/citizen/*/wallet/history* are routed by commercial-api (priority 98).
   # /api/citizen/* features/buildings subpaths are routed by features-api (priority 98).
   - name: auth-api
@@ -448,26 +471,17 @@ routes:
             host: redis
             port: 6379
 
-  # CORS preflight for /api — no rate-limiting (429 without ACAO looks like a CORS failure).
-  - name: api-preflight
-    service: grpc-gateway
+  # Support API — tickets, reports, notes
+  - name: support-api
+    service: support-service
     paths:
-      - /api
+      - /api/tickets
+      - /api/reports
+      - /api/notes
+      - /api/support
     strip_path: false
     preserve_host: false
-    protocols:
-      - http
-      - https
-    methods:
-      - OPTIONS
-    regex_priority: 96
-
-  - name: api-routes
-    service: grpc-gateway
-    paths:
-      - /api
-    strip_path: false
-    preserve_host: false
+    regex_priority: 98
     protocols:
       - http
       - https
@@ -477,7 +491,7 @@ routes:
       - PUT
       - PATCH
       - DELETE
-    regex_priority: 95
+      - OPTIONS
     plugins:
       - name: rate-limiting
         config:

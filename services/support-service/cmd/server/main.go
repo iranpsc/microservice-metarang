@@ -15,16 +15,17 @@ import (
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 
+	authpb "metarang/shared/pb/auth"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
 	"metarang/shared/pkg/sentry"
 	"metarang/support-service/internal/handler"
+	"metarang/support-service/internal/middleware"
 	"metarang/support-service/internal/repository"
 	"metarang/support-service/internal/service"
 )
 
 func main() {
-	// Load environment variables from config.env
 	configPaths := []string{
 		"config.env",
 		"./config.env",
@@ -98,10 +99,21 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
-	handler.RegisterTicketHandler(grpcServer, ticketService)
-	handler.RegisterReportHandler(grpcServer, reportService)
+	ticketHandler := handler.RegisterTicketHandler(grpcServer, ticketService)
+	reportHandler := handler.RegisterReportHandler(grpcServer, reportService)
 	handler.RegisterUserEventHandler(grpcServer, userEventService)
-	handler.RegisterNoteHandler(grpcServer, noteService)
+	noteHandler := handler.RegisterNoteHandler(grpcServer, noteService)
+
+	var authClient authpb.AuthServiceClient
+	authAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, err := grpcutil.NewClient(authAddr)
+	if err != nil {
+		log.Printf("Warning: failed to connect to auth service at %s: %v", authAddr, err)
+	} else {
+		defer func() { _ = authConn.Close() }()
+		authClient = authpb.NewAuthServiceClient(authConn)
+		log.Printf("Created auth service client for %s", authAddr)
+	}
 
 	port := getEnv("GRPC_PORT", "50056")
 	listener, err := net.Listen("tcp", ":"+port)
@@ -109,11 +121,27 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Support service listening on port %s", port)
-
+	log.Printf("gRPC server listening on port %s", port)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPSupportHandler(
+		ticketHandler,
+		reportHandler,
+		noteHandler,
+		getEnv("STORAGE_SERVICE_ADDR", "storage-service:8059"),
+		getEnv("APP_URL", "http://localhost:8000"),
+	)
+	httpPort := getEnv("HTTP_PORT", "8070")
+	authMW := middleware.AuthMiddleware(authClient)
+
+	log.Printf("HTTP server listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

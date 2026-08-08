@@ -26,9 +26,10 @@ func NewReportHandler(reportService service.ReportService) *ReportHandler {
 	}
 }
 
-func RegisterReportHandler(grpcServer *grpc.Server, reportService service.ReportService) {
+func RegisterReportHandler(grpcServer *grpc.Server, reportService service.ReportService) *ReportHandler {
 	handler := NewReportHandler(reportService)
 	pb.RegisterReportServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *ReportHandler) CreateReport(ctx context.Context, req *pb.CreateReportRequest) (*pb.ReportResponse, error) {

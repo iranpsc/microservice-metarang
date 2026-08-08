@@ -90,7 +90,6 @@ metarang-microservices/
 │   ├── calendar-service/
 │   ├── storage-service/
 │   ├── financial-service/
-│   ├── grpc-gateway/
 │   └── websocket-gateway/
 ├── shared/
 │   ├── proto/                    # .proto definitions
@@ -130,13 +129,12 @@ commercial-service	50052	-
 features-service	50053	-
 levels-service	50054	-
 dynasty-service	50055	-
-support-service	50056	-
+support-service	50056	8070
 training-service	50057	-
 notifications-service	50058	-
-calendar-service	50059	-
+calendar-service	50059	8060
 storage-service	50060	8059
 financial-service	50062	-
-grpc-gateway	-	8080
 websocket-gateway	-	3002
 Kong Gateway	-	8000
 

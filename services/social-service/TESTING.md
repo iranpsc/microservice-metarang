@@ -3,7 +3,7 @@
 Tests live in `tests/social-service/` (same layout as `tests/calendar-service/`).
 
 HTTP pagination (10/page) for `GET /api/followers` and `GET /api/following` is covered by
-gateway tests under `tests/grpc-gateway/internal/handler/social_handler_test.go`.
+HTTP handler tests live under `services/social-service` / `tests/social-service`.
 
 Profile-limitation authorization on follow is enforced in social-service via an auth-service
 gRPC call (`GetProfileLimitations`) and covered by `tests/social-service` service tests.

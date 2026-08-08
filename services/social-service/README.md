@@ -42,6 +42,6 @@ docker compose build social-service
 cmd/server/main.go → repository → service → handler (gRPC)
 ```
 
-HTTP clients use **grpc-gateway** (`SOCIAL_SERVICE_ADDR`) which maps `/api/challenge/*` and `/api/follow*` to this service.
+HTTP clients use **Kong** which routes `/api/challenge/*` and `/api/follow*` to this service's HTTP port.
 
 See also [TESTING.md](TESTING.md).

@@ -18,7 +18,7 @@ A Go microservice that handles order creation, Sadad (Bank Melli) payment gatewa
 
 ## API Endpoints
 
-These endpoints are exposed via gRPC (and grpc-gateway where configured).
+These endpoints are exposed via gRPC and this service's native HTTP API (Kong).
 
 ### POST /api/order
 Creates an order and returns a Sadad payment URL.

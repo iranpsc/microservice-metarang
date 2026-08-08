@@ -1,97 +1,224 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	"metarang/grpc-gateway/internal/middleware"
-	pbAuth "metarang/shared/pb/auth"
+	"metarang/shared/pkg/sentry"
+	"metarang/support-service/internal/middleware"
+
 	pbCommon "metarang/shared/pb/common"
 	pbSupport "metarang/shared/pb/support"
 )
 
-type SupportHandler struct {
-	ticketClient       pbSupport.TicketServiceClient
-	reportClient       pbSupport.ReportServiceClient
-	userEventClient    pbSupport.UserEventReportServiceClient
-	noteClient         pbSupport.NoteServiceClient
-	authClient         pbAuth.AuthServiceClient
+type ticketAPI interface {
+	GetTickets(context.Context, *pbSupport.GetTicketsRequest) (*pbSupport.TicketsResponse, error)
+	CreateTicket(context.Context, *pbSupport.CreateTicketRequest) (*pbSupport.TicketResponse, error)
+	GetTicket(context.Context, *pbSupport.GetTicketRequest) (*pbSupport.TicketResponse, error)
+	UpdateTicket(context.Context, *pbSupport.UpdateTicketRequest) (*pbSupport.TicketResponse, error)
+	AddResponse(context.Context, *pbSupport.AddResponseRequest) (*pbSupport.TicketResponse, error)
+	CloseTicket(context.Context, *pbSupport.CloseTicketRequest) (*pbSupport.TicketResponse, error)
+}
+
+type reportAPI interface {
+	GetReports(context.Context, *pbSupport.GetReportsRequest) (*pbSupport.ReportsResponse, error)
+	CreateReport(context.Context, *pbSupport.CreateReportRequest) (*pbSupport.ReportResponse, error)
+	GetReport(context.Context, *pbSupport.GetReportRequest) (*pbSupport.ReportResponse, error)
+}
+
+type noteAPI interface {
+	GetNotes(context.Context, *pbSupport.GetNotesRequest) (*pbSupport.NotesResponse, error)
+	CreateNote(context.Context, *pbSupport.CreateNoteRequest) (*pbSupport.NoteResponse, error)
+	GetNote(context.Context, *pbSupport.GetNoteRequest) (*pbSupport.NoteResponse, error)
+	UpdateNote(context.Context, *pbSupport.UpdateNoteRequest) (*pbSupport.NoteResponse, error)
+	DeleteNote(context.Context, *pbSupport.DeleteNoteRequest) (*pbCommon.Empty, error)
+}
+
+// HTTPSupportHandler serves Kong-facing REST routes for support-service.
+type HTTPSupportHandler struct {
+	tickets            ticketAPI
+	reports            reportAPI
+	notes              noteAPI
 	storageServiceAddr string
 	appURL             string
 }
 
-func NewSupportHandler(supportConn, authConn *grpc.ClientConn, storageServiceAddr, appURL string) *SupportHandler {
-	return &SupportHandler{
-		ticketClient:       pbSupport.NewTicketServiceClient(supportConn),
-		reportClient:       pbSupport.NewReportServiceClient(supportConn),
-		userEventClient:    pbSupport.NewUserEventReportServiceClient(supportConn),
-		noteClient:         pbSupport.NewNoteServiceClient(supportConn),
-		authClient:         pbAuth.NewAuthServiceClient(authConn),
+// NewHTTPSupportHandler wraps gRPC support handlers for local HTTP use.
+func NewHTTPSupportHandler(tickets ticketAPI, reports reportAPI, notes noteAPI, storageServiceAddr, appURL string) *HTTPSupportHandler {
+	return &HTTPSupportHandler{
+		tickets:            tickets,
+		reports:            reports,
+		notes:              notes,
 		storageServiceAddr: storageServiceAddr,
 		appURL:             appURL,
 	}
 }
 
-// Helper function to get authenticated user ID from context (set by auth middleware)
-func (h *SupportHandler) getAuthUserID(r *http.Request) (uint64, error) {
+func (h *HTTPSupportHandler) getAuthUserID(r *http.Request) (uint64, error) {
 	userCtx, err := middleware.GetUserFromRequest(r)
 	if err != nil {
-		return 0, err
+		return 0, status.Error(codes.Unauthenticated, "Unauthenticated")
 	}
 	return userCtx.UserID, nil
 }
 
-// ============================================================================
-// Tickets API
-// ============================================================================
+// RegisterHTTPRoutes registers support REST routes and /health.
+func (h *HTTPSupportHandler) RegisterHTTPRoutes(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	ticketsCollection := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.ListTickets(w, r)
+		case http.MethodPost:
+			h.CreateTicket(w, r)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
+	}))
+	ticketsItem := authMiddleware(http.HandlerFunc(h.handleTicketPath))
+	reportsCollection := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.ListReports(w, r)
+		case http.MethodPost:
+			h.CreateReport(w, r)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
+	}))
+	reportsItem := authMiddleware(http.HandlerFunc(h.GetReport))
+	notesCollection := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.ListNotes(w, r)
+		case http.MethodPost:
+			h.CreateNote(w, r)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
+	}))
+	notesItem := authMiddleware(http.HandlerFunc(h.handleNotePath))
+
+	mux.Handle("/api/tickets", ticketsCollection)
+	mux.Handle("/api/tickets/", ticketsItem)
+	mux.Handle("/api/support/tickets", ticketsCollection)
+	mux.Handle("/api/support/tickets/", ticketsItem)
+
+	mux.Handle("/api/reports", reportsCollection)
+	mux.Handle("/api/reports/", reportsItem)
+	mux.Handle("/api/support/reports", reportsCollection)
+	mux.Handle("/api/support/reports/", reportsItem)
+
+	mux.Handle("/api/notes", notesCollection)
+	mux.Handle("/api/notes/", notesItem)
+}
+
+func (h *HTTPSupportHandler) handleTicketPath(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if strings.Contains(path, "/response/") {
+		h.AddTicketResponse(w, r)
+		return
+	}
+	if strings.Contains(path, "/close/") {
+		h.CloseTicket(w, r)
+		return
+	}
+	if r.Method == http.MethodPut || r.Method == http.MethodPatch {
+		h.UpdateTicket(w, r)
+		return
+	}
+	if r.Method == http.MethodGet {
+		h.GetTicket(w, r)
+		return
+	}
+	writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+}
+
+func (h *HTTPSupportHandler) handleNotePath(w http.ResponseWriter, r *http.Request) {
+	switch EffectiveHTTPMethod(r) {
+	case http.MethodDelete:
+		h.DeleteNote(w, r)
+	case http.MethodPut, http.MethodPatch:
+		h.UpdateNote(w, r)
+	case http.MethodGet:
+		h.GetNote(w, r)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+// StartHTTPServer starts the public HTTP server (behind Kong).
+func StartHTTPServer(httpHandler *HTTPSupportHandler, port string, authMiddleware func(http.Handler) http.Handler) error {
+	mux := http.NewServeMux()
+	httpHandler.RegisterHTTPRoutes(mux, authMiddleware)
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: sentry.HTTPMiddleware(mux),
+	}
+	return server.ListenAndServe()
+}
+
+func ticketIDFromPath(path string) string {
+	if strings.Contains(path, "/response/") {
+		return extractIDFromPath(path, "/api/tickets/response/", "/api/support/tickets/response/")
+	}
+	if strings.Contains(path, "/close/") {
+		return extractIDFromPath(path, "/api/tickets/close/", "/api/support/tickets/close/")
+	}
+	return extractIDFromPath(path, "/api/tickets/", "/api/support/tickets/")
+}
+
+func reportIDFromPath(path string) string {
+	return extractIDFromPath(path, "/api/reports/", "/api/support/reports/")
+}
+
+func noteIDFromPath(path string) string {
+	return extractIDFromPath(path, "/api/notes/", "/api/support/notes/")
+}
 
 // ListTickets handles GET /api/tickets
-// Query params: page, cursor, recieved (bool)
-func (h *SupportHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+func (h *HTTPSupportHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	// Parse pagination
 	page := int32(1)
 	if p := r.URL.Query().Get("page"); p != "" {
 		if parsed, err := strconv.ParseInt(p, 10, 32); err == nil {
 			page = int32(parsed)
 		}
 	}
-
 	perPage := int32(10)
 	if pp := r.URL.Query().Get("per_page"); pp != "" {
 		if parsed, err := strconv.ParseInt(pp, 10, 32); err == nil {
 			perPage = int32(parsed)
 		}
 	}
-
 	received := r.URL.Query().Get("recieved") == "true" || r.URL.Query().Get("recieved") == "1"
 
-	grpcReq := &pbSupport.GetTicketsRequest{
+	resp, err := h.tickets.GetTickets(r.Context(), &pbSupport.GetTicketsRequest{
 		UserId: userID,
 		Pagination: &pbCommon.PaginationRequest{
 			Page:    page,
 			PerPage: perPage,
 		},
 		Received: received,
-	}
-
-	resp, err := h.ticketClient.GetTickets(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -100,26 +227,18 @@ func (h *SupportHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		tickets = append(tickets, formatTicketResource(ticket, false))
 	}
 
-	response := map[string]interface{}{
-		"data": tickets,
-	}
+	response := map[string]interface{}{"data": tickets}
 	if len(tickets) == int(perPage) {
 		response["next_page_url"] = r.URL.Path + "?page=" + strconv.Itoa(int(page+1))
 	}
-
 	writeJSON(w, http.StatusOK, response)
 }
 
 // CreateTicket handles POST /api/tickets
-func (h *SupportHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+func (h *HTTPSupportHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -145,7 +264,7 @@ func (h *SupportHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 			Reciever   *uint64 `json:"reciever"`
 			Department string  `json:"department"`
 		}
-		if err := decodeRequestBody(r, &req); err != nil {
+		if err := decodeJSONBody(r, &req); err != nil {
 			if err == io.EOF {
 				writeError(w, http.StatusBadRequest, "request body is required")
 			} else {
@@ -171,7 +290,6 @@ func (h *SupportHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		Content:    content,
 		Attachment: attachment,
 	}
-
 	if receiverID != nil {
 		grpcReq.ReceiverId = *receiverID
 	}
@@ -179,73 +297,57 @@ func (h *SupportHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		grpcReq.Department = department
 	}
 
-	resp, err := h.ticketClient.CreateTicket(r.Context(), grpcReq)
+	resp, err := h.tickets.CreateTicket(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, formatTicketResponse(resp))
 }
 
-// GetTicket handles GET /api/tickets/{ticket}
-func (h *SupportHandler) GetTicket(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+// GetTicket handles GET /api/tickets/{id}
+func (h *HTTPSupportHandler) GetTicket(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	ticketIDStr := extractIDFromPath(r.URL.Path, "/api/tickets/")
+	ticketIDStr := ticketIDFromPath(r.URL.Path)
 	if ticketIDStr == "" {
 		writeError(w, http.StatusBadRequest, "ticket_id is required")
 		return
 	}
-
 	ticketID, err := strconv.ParseUint(ticketIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ticket_id")
 		return
 	}
 
-	grpcReq := &pbSupport.GetTicketRequest{
+	resp, err := h.tickets.GetTicket(r.Context(), &pbSupport.GetTicketRequest{
 		TicketId: ticketID,
 		UserId:   userID,
-	}
-
-	resp, err := h.ticketClient.GetTicket(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusOK, formatTicketResource(resp, true))
 }
 
-// UpdateTicket handles PUT/PATCH /api/tickets/{ticket}
-func (h *SupportHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+// UpdateTicket handles PUT/PATCH /api/tickets/{id}
+func (h *HTTPSupportHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	ticketIDStr := extractIDFromPath(r.URL.Path, "/api/tickets/")
+	ticketIDStr := ticketIDFromPath(r.URL.Path)
 	if ticketIDStr == "" {
 		writeError(w, http.StatusBadRequest, "ticket_id is required")
 		return
 	}
-
 	ticketID, err := strconv.ParseUint(ticketIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ticket_id")
@@ -274,7 +376,7 @@ func (h *SupportHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 			Content    string `json:"content"`
 			Attachment string `json:"attachment"`
 		}
-		if err := decodeRequestBody(r, &req); err != nil {
+		if err := decodeJSONBody(r, &req); err != nil {
 			if err == io.EOF {
 				writeError(w, http.StatusBadRequest, "request body is required")
 			} else {
@@ -287,25 +389,22 @@ func (h *SupportHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		attachment = req.Attachment
 	}
 
-	grpcReq := &pbSupport.UpdateTicketRequest{
+	resp, err := h.tickets.UpdateTicket(r.Context(), &pbSupport.UpdateTicketRequest{
 		TicketId:   ticketID,
 		UserId:     userID,
 		Title:      title,
 		Content:    content,
 		Attachment: attachment,
-	}
-
-	resp, err := h.ticketClient.UpdateTicket(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusOK, formatTicketResponse(resp))
 }
 
-// AddTicketResponse handles POST /api/tickets/response/{ticket}
-func (h *SupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Request) {
+// AddTicketResponse handles POST /api/tickets/response/{id}
+func (h *HTTPSupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -313,16 +412,15 @@ func (h *SupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Reques
 
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	ticketIDStr := extractIDFromPath(r.URL.Path, "/api/tickets/response/")
+	ticketIDStr := ticketIDFromPath(r.URL.Path)
 	if ticketIDStr == "" {
 		writeError(w, http.StatusBadRequest, "ticket_id is required")
 		return
 	}
-
 	ticketID, err := strconv.ParseUint(ticketIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ticket_id")
@@ -332,7 +430,6 @@ func (h *SupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Reques
 	responseText := ""
 	attachment := ""
 	contentType := r.Header.Get("Content-Type")
-
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			writeError(w, http.StatusBadRequest, "failed to parse multipart form")
@@ -349,7 +446,7 @@ func (h *SupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Reques
 			Response   string `json:"response"`
 			Attachment string `json:"attachment"`
 		}
-		if err := decodeRequestBody(r, &req); err != nil {
+		if err := decodeJSONBody(r, &req); err != nil {
 			if err == io.EOF {
 				writeError(w, http.StatusBadRequest, "request body is required")
 			} else {
@@ -366,20 +463,52 @@ func (h *SupportHandler) AddTicketResponse(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	grpcReq := &pbSupport.AddResponseRequest{
+	resp, err := h.tickets.AddResponse(r.Context(), &pbSupport.AddResponseRequest{
 		TicketId:   ticketID,
 		UserId:     userID,
 		Response:   responseText,
 		Attachment: attachment,
-	}
-
-	resp, err := h.ticketClient.AddResponse(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, formatTicketResponse(resp))
+}
+
+// CloseTicket handles GET /api/tickets/close/{id}
+func (h *HTTPSupportHandler) CloseTicket(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, formatTicketResponse(resp))
+	userID, err := h.getAuthUserID(r)
+	if err != nil {
+		writeHandlerError(w, err)
+		return
+	}
+
+	ticketIDStr := ticketIDFromPath(r.URL.Path)
+	if ticketIDStr == "" {
+		writeError(w, http.StatusBadRequest, "ticket_id is required")
+		return
+	}
+	ticketID, err := strconv.ParseUint(ticketIDStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid ticket_id")
+		return
+	}
+
+	resp, err := h.tickets.CloseTicket(r.Context(), &pbSupport.CloseTicketRequest{
+		TicketId: ticketID,
+		UserId:   userID,
+	})
+	if err != nil {
+		writeHandlerError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, formatTicketResource(resp, false))
 }
 
 func formatTicketResource(resp *pbSupport.TicketResponse, includeResponses bool) map[string]interface{} {
@@ -394,7 +523,6 @@ func formatTicketResource(resp *pbSupport.TicketResponse, includeResponses bool)
 		"date":       dateStr,
 		"time":       timeStr,
 	}
-
 	if resp.Sender != nil {
 		ticketMap["sender"] = map[string]interface{}{
 			"name":          resp.Sender.Name,
@@ -402,7 +530,6 @@ func formatTicketResource(resp *pbSupport.TicketResponse, includeResponses bool)
 			"profile-photo": resp.Sender.ProfilePhoto,
 		}
 	}
-
 	if resp.Receiver != nil {
 		ticketMap["reciever"] = map[string]interface{}{
 			"name":          resp.Receiver.Name,
@@ -410,15 +537,12 @@ func formatTicketResource(resp *pbSupport.TicketResponse, includeResponses bool)
 			"profile-photo": resp.Receiver.ProfilePhoto,
 		}
 	}
-
 	if resp.Department != "" {
 		ticketMap["department"] = resp.Department
 	}
-
 	if includeResponses {
 		ticketMap["responses"] = formatTicketResponseItems(resp.Responses)
 	}
-
 	return ticketMap
 }
 
@@ -444,59 +568,11 @@ func formatTicketResponseItems(items []*pbSupport.TicketResponseItem) []map[stri
 	return responses
 }
 
-// CloseTicket handles GET /api/tickets/close/{ticket}
-func (h *SupportHandler) CloseTicket(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	userID, err := h.getAuthUserID(r)
-	if err != nil {
-		writeGRPCError(w, err)
-		return
-	}
-
-	ticketIDStr := extractIDFromPath(r.URL.Path, "/api/tickets/close/")
-	if ticketIDStr == "" {
-		writeError(w, http.StatusBadRequest, "ticket_id is required")
-		return
-	}
-
-	ticketID, err := strconv.ParseUint(ticketIDStr, 10, 64)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid ticket_id")
-		return
-	}
-
-	grpcReq := &pbSupport.CloseTicketRequest{
-		TicketId: ticketID,
-		UserId:   userID,
-	}
-
-	resp, err := h.ticketClient.CloseTicket(r.Context(), grpcReq)
-	if err != nil {
-		writeGRPCError(w, err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, formatTicketResource(resp, false))
-}
-
-// ============================================================================
-// Reports API
-// ============================================================================
-
 // ListReports handles GET /api/reports
-func (h *SupportHandler) ListReports(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+func (h *HTTPSupportHandler) ListReports(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -506,7 +582,6 @@ func (h *SupportHandler) ListReports(w http.ResponseWriter, r *http.Request) {
 			page = int32(parsed)
 		}
 	}
-
 	perPage := int32(10)
 	if pp := r.URL.Query().Get("per_page"); pp != "" {
 		if parsed, err := strconv.ParseInt(pp, 10, 32); err == nil {
@@ -514,17 +589,15 @@ func (h *SupportHandler) ListReports(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	grpcReq := &pbSupport.GetReportsRequest{
+	resp, err := h.reports.GetReports(r.Context(), &pbSupport.GetReportsRequest{
 		UserId: userID,
 		Pagination: &pbCommon.PaginationRequest{
 			Page:    page,
 			PerPage: perPage,
 		},
-	}
-
-	resp, err := h.reportClient.GetReports(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -533,30 +606,20 @@ func (h *SupportHandler) ListReports(w http.ResponseWriter, r *http.Request) {
 		reports = append(reports, formatReportResponse(report, h.appURL))
 	}
 
-	response := map[string]interface{}{
-		"data": reports,
-	}
+	response := map[string]interface{}{"data": reports}
 	if len(reports) == int(perPage) {
 		nextURL := r.URL.Path + "?page=" + strconv.Itoa(int(page+1))
 		response["next_page_url"] = nextURL
-		response["links"] = map[string]interface{}{
-			"next": nextURL,
-		}
+		response["links"] = map[string]interface{}{"next": nextURL}
 	}
-
 	writeJSON(w, http.StatusOK, response)
 }
 
 // CreateReport handles POST /api/reports
-func (h *SupportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+func (h *HTTPSupportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -583,7 +646,7 @@ func (h *SupportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 			URL         string   `json:"url"`
 			Attachments []string `json:"attachments"`
 		}
-		if err := decodeRequestBody(r, &req); err != nil {
+		if err := decodeJSONBody(r, &req); err != nil {
 			if err == io.EOF {
 				writeError(w, http.StatusBadRequest, "request body is required")
 			} else {
@@ -603,26 +666,23 @@ func (h *SupportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grpcReq := &pbSupport.CreateReportRequest{
+	resp, err := h.reports.CreateReport(r.Context(), &pbSupport.CreateReportRequest{
 		UserId:         userID,
 		ReportableType: subject,
 		Reason:         title,
 		Description:    content,
 		Url:            url,
 		ImagePaths:     imagePaths,
-	}
-
-	resp, err := h.reportClient.CreateReport(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, formatReportResponse(resp, h.appURL))
 }
 
-// GetReport handles GET /api/reports/{report}
-func (h *SupportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
+// GetReport handles GET /api/reports/{id}
+func (h *HTTPSupportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -630,60 +690,66 @@ func (h *SupportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	reportIDStr := extractIDFromPath(r.URL.Path, "/api/reports/")
+	reportIDStr := reportIDFromPath(r.URL.Path)
 	if reportIDStr == "" {
 		writeError(w, http.StatusBadRequest, "report_id is required")
 		return
 	}
-
 	reportID, err := strconv.ParseUint(reportIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid report_id")
 		return
 	}
 
-	grpcReq := &pbSupport.GetReportRequest{
+	resp, err := h.reports.GetReport(r.Context(), &pbSupport.GetReportRequest{
 		ReportId: reportID,
 		UserId:   userID,
-	}
-
-	resp, err := h.reportClient.GetReport(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusOK, formatReportResponse(resp, h.appURL))
 }
 
-// ============================================================================
-// Notes API
-// ============================================================================
+func formatReportResponse(resp *pbSupport.ReportResponse, appURL string) map[string]interface{} {
+	reportMap := map[string]interface{}{
+		"id":       strconv.FormatUint(resp.Id, 10),
+		"title":    resp.Reason,
+		"subject":  resp.ReportableType,
+		"content":  resp.Description,
+		"datetime": resp.CreatedAt,
+	}
+	if resp.Url != "" {
+		reportMap["url"] = resp.Url
+	}
+	attachments := make([]string, 0, len(resp.ImagePaths))
+	base := strings.TrimRight(appURL, "/")
+	for _, path := range resp.ImagePaths {
+		path = strings.TrimPrefix(path, "/")
+		attachments = append(attachments, base+"/uploads/"+path)
+	}
+	if len(attachments) > 0 {
+		reportMap["attachments"] = attachments
+	}
+	return reportMap
+}
 
 // ListNotes handles GET /api/notes
-func (h *SupportHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+func (h *HTTPSupportHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	grpcReq := &pbSupport.GetNotesRequest{
-		UserId: userID,
-	}
-
-	resp, err := h.noteClient.GetNotes(r.Context(), grpcReq)
+	resp, err := h.notes.GetNotes(r.Context(), &pbSupport.GetNotesRequest{UserId: userID})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -691,20 +757,14 @@ func (h *SupportHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 	for _, note := range resp.Notes {
 		notes = append(notes, formatNoteResponse(note))
 	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{"data": notes})
 }
 
 // CreateNote handles POST /api/notes
-func (h *SupportHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+func (h *HTTPSupportHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
@@ -729,7 +789,7 @@ func (h *SupportHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 			Content    string `json:"content"`
 			Attachment string `json:"attachment"`
 		}
-		if err := decodeRequestBody(r, &req); err != nil {
+		if err := decodeJSONBody(r, &req); err != nil {
 			if err == io.EOF {
 				writeError(w, http.StatusBadRequest, "request body is required")
 			} else {
@@ -756,73 +816,57 @@ func (h *SupportHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		grpcReq.Attachments = []string{attachment}
 	}
 
-	resp, err := h.noteClient.CreateNote(r.Context(), grpcReq)
+	resp, err := h.notes.CreateNote(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, formatNoteResponse(resp))
 }
 
-// GetNote handles GET /api/notes/{note}
-func (h *SupportHandler) GetNote(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+// GetNote handles GET /api/notes/{id}
+func (h *HTTPSupportHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	noteIDStr := extractIDFromPath(r.URL.Path, "/api/notes/")
+	noteIDStr := noteIDFromPath(r.URL.Path)
 	if noteIDStr == "" {
 		writeError(w, http.StatusBadRequest, "note_id is required")
 		return
 	}
-
 	noteID, err := strconv.ParseUint(noteIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid note_id")
 		return
 	}
 
-	grpcReq := &pbSupport.GetNoteRequest{
+	resp, err := h.notes.GetNote(r.Context(), &pbSupport.GetNoteRequest{
 		NoteId: noteID,
 		UserId: userID,
-	}
-
-	resp, err := h.noteClient.GetNote(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusOK, formatNoteResponse(resp))
 }
 
-// UpdateNote handles PUT/PATCH /api/notes/{note} (also POST + _method=put|patch)
-func (h *SupportHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
-	if m := EffectiveHTTPMethod(r); m != http.MethodPut && m != http.MethodPatch {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+// UpdateNote handles PUT/PATCH /api/notes/{id}
+func (h *HTTPSupportHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	noteIDStr := extractIDFromPath(r.URL.Path, "/api/notes/")
+	noteIDStr := noteIDFromPath(r.URL.Path)
 	if noteIDStr == "" {
 		writeError(w, http.StatusBadRequest, "note_id is required")
 		return
 	}
-
 	noteID, err := strconv.ParseUint(noteIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid note_id")
@@ -857,7 +901,7 @@ func (h *SupportHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 			Content    string `json:"content"`
 			Attachment string `json:"attachment"`
 		}
-		if err := decodeRequestBody(r, &req); err != nil {
+		if err := decodeJSONBody(r, &req); err != nil {
 			if err == io.EOF {
 				writeError(w, http.StatusBadRequest, "request body is required")
 			} else {
@@ -884,66 +928,55 @@ func (h *SupportHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 			grpcReq.Attachments = []string{}
 		}
 	} else {
-		existing, getErr := h.noteClient.GetNote(r.Context(), &pbSupport.GetNoteRequest{
+		existing, getErr := h.notes.GetNote(r.Context(), &pbSupport.GetNoteRequest{
 			NoteId: noteID,
 			UserId: userID,
 		})
 		if getErr != nil {
-			writeGRPCError(w, getErr)
+			writeHandlerError(w, getErr)
 			return
 		}
 		grpcReq.Attachments = existing.Attachments
 	}
 
-	resp, err := h.noteClient.UpdateNote(r.Context(), grpcReq)
+	resp, err := h.notes.UpdateNote(r.Context(), grpcReq)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	writeJSON(w, http.StatusOK, formatNoteResponse(resp))
 }
 
-// DeleteNote handles DELETE /api/notes/{note}
-func (h *SupportHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
+// DeleteNote handles DELETE /api/notes/{id}
+func (h *HTTPSupportHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getAuthUserID(r)
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
 
-	noteIDStr := extractIDFromPath(r.URL.Path, "/api/notes/")
+	noteIDStr := noteIDFromPath(r.URL.Path)
 	if noteIDStr == "" {
 		writeError(w, http.StatusBadRequest, "note_id is required")
 		return
 	}
-
 	noteID, err := strconv.ParseUint(noteIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid note_id")
 		return
 	}
 
-	grpcReq := &pbSupport.DeleteNoteRequest{
+	_, err = h.notes.DeleteNote(r.Context(), &pbSupport.DeleteNoteRequest{
 		NoteId: noteID,
 		UserId: userID,
-	}
-
-	_, err = h.noteClient.DeleteNote(r.Context(), grpcReq)
+	})
 	if err != nil {
-		writeGRPCError(w, err)
+		writeHandlerError(w, err)
 		return
 	}
-
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Frontend expects attachments as an array; DB stores a single attachment URL.
 func formatNoteResponse(resp *pbSupport.NoteResponse) map[string]interface{} {
 	noteMap := map[string]interface{}{
 		"id":          resp.Id,
@@ -958,27 +991,4 @@ func formatNoteResponse(resp *pbSupport.NoteResponse) map[string]interface{} {
 		noteMap["attachments"] = resp.Attachments
 	}
 	return noteMap
-}
-
-func formatReportResponse(resp *pbSupport.ReportResponse, appURL string) map[string]interface{} {
-	reportMap := map[string]interface{}{
-		"id":       strconv.FormatUint(resp.Id, 10),
-		"title":    resp.Reason,
-		"subject":  resp.ReportableType,
-		"content":  resp.Description,
-		"datetime": resp.CreatedAt,
-	}
-	if resp.Url != "" {
-		reportMap["url"] = resp.Url
-	}
-	attachments := make([]string, 0, len(resp.ImagePaths))
-	base := strings.TrimRight(appURL, "/")
-	for _, path := range resp.ImagePaths {
-		path = strings.TrimPrefix(path, "/")
-		attachments = append(attachments, base+"/uploads/"+path)
-	}
-	if len(attachments) > 0 {
-		reportMap["attachments"] = attachments
-	}
-	return reportMap
 }

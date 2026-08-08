@@ -39,12 +39,6 @@ updates:
       interval: weekly
       day: monday
 
-  - package-ecosystem: gomod
-    directory: /services/grpc-gateway
-    schedule:
-      interval: weekly
-      day: monday
-
   - package-ecosystem: docker
     directory: /services/auth-service
     schedule:

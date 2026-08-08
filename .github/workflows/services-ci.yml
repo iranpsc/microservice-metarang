@@ -83,9 +83,6 @@ jobs:
             financial-service:
               - 'services/financial-service/**'
               - 'tests/financial-service/**'
-            grpc-gateway:
-              - 'services/grpc-gateway/**'
-              - 'tests/grpc-gateway/**'
             health-check-service:
               - 'services/health-check-service/**'
             levels-service:
@@ -114,7 +111,7 @@ jobs:
           DISPATCH_INPUT: ${{ github.event.inputs.services }}
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
-          ALL='["auth-service","calendar-service","commercial-service","dynasty-service","features-service","financial-service","grpc-gateway","health-check-service","levels-service","notifications-service","social-service","storage-service","support-service","training-service"]'
+          ALL='["auth-service","calendar-service","commercial-service","dynasty-service","features-service","financial-service","health-check-service","levels-service","notifications-service","social-service","storage-service","support-service","training-service"]'
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             if [ "$DISPATCH_INPUT" = "all" ] || [ -z "$DISPATCH_INPUT" ]; then

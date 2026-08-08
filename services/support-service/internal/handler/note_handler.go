@@ -27,9 +27,10 @@ func NewNoteHandler(noteService service.NoteService) *NoteHandler {
 	}
 }
 
-func RegisterNoteHandler(grpcServer *grpc.Server, noteService service.NoteService) {
+func RegisterNoteHandler(grpcServer *grpc.Server, noteService service.NoteService) *NoteHandler {
 	handler := NewNoteHandler(noteService)
 	pb.RegisterNoteServiceServer(grpcServer, handler)
+	return handler
 }
 
 func handlerLocale(ctx context.Context) string {

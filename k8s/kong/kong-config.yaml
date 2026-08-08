@@ -129,6 +129,54 @@ services:
               hour: 2000
               policy: local
 
+  # Support Service (HTTP REST — migrated off grpc-gateway)
+  - name: support-service
+    url: http://support-service.metarang.svc.cluster.local:8070
+    protocol: http
+    routes:
+      - name: support-api
+        paths:
+          - /api/tickets
+          - /api/reports
+          - /api/notes
+          - /api/support
+        strip_path: false
+        plugins:
+          - name: cors
+          - name: rate-limiting
+            config:
+              minute: 60
+              hour: 1000
+              policy: local
+
+  # Storage Service — uploads + public upload API
+  - name: storage-service
+    url: http://storage-service.metarang.svc.cluster.local:8059
+    protocol: http
+    routes:
+      - name: uploads-static
+        paths:
+          - /uploads
+        methods:
+          - GET
+          - HEAD
+          - OPTIONS
+        strip_path: false
+      - name: storage-upload
+        paths:
+          - /api/upload
+        methods:
+          - POST
+          - OPTIONS
+        strip_path: false
+        plugins:
+          - name: cors
+          - name: rate-limiting
+            config:
+              minute: 30
+              hour: 500
+              policy: local
+
   # Prometheus metrics (required for Grafana golden signals / API traffic dashboards)
   - name: prometheus
     config:
