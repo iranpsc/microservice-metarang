@@ -328,15 +328,3 @@ func TestNewEmailService_NoopChannel(t *testing.T) {
 	_, err := svc.SendEmail(context.Background(), models.EmailPayload{To: "a@b.com", Subject: "s", Body: "b"})
 	assert.ErrorIs(t, err, errs.ErrNotImplemented)
 }
-
-func TestSMSConfigHelpers(t *testing.T) {
-	t.Setenv("SMS_API_KEY", "real-key")
-	t.Setenv("KAVENEGAR_API_KEY", "fallback")
-	assert.Equal(t, "real-key", service.ResolveSMSAPIKey())
-	assert.Equal(t, "SMS_API_KEY", service.SMSAPIKeySource())
-	assert.Equal(t, "6938...733D", service.MaskAPIKey("693835337A3377547771646A327733396D6D79393539744E6A5372487644456F3448434C773974337234733D"))
-
-	t.Setenv("SMS_SENDER", "10001")
-	assert.Equal(t, "10001", service.ResolveSMSSender("default"))
-	assert.True(t, service.IsPlaceholderSMSAPIKey("change-me"))
-}

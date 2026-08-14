@@ -44,7 +44,7 @@ func TestEmailHandler_SendEmail(t *testing.T) {
 	}{
 		{"missing to", &pb.SendEmailRequest{Subject: "s", Body: "b"}},
 		{"missing subject", &pb.SendEmailRequest{To: "a@b.com", Body: "b"}},
-		{"missing body", &pb.SendEmailRequest{To: "a@b.com", Subject: "s"}},
+		{"missing body and html_body", &pb.SendEmailRequest{To: "a@b.com", Subject: "s"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := client.SendEmail(ctx, tc.req)
@@ -64,6 +64,25 @@ func TestEmailHandler_SendEmail(t *testing.T) {
 		require.Error(t, err)
 		st, _ := status.FromError(err)
 		assert.Equal(t, codes.Unimplemented, st.Code())
+	})
+
+	t.Run("html_body instead of body is valid", func(t *testing.T) {
+		client := newEmailClient(t, &testutil.MockEmailService{
+			SendEmailFunc: func(_ context.Context, payload models.EmailPayload) (string, error) {
+				assert.Equal(t, "<p>hi</p>", payload.HTMLBody)
+				assert.Empty(t, payload.Body)
+				assert.Equal(t, []string{"cc@x.com"}, payload.CC)
+				assert.Equal(t, []string{"bcc@x.com"}, payload.BCC)
+				return "email-html", nil
+			},
+		})
+		resp, err := client.SendEmail(ctx, &pb.SendEmailRequest{
+			To: "a@b.com", Subject: "s", HtmlBody: "<p>hi</p>",
+			Cc: []string{"cc@x.com"}, Bcc: []string{"bcc@x.com"},
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.Sent)
+		assert.Equal(t, "email-html", resp.MessageId)
 	})
 
 	t.Run("service error", func(t *testing.T) {

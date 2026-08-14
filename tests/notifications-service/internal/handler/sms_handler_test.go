@@ -91,10 +91,62 @@ func TestSMSHandler_SendOTP(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.Sent)
 
+	t.Run("missing phone", func(t *testing.T) {
+		_, err := client.SendOTP(ctx, &pb.SendOTPRequest{Code: "123456"})
+		require.Error(t, err)
+		st, _ := status.FromError(err)
+		assert.Equal(t, codes.InvalidArgument, st.Code())
+	})
+
 	t.Run("missing code", func(t *testing.T) {
 		_, err := client.SendOTP(ctx, &pb.SendOTPRequest{Phone: "09120000000"})
 		require.Error(t, err)
 		st, _ := status.FromError(err)
 		assert.Equal(t, codes.InvalidArgument, st.Code())
 	})
+
+	t.Run("not configured", func(t *testing.T) {
+		client := newSMSClient(t, &testutil.MockSMSService{
+			SendOTPFunc: func(context.Context, models.OTPPayload) (string, error) {
+				return "", errs.ErrNotImplemented
+			},
+		})
+		_, err := client.SendOTP(ctx, &pb.SendOTPRequest{Phone: "09120000000", Code: "123456"})
+		require.Error(t, err)
+		st, _ := status.FromError(err)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		client := newSMSClient(t, &testutil.MockSMSService{
+			SendOTPFunc: func(context.Context, models.OTPPayload) (string, error) {
+				return "", errors.New("provider down")
+			},
+		})
+		_, err := client.SendOTP(ctx, &pb.SendOTPRequest{Phone: "09120000000", Code: "123456"})
+		require.Error(t, err)
+		st, _ := status.FromError(err)
+		assert.Equal(t, codes.Internal, st.Code())
+	})
+}
+
+func TestSMSHandler_SendSMS_TemplateOnly(t *testing.T) {
+	client := newSMSClient(t, &testutil.MockSMSService{
+		SendSMSFunc: func(_ context.Context, payload models.SMSPayload) (string, error) {
+			assert.Equal(t, "09120000000", payload.Phone)
+			assert.Empty(t, payload.Message)
+			assert.Equal(t, "verify", payload.Template)
+			assert.Equal(t, "1234", payload.Tokens["token"])
+			return "sms-tpl", nil
+		},
+	})
+
+	resp, err := client.SendSMS(context.Background(), &pb.SendSMSRequest{
+		Phone:    "09120000000",
+		Template: "verify",
+		Tokens:   map[string]string{"token": "1234"},
+	})
+	require.NoError(t, err)
+	assert.True(t, resp.Sent)
+	assert.Equal(t, "sms-tpl", resp.MessageId)
 }

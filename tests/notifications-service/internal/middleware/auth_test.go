@@ -2,6 +2,7 @@ package middleware_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -91,11 +92,45 @@ func TestAuthMiddleware_Unauthenticated(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
+
+	t.Run("validate token rpc error", func(t *testing.T) {
+		auth := &testutil.MockAuthClient{
+			ValidateTokenFunc: func(context.Context, *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+				return nil, errors.New("auth unavailable")
+			},
+		}
+		handler := middleware.AuthMiddleware(auth)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "Bearer tok")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
 }
 
 func TestGetUserFromRequest_MissingContext(t *testing.T) {
 	_, err := middleware.GetUserFromRequest(httptest.NewRequest(http.MethodGet, "/", nil))
 	assert.Error(t, err)
+}
+
+func TestAuthMiddleware_HeaderTakesPrecedenceOverCookie(t *testing.T) {
+	auth := &testutil.MockAuthClient{
+		ValidateTokenFunc: func(_ context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+			assert.Equal(t, "header-token", req.Token)
+			return &pb.ValidateTokenResponse{Valid: true, UserId: 7}, nil
+		},
+	}
+	handler := middleware.AuthMiddleware(auth)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer header-token")
+	req.AddCookie(&http.Cookie{Name: "token", Value: "cookie-token"})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestAuthMiddleware_RawAuthorizationHeader(t *testing.T) {

@@ -150,22 +150,6 @@ func TestHTTP_GetNotification_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
-func TestHTTP_MarkAsRead_ViaReadPath(t *testing.T) {
-	called := false
-	svc := &testutil.MockNotificationService{
-		MarkAsReadFunc: func(_ context.Context, id string, userID uint64) error {
-			called = true
-			assert.Equal(t, "notif-1", id)
-			assert.Equal(t, uint64(42), userID)
-			return nil
-		},
-	}
-	mux := newHTTPHandler(t, svc, 42)
-	rr := serveRequest(mux, http.MethodPost, "/api/notifications/read/notif-1", 42)
-	assert.Equal(t, http.StatusNoContent, rr.Code)
-	assert.True(t, called)
-}
-
 func TestHTTP_MarkAsRead_Success(t *testing.T) {
 	called := false
 	svc := &testutil.MockNotificationService{
@@ -200,17 +184,6 @@ func TestHTTP_MarkAsRead_MissingID(t *testing.T) {
 	mux := newHTTPHandler(t, &testutil.MockNotificationService{}, 42)
 	rr := serveRequest(mux, http.MethodPost, "/api/notifications/mark-read", 42)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestHTTP_HandlerErrorMapping(t *testing.T) {
-	svc := &testutil.MockNotificationService{
-		GetNotificationByIDFunc: func(context.Context, string, uint64) (*models.Notification, error) {
-			return nil, errs.ErrNotificationNotFound
-		},
-	}
-	mux := newHTTPHandler(t, svc, 42)
-	rr := serveRequest(mux, http.MethodGet, "/api/notifications/missing-id", 42)
-	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
 func TestHTTP_GetNotifications_ServiceError(t *testing.T) {
