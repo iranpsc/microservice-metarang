@@ -40,4 +40,13 @@ func TestGregorianToJalali_Branches(t *testing.T) {
 	if j2.Month < 1 {
 		t.Fatalf("unexpected %+v", j2)
 	}
+	janLeap := utils.GregorianToJalali(time.Date(2000, 1, 15, 8, 9, 10, 0, time.UTC))
+	if janLeap.Month < 1 || janLeap.Hour != 8 {
+		t.Fatalf("jan leap %+v", janLeap)
+	}
+	_ = utils.GregorianToJalali(time.Date(2003, 6, 1, 0, 0, 0, 0, time.UTC))
+	lateYear := utils.GregorianToJalali(time.Date(2024, 12, 15, 0, 0, 0, 0, time.UTC))
+	if lateYear.Month < 7 {
+		t.Fatalf("expected second-half jalali month %+v", lateYear)
+	}
 }

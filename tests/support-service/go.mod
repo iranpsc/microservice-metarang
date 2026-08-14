@@ -3,6 +3,8 @@ module metarang/support-service/tests
 go 1.25.13
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/go-sql-driver/mysql v1.7.1
 	google.golang.org/grpc v1.82.1
 	metarang/shared v0.0.0
 	metarang/support-service v0.0.0

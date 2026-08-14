@@ -46,6 +46,39 @@ func (m *mockAuthClient) VerifyAccountSecurity(context.Context, *pb.VerifyAccoun
 	return nil, nil
 }
 
+func TestAuthMiddleware_RawAuthorizationHeaderWithoutBearer(t *testing.T) {
+	auth := &mockAuthClient{
+		ValidateTokenFunc: func(_ context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+			if req.Token != "raw-token" {
+				t.Fatalf("token=%q", req.Token)
+			}
+			return &pb.ValidateTokenResponse{Valid: true, UserId: 7, Email: "a@b.com"}, nil
+		},
+	}
+	handler := middleware.AuthMiddleware(auth)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, err := middleware.GetUserFromRequest(r)
+		if err != nil || user.UserID != 7 || user.Token != "raw-token" {
+			t.Fatalf("user=%+v err=%v", user, err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "raw-token")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("code=%d", rr.Code)
+	}
+}
+
+func TestGetUserFromRequest_MissingContext(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	_, err := middleware.GetUserFromRequest(req)
+	if err == nil {
+		t.Fatal("expected missing user error")
+	}
+}
+
 func TestAuthMiddleware_Success(t *testing.T) {
 	auth := &mockAuthClient{
 		ValidateTokenFunc: func(_ context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {

@@ -21,6 +21,8 @@ func TestMapServiceError(t *testing.T) {
 		{errors.New("cannot respond to closed ticket"), codes.FailedPrecondition},
 		{errors.New("ticket is already closed"), codes.FailedPrecondition},
 		{errors.New("db exploded"), codes.Internal},
+		{errors.New("note not found"), codes.NotFound},
+		{errors.New("Unauthorized: only ticket sender can update"), codes.PermissionDenied},
 	}
 	for _, tc := range tests {
 		got := handler.MapServiceError(tc.err)
