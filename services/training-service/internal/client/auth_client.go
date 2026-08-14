@@ -25,10 +25,15 @@ func NewAuthClient(address string) (*AuthClient, error) {
 		return nil, fmt.Errorf("failed to connect to auth service at %s: %w", address, err)
 	}
 
+	return NewAuthClientFromConn(conn), nil
+}
+
+// NewAuthClientFromConn wraps an existing gRPC connection (used in tests and DI).
+func NewAuthClientFromConn(conn *grpc.ClientConn) *AuthClient {
 	return &AuthClient{
 		userClient: pb.NewUserServiceClient(conn),
 		conn:       conn,
-	}, nil
+	}
 }
 
 // Close closes the gRPC connection
