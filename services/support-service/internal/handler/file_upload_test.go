@@ -144,7 +144,7 @@ func TestParseTicketFormFields_MultipartURLEncodedAndInvalidReceiver(t *testing.
 	form.Set("reciever", "4")
 	req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	title, content, _, rid, err = parseTicketFormFields(req)
+	title, _, _, rid, err = parseTicketFormFields(req)
 	if err != nil || title != "T" || rid == nil || *rid != 4 {
 		t.Fatalf("urlencoded err=%v title=%s rid=%v", err, title, rid)
 	}
@@ -175,7 +175,7 @@ func TestParseNoteAndReportFormFields(t *testing.T) {
 	rform.Set("url", "https://x")
 	req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(rform.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	title, content, subject, u, err := parseReportFormFields(req)
+	title, _, subject, u, err := parseReportFormFields(req)
 	if err != nil || title != "T" || subject != "displayError" || u != "https://x" {
 		t.Fatalf("report form err=%v title=%s subject=%s url=%s", err, title, subject, u)
 	}
@@ -187,7 +187,7 @@ func TestParseNoteAndReportFormFields(t *testing.T) {
 	_ = w.Close()
 	req = httptest.NewRequest(http.MethodPost, "/", &buf)
 	req.Header.Set("Content-Type", w.FormDataContentType())
-	title, content, err = parseNoteFormFields(req)
+	title, _, err = parseNoteFormFields(req)
 	if err != nil || title != "N" {
 		t.Fatalf("note multipart err=%v", err)
 	}
