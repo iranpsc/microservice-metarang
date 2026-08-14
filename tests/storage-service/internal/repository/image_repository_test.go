@@ -3,6 +3,7 @@ package repository_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -147,6 +148,39 @@ func TestImageRepository_GetImageByID_NotFound(t *testing.T) {
 	image, err := repo.GetImageByID(context.Background(), 999)
 	if err != nil || image != nil {
 		t.Fatalf("GetImageByID: err=%v image=%+v", err, image)
+	}
+}
+
+func TestImageRepository_CreateImage_LastInsertError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	image := &models.Image{ImageableType: "App\\Models\\User", ImageableID: 1, URL: "http://x/y.jpg"}
+	mock.ExpectExec("INSERT INTO images").
+		WillReturnResult(sqlmock.NewErrorResult(errors.New("no last insert id")))
+
+	repo := repository.NewImageRepository(db)
+	if err := repo.CreateImage(context.Background(), image); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestImageRepository_GetImages_Error(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery("SELECT id, imageable_type, imageable_id, url, type, created_at, updated_at FROM images WHERE imageable_type = \\? AND imageable_id = \\? ORDER BY created_at DESC").
+		WillReturnError(errors.New("query failed"))
+
+	repo := repository.NewImageRepository(db)
+	if _, err := repo.GetImages(context.Background(), "App\\Models\\User", 1, ""); err == nil {
+		t.Fatal("expected error")
 	}
 }
 

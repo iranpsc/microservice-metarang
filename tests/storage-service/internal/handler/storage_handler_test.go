@@ -145,6 +145,15 @@ func TestStorageHandler_DeleteFile(t *testing.T) {
 	}
 }
 
+func TestStorageHandler_DeleteFile_Error(t *testing.T) {
+	client := newStorageGRPCClient(t)
+	_, err := client.DeleteFile(context.Background(), &storagepb.DeleteFileRequest{FilePath: "missing.txt"})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("expected Internal, got %v", err)
+	}
+}
+
 func TestStorageHandler_GetFilesByEntity(t *testing.T) {
 	client := newStorageGRPCClient(t)
 	resp, err := client.GetFilesByEntity(context.Background(), &storagepb.GetFilesByEntityRequest{

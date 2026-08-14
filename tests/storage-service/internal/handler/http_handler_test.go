@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"metarang/storage-service/internal/ftp"
 	"metarang/storage-service/internal/handler"
@@ -564,4 +565,31 @@ func TestHTTPHandler_RegisterHTTPRoutes(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
+}
+
+func TestHTTPHandler_StartHTTPServer(t *testing.T) {
+	tempDir := t.TempDir()
+	chunkManager, err := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	storageBase := filepath.Join(tempDir, "storage", "app")
+	ftpClient := ftp.NewMockFTPClient(filepath.Join(tempDir, "ftp"), "http://example.com")
+	storageService := service.NewStorageService(ftpClient, chunkManager, storageBase)
+	h := handler.NewHTTPHandler(storageService, storageBase)
+
+	go func() { _ = handler.StartHTTPServer(h, "18059") }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://127.0.0.1:18059/health")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("HTTP server did not become ready")
 }

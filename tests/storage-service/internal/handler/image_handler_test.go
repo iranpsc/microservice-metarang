@@ -138,6 +138,42 @@ func TestImageHandler_DeleteImage(t *testing.T) {
 	}
 }
 
+func TestImageHandler_GetImages_Error(t *testing.T) {
+	ctx := context.Background()
+	client, mock := newImageGRPCClient(t)
+
+	mock.ExpectQuery("SELECT id, imageable_type, imageable_id, url, type, created_at, updated_at FROM images").
+		WillReturnError(sql.ErrConnDone)
+
+	_, err := client.GetImages(ctx, &storagepb.GetImagesRequest{
+		ImageableType: "App\\Models\\User",
+		ImageableId:   1,
+	})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("expected Internal, got %v", err)
+	}
+}
+
+func TestImageHandler_GetImages_NilType(t *testing.T) {
+	ctx := context.Background()
+	client, mock := newImageGRPCClient(t)
+	now := time.Now()
+
+	mock.ExpectQuery("SELECT id, imageable_type, imageable_id, url, type, created_at, updated_at FROM images WHERE imageable_type = \\? AND imageable_id = \\? ORDER BY created_at DESC").
+		WithArgs("App\\Models\\User", uint64(2)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "imageable_type", "imageable_id", "url", "type", "created_at", "updated_at"}).
+			AddRow(uint64(8), "App\\Models\\User", uint64(2), "http://img", nil, now, now))
+
+	resp, err := client.GetImages(ctx, &storagepb.GetImagesRequest{
+		ImageableType: "App\\Models\\User",
+		ImageableId:   2,
+	})
+	if err != nil || len(resp.Images) != 1 || resp.Images[0].Type != "" {
+		t.Fatalf("GetImages: err=%v resp=%+v", err, resp)
+	}
+}
+
 func TestImageHandler_DeleteImage_NotFound(t *testing.T) {
 	ctx := context.Background()
 	client, mock := newImageGRPCClient(t)

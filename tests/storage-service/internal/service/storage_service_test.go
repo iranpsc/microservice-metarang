@@ -121,6 +121,37 @@ func TestStorageService_GetFile_ContentTypes(t *testing.T) {
 	}
 }
 
+func TestStorageService_GetFile_UploadPrefixPath(t *testing.T) {
+	tempDir := t.TempDir()
+	uploadBase := filepath.Join(tempDir, "uploads")
+	nested := filepath.Join(uploadBase, "uploads", "profile")
+	if err := os.MkdirAll(nested, 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := []byte("legacy")
+	if err := os.WriteFile(filepath.Join(nested, "legacy.png"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	chunkManager, _ := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
+	svc := service.NewStorageService(ftp.NewMockFTPClient(filepath.Join(tempDir, "ftp"), "http://example.com"), chunkManager, uploadBase)
+
+	got, contentType, err := svc.GetFile("upload/profile/legacy.png")
+	if err != nil || !bytes.Equal(got, content) || contentType != "image/png" {
+		t.Fatalf("GetFile: err=%v got=%q type=%q", err, got, contentType)
+	}
+}
+
+func TestStorageService_GetFile_NotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	chunkManager, _ := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
+	mockFTP := ftp.NewMockFTPClient(filepath.Join(tempDir, "ftp"), "http://example.com")
+	svc := service.NewStorageService(mockFTP, chunkManager, filepath.Join(tempDir, "uploads"))
+	if _, _, err := svc.GetFile("missing/file.bin"); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestStorageService_DeleteFile(t *testing.T) {
 	tempDir := t.TempDir()
 	ftpDir := filepath.Join(tempDir, "ftp")

@@ -60,3 +60,13 @@ func TestMockFTPClient_Close(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 }
+
+func TestNewFTPClient(t *testing.T) {
+	client := ftp.NewFTPClient("host", "21", "user", "pass", "http://base")
+	if client == nil {
+		t.Fatal("expected client")
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("Close on unconnected client: %v", err)
+	}
+}
