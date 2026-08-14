@@ -36,6 +36,13 @@ func NewLevelsClient(address string) (LevelsClient, error) {
 	}, nil
 }
 
+// NewLevelsClientFromGRPC builds a LevelsClient from an existing gRPC stub (used in tests).
+func NewLevelsClientFromGRPC(activityClient pb.ActivityServiceClient) LevelsClient {
+	return &levelsClient{
+		activityClient: activityClient,
+	}
+}
+
 // Close closes the gRPC connection
 func (c *levelsClient) Close() error {
 	if c.conn != nil {

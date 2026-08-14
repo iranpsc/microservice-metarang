@@ -63,7 +63,7 @@ func TestFollowHandler_GetFollowing_OK(t *testing.T) {
 	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
 		handler.RegisterFollowHandler(gs, &stubFollowSvc{
 			getFollowing: func(ctx context.Context, uid uint64) ([]*models.FollowResource, error) {
-				return []*models.FollowResource{{ID: 2, Name: "B", Code: "c"}}, nil
+				return []*models.FollowResource{{ID: 2, Name: "B", Code: "c", ProfilePhoto: "http://p2"}}, nil
 			},
 		})
 	})
@@ -73,13 +73,16 @@ func TestFollowHandler_GetFollowing_OK(t *testing.T) {
 	if err != nil || len(resp.Data) != 1 {
 		t.Fatal(err, resp)
 	}
+	if resp.Data[0].ProfilePhoto != "http://p2" {
+		t.Fatalf("ProfilePhoto = %q, want http://p2", resp.Data[0].ProfilePhoto)
+	}
 }
 
 func TestFollowHandler_GetFollowers_OK(t *testing.T) {
 	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
 		handler.RegisterFollowHandler(gs, &stubFollowSvc{
 			getFollowers: func(ctx context.Context, uid uint64) ([]*models.FollowResource, error) {
-				return []*models.FollowResource{{ID: 1, Name: "A"}}, nil
+				return []*models.FollowResource{{ID: 1, Name: "A", ProfilePhoto: "http://p1"}}, nil
 			},
 		})
 	})
@@ -88,6 +91,9 @@ func TestFollowHandler_GetFollowers_OK(t *testing.T) {
 	resp, err := cli.GetFollowers(context.Background(), &pb.GetFollowersRequest{UserId: 9})
 	if err != nil || len(resp.Data) != 1 {
 		t.Fatal(err, resp)
+	}
+	if resp.Data[0].ProfilePhoto != "http://p1" {
+		t.Fatalf("ProfilePhoto = %q, want http://p1", resp.Data[0].ProfilePhoto)
 	}
 }
 

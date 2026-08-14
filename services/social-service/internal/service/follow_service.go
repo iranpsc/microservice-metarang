@@ -155,17 +155,6 @@ func (s *followService) buildFollowResource(ctx context.Context, viewerID, userI
 		return nil, nil
 	}
 
-	// Latest profile photo from auth-service (optional)
-	profilePhoto := ""
-	if s.authClient != nil {
-		photoURL, err := s.authClient.GetLatestProfilePhotoURL(ctx, userID)
-		if err != nil {
-			fmt.Printf("failed to get profile photo for user %d: %v\n", userID, err)
-		} else {
-			profilePhoto = photoURL
-		}
-	}
-
 	// Get level
 	level, err := s.userRepo.GetUserLevel(ctx, userID)
 	if err != nil {
@@ -200,7 +189,7 @@ func (s *followService) buildFollowResource(ctx context.Context, viewerID, userI
 		ID:           userInfo.ID,
 		Name:         userInfo.Name,
 		Code:         userInfo.Code,
-		ProfilePhoto: profilePhoto,
+		ProfilePhoto: userInfo.ProfilePhoto,
 		Level:        level,
 		Online:       online,
 		Followed:     isFollowing,

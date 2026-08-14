@@ -448,7 +448,7 @@ func followResourceJSON(resource *socialpb.FollowResource) map[string]interface{
 		"id":            resource.Id,
 		"name":          resource.Name,
 		"code":          resource.Code,
-		"profile_photo": resource.ProfilePhoto,
+		"profile_photo": nullableString(resource.ProfilePhoto),
 		"level":         resource.Level,
 		"online":        resource.Online,
 		"followed":      resource.Followed,
@@ -458,6 +458,13 @@ func followResourceJSON(resource *socialpb.FollowResource) map[string]interface{
 			"remove_follower": canRemoveFollower,
 		},
 	}
+}
+
+func nullableString(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func buildTimingsHTTPResponse(data *socialpb.TimingsData) map[string]interface{} {

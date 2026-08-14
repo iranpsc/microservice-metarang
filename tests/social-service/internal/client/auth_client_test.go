@@ -59,7 +59,7 @@ func TestAuthClient_CanFollow_UsesCallerUserIDFromRequest(t *testing.T) {
 		return nil, status.Errorf(codes.Internal, "unexpected call: %+v", in)
 	}
 
-	authClient := client.NewAuthClientFromGRPC(stub, nil)
+	authClient := client.NewAuthClientFromGRPC(stub)
 	allowed, err := authClient.CanFollow(context.Background(), 1, 2)
 	require.NoError(t, err)
 	require.True(t, allowed)
@@ -83,12 +83,95 @@ func TestAuthClient_CanFollow_PropagatesUnauthenticatedFromAuthService(t *testin
 		return nil, status.Error(codes.Unauthenticated, "user context not found")
 	}
 
-	authClient := client.NewAuthClientFromGRPC(stub, nil)
+	authClient := client.NewAuthClientFromGRPC(stub)
 	allowed, err := authClient.CanFollow(context.Background(), 1, 2)
 	require.False(t, allowed)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get profile limitations")
 	require.Contains(t, err.Error(), "user context not found")
+}
+
+func TestAuthClient_CanFollow_NilRespDataOrOptionsAllowed(t *testing.T) {
+	cases := []struct {
+		name string
+		resp *pb.GetProfileLimitationsResponse
+	}{
+		{name: "nil response", resp: nil},
+		{name: "nil data", resp: &pb.GetProfileLimitationsResponse{}},
+		{name: "nil options", resp: &pb.GetProfileLimitationsResponse{Data: &pb.ProfileLimitation{}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stub := &stubUserServiceClient{}
+			stub.getProfileLimitationsFunc = func(
+				context.Context,
+				*pb.GetProfileLimitationsRequest,
+				...grpc.CallOption,
+			) (*pb.GetProfileLimitationsResponse, error) {
+				return tc.resp, nil
+			}
+			authClient := client.NewAuthClientFromGRPC(stub)
+			allowed, err := authClient.CanFollow(context.Background(), 1, 2)
+			require.NoError(t, err)
+			require.True(t, allowed)
+		})
+	}
+}
+
+func TestAuthClient_CanFollow_LimiterLimitedMismatchAllowed(t *testing.T) {
+	followFalse := false
+	stub := &stubUserServiceClient{}
+	stub.getProfileLimitationsFunc = func(
+		_ context.Context,
+		in *pb.GetProfileLimitationsRequest,
+		_ ...grpc.CallOption,
+	) (*pb.GetProfileLimitationsResponse, error) {
+		return &pb.GetProfileLimitationsResponse{
+			Data: &pb.ProfileLimitation{
+				LimiterUserId: 99,
+				LimitedUserId: 88,
+				Options:       &pb.ProfileLimitationOptions{Follow: &followFalse},
+			},
+		}, nil
+	}
+	authClient := client.NewAuthClientFromGRPC(stub)
+	allowed, err := authClient.CanFollow(context.Background(), 1, 2)
+	require.NoError(t, err)
+	require.True(t, allowed)
+}
+
+func TestAuthClient_CanFollow_FollowOptionNilAllowed(t *testing.T) {
+	stub := &stubUserServiceClient{}
+	stub.getProfileLimitationsFunc = func(
+		_ context.Context,
+		in *pb.GetProfileLimitationsRequest,
+		_ ...grpc.CallOption,
+	) (*pb.GetProfileLimitationsResponse, error) {
+		return &pb.GetProfileLimitationsResponse{
+			Data: &pb.ProfileLimitation{
+				LimiterUserId: in.TargetUserId,
+				LimitedUserId: in.CallerUserId,
+				Options:       &pb.ProfileLimitationOptions{Follow: nil},
+			},
+		}, nil
+	}
+	authClient := client.NewAuthClientFromGRPC(stub)
+	allowed, err := authClient.CanFollow(context.Background(), 1, 2)
+	require.NoError(t, err)
+	require.True(t, allowed)
+}
+
+func TestAuthClient_Close_NilConn(t *testing.T) {
+	authClient := client.NewAuthClientFromGRPC(&stubUserServiceClient{})
+	require.NoError(t, authClient.Close())
+}
+
+func TestNewAuthClient_InvalidAddress(t *testing.T) {
+	t.Setenv("GRPC_TLS_ENABLED", "true")
+	t.Setenv("GRPC_TLS_CA_FILE", t.TempDir()+"/missing-ca.pem")
+	_, err := client.NewAuthClient("localhost:1")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to connect to auth service")
 }
 
 func TestAuthClient_CanFollow_BlockedByTargetLimitation(t *testing.T) {
@@ -111,7 +194,7 @@ func TestAuthClient_CanFollow_BlockedByTargetLimitation(t *testing.T) {
 		return &pb.GetProfileLimitationsResponse{}, nil
 	}
 
-	authClient := client.NewAuthClientFromGRPC(stub, nil)
+	authClient := client.NewAuthClientFromGRPC(stub)
 	allowed, err := authClient.CanFollow(context.Background(), 1, 2)
 	require.NoError(t, err)
 	require.False(t, allowed)

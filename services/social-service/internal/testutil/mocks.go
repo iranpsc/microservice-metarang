@@ -209,9 +209,8 @@ func (m *MockCommercialClient) Close() error {
 
 // MockAuthClient implements client.AuthClient for tests.
 type MockAuthClient struct {
-	CanFollowFunc                func(ctx context.Context, callerUserID, targetUserID uint64) (bool, error)
-	GetLatestProfilePhotoURLFunc func(ctx context.Context, userID uint64) (string, error)
-	CloseFunc                    func() error
+	CanFollowFunc func(ctx context.Context, callerUserID, targetUserID uint64) (bool, error)
+	CloseFunc     func() error
 }
 
 func (m *MockAuthClient) CanFollow(ctx context.Context, callerUserID, targetUserID uint64) (bool, error) {
@@ -219,13 +218,6 @@ func (m *MockAuthClient) CanFollow(ctx context.Context, callerUserID, targetUser
 		return m.CanFollowFunc(ctx, callerUserID, targetUserID)
 	}
 	return true, nil
-}
-
-func (m *MockAuthClient) GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error) {
-	if m.GetLatestProfilePhotoURLFunc != nil {
-		return m.GetLatestProfilePhotoURLFunc(ctx, userID)
-	}
-	return "", nil
 }
 
 func (m *MockAuthClient) Close() error {

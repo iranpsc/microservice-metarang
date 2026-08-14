@@ -38,6 +38,13 @@ func NewCommercialClient(address string) (CommercialClient, error) {
 	}, nil
 }
 
+// NewCommercialClientFromGRPC builds a CommercialClient from an existing gRPC stub (used in tests).
+func NewCommercialClientFromGRPC(walletClient pb.WalletServiceClient) CommercialClient {
+	return &commercialClient{
+		walletClient: walletClient,
+	}
+}
+
 // Close closes the gRPC connection
 func (c *commercialClient) Close() error {
 	if c.conn != nil {

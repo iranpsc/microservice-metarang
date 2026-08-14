@@ -21,7 +21,8 @@ func TestUserRepository_GetUserBasicInfo(t *testing.T) {
 
 		mock.ExpectQuery(`FROM users`).
 			WithArgs(uint64(7)).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "code"}).AddRow(7, "Alice", "a1"))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "code", "profile_photo"}).
+				AddRow(7, "Alice", "a1", "https://cdn.example.com/p.jpg"))
 
 		repo := repository.NewUserRepository(db)
 		info, err := repo.GetUserBasicInfo(context.Background(), 7)
@@ -29,6 +30,24 @@ func TestUserRepository_GetUserBasicInfo(t *testing.T) {
 		require.NotNil(t, info)
 		assert.Equal(t, "Alice", info.Name)
 		assert.Equal(t, "a1", info.Code)
+		assert.Equal(t, "https://cdn.example.com/p.jpg", info.ProfilePhoto)
+	})
+
+	t.Run("null profile photo", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(`FROM users`).
+			WithArgs(uint64(7)).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "code", "profile_photo"}).
+				AddRow(7, "Alice", "a1", nil))
+
+		repo := repository.NewUserRepository(db)
+		info, err := repo.GetUserBasicInfo(context.Background(), 7)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "", info.ProfilePhoto)
 	})
 
 	t.Run("no rows", func(t *testing.T) {
