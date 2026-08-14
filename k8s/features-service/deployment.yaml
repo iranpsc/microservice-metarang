@@ -79,6 +79,8 @@ spec:
           value: "9090"
         - name: COMMERCIAL_SERVICE_ADDR
           value: "commercial-service:50052"
+        - name: STORAGE_SERVICE_ADDR
+          value: "storage-service:50060"
         - name: NOTIFICATIONS_SERVICE_ADDR
           value: "notifications-service:50058"
         - name: REDIS_ADDR

@@ -550,7 +550,12 @@ func (h *HTTPFeaturesHandler) ListMyFeatures(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	resp, err := h.feature.ListMyFeatures(r.Context(), &featurespb.ListMyFeaturesRequest{UserId: user.UserID, Page: pageQuery(r, 1)})
+	resp, err := h.feature.ListMyFeatures(r.Context(), &featurespb.ListMyFeaturesRequest{
+		UserId: user.UserID,
+		Page:   pageQuery(r, 1),
+		Search: strings.TrimSpace(r.URL.Query().Get("search")),
+		Filter: strings.TrimSpace(r.URL.Query().Get("filter")),
+	})
 	if err != nil {
 		writeGRPCError(w, err)
 		return
@@ -559,7 +564,16 @@ func (h *HTTPFeaturesHandler) ListMyFeatures(w http.ResponseWriter, r *http.Requ
 	for _, x := range resp.Data {
 		row := map[string]interface{}{"id": x.Id, "images": []interface{}{}}
 		if x.Properties != nil {
-			row["properties"] = map[string]interface{}{"id": x.Properties.Id, "price_psc": x.Properties.PricePsc, "price_irr": x.Properties.PriceIrr, "stability": x.Properties.Stability, "minimum_price_percentage": x.Properties.MinimumPricePercentage, "karbari": x.Properties.Karbari, "rgb": x.Properties.Rgb}
+			row["properties"] = map[string]interface{}{
+				"id":                       x.Properties.Id,
+				"address":                  x.Properties.Address,
+				"price_psc":                x.Properties.PricePsc,
+				"price_irr":                x.Properties.PriceIrr,
+				"stability":                x.Properties.Stability,
+				"minimum_price_percentage": x.Properties.MinimumPricePercentage,
+				"karbari":                  x.Properties.Karbari,
+				"rgb":                      x.Properties.Rgb,
+			}
 		}
 		data = append(data, row)
 	}

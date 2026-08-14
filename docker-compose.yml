@@ -211,6 +211,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
+      STORAGE_SERVICE_ADDR: storage-service:50060
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
       <<: *grpc-certs-depends

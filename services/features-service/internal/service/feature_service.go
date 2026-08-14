@@ -21,6 +21,8 @@ type FeatureService struct {
 	tradeRepo        *repository.TradeRepository
 	hourlyProfitRepo *repository.HourlyProfitRepository
 	pricingService   *FeaturePricingService
+	fileStorage      FileStorage
+	apiGatewayURL    string
 	db               *sql.DB
 }
 
@@ -34,6 +36,8 @@ func NewFeatureService(
 	hourlyProfitRepo *repository.HourlyProfitRepository,
 	pricingService *FeaturePricingService,
 	db *sql.DB,
+	fileStorage FileStorage,
+	apiGatewayURL string,
 ) *FeatureService {
 	return &FeatureService{
 		featureRepo:      featureRepo,
@@ -44,6 +48,8 @@ func NewFeatureService(
 		tradeRepo:        tradeRepo,
 		hourlyProfitRepo: hourlyProfitRepo,
 		pricingService:   pricingService,
+		fileStorage:      fileStorage,
+		apiGatewayURL:    apiGatewayURL,
 		db:               db,
 	}
 }
@@ -283,12 +289,13 @@ func (s *FeatureService) GetMyFeatures(ctx context.Context, userID uint64) ([]*p
 
 // ListMyFeatures retrieves paginated features owned by authenticated user (5 per page)
 // Only loads properties (images are empty on this endpoint)
-func (s *FeatureService) ListMyFeatures(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error) {
+// search matches feature_properties.id or address; filter matches karbari
+func (s *FeatureService) ListMyFeatures(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error) {
 	if page < 1 {
 		page = 1
 	}
 
-	features, propertiesList, err := s.featureRepo.FindByOwnerPaginated(ctx, userID, int(page))
+	features, propertiesList, err := s.featureRepo.FindByOwnerPaginated(ctx, userID, int(page), search, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user features: %w", err)
 	}
@@ -387,10 +394,8 @@ func (s *FeatureService) GetMyFeature(ctx context.Context, userID, featureID uin
 	return pbFeature, nil
 }
 
-// AddMyFeatureImages adds images to a feature owned by the user
-// imageURLs should be public URLs after file upload (handled by grpc-gateway)
-func (s *FeatureService) AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageURLs []string) (*pb.Feature, error) {
-	// Verify ownership
+// AddMyFeatureImages uploads images to storage-service and attaches them to a feature owned by the user.
+func (s *FeatureService) AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error) {
 	feature, _, err := s.featureRepo.FindByOwnerAndFeatureID(ctx, userID, featureID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find feature: %w", err)
@@ -399,16 +404,56 @@ func (s *FeatureService) AddMyFeatureImages(ctx context.Context, userID, feature
 		return nil, fmt.Errorf("feature not found or does not belong to user")
 	}
 
-	// Create image records
+	imageURLs, err := s.uploadFeatureImages(ctx, featureID, imageData, filenames, contentTypes)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, url := range imageURLs {
-		_, err := s.imageRepo.CreateImage(ctx, featureID, url)
-		if err != nil {
+		if _, err := s.imageRepo.CreateImage(ctx, featureID, url); err != nil {
 			return nil, fmt.Errorf("failed to create image: %w", err)
 		}
 	}
 
-	// Return updated feature with all images
 	return s.GetMyFeature(ctx, userID, featureID)
+}
+
+func (s *FeatureService) uploadFeatureImages(ctx context.Context, featureID uint64, imageData [][]byte, filenames, contentTypes []string) ([]string, error) {
+	if s.fileStorage == nil {
+		return nil, ErrStorageUnavailable
+	}
+
+	imageURLs := make([]string, 0, len(imageData))
+	for i, data := range imageData {
+		filename := ""
+		contentType := ""
+		if i < len(filenames) {
+			filename = filenames[i]
+		}
+		if i < len(contentTypes) {
+			contentType = contentTypes[i]
+		}
+		if err := validateFeatureImage(data, filename, contentType); err != nil {
+			return nil, err
+		}
+		if filename == "" {
+			filename = defaultFeatureImageFilename(contentType, i)
+		}
+
+		relativePath, err := s.fileStorage.UploadChunk(
+			ctx,
+			newFeatureImageUploadID(featureID, i),
+			featureImageUploadPath(featureID),
+			filename,
+			contentType,
+			data,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload image: %w", err)
+		}
+		imageURLs = append(imageURLs, prependPublicURL(s.apiGatewayURL, relativePath))
+	}
+	return imageURLs, nil
 }
 
 // RemoveMyFeatureImage removes an image from a feature

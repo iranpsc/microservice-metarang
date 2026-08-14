@@ -15,9 +15,9 @@ type FeatureServicePort interface {
 	UpdateFeature(ctx context.Context, featureID uint64, properties *pb.FeatureProperties) (*pb.Feature, error)
 	AddFeatureImages(ctx context.Context, featureID uint64, imageURLs []string) (*pb.Feature, error)
 	GetMyFeatures(ctx context.Context, userID uint64) ([]*pb.Feature, error)
-	ListMyFeatures(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error)
+	ListMyFeatures(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error)
 	GetMyFeature(ctx context.Context, userID, featureID uint64) (*pb.Feature, error)
-	AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageURLs []string) (*pb.Feature, error)
+	AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error)
 	RemoveMyFeatureImage(ctx context.Context, userID, featureID, imageID uint64) error
 	UpdateMyFeature(ctx context.Context, userID, featureID uint64, minimumPricePercentage int32) error
 }

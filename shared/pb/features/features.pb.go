@@ -368,6 +368,8 @@ type ListMyFeaturesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        uint64                 `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Authenticated user ID
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`                   // Page number (default: 1)
+	Search        string                 `protobuf:"bytes,3,opt,name=search,proto3" json:"search,omitempty"`                // optional; search by feature_properties.id or address
+	Filter        string                 `protobuf:"bytes,4,opt,name=filter,proto3" json:"filter,omitempty"`                // optional; filter by karbari (e.g. m, t, a)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -414,6 +416,20 @@ func (x *ListMyFeaturesRequest) GetPage() int32 {
 		return x.Page
 	}
 	return 0
+}
+
+func (x *ListMyFeaturesRequest) GetSearch() string {
+	if x != nil {
+		return x.Search
+	}
+	return ""
+}
+
+func (x *ListMyFeaturesRequest) GetFilter() string {
+	if x != nil {
+		return x.Filter
+	}
+	return ""
 }
 
 type ListMyFeaturesResponse struct {
@@ -6736,10 +6752,12 @@ const file_features_proto_rawDesc = "" +
 	"\n" +
 	"image_urls\x18\x02 \x03(\tR\timageUrls\"/\n" +
 	"\x14GetMyFeaturesRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x04R\x06userId\"D\n" +
+	"\auser_id\x18\x01 \x01(\x04R\x06userId\"t\n" +
 	"\x15ListMyFeaturesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x12\n" +
-	"\x04page\x18\x02 \x01(\x05R\x04page\"\xa4\x01\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x16\n" +
+	"\x06search\x18\x03 \x01(\tR\x06search\x12\x16\n" +
+	"\x06filter\x18\x04 \x01(\tR\x06filter\"\xa4\x01\n" +
 	"\x16ListMyFeaturesResponse\x12%\n" +
 	"\x04data\x18\x01 \x03(\v2\x11.features.FeatureR\x04data\x12/\n" +
 	"\x05links\x18\x02 \x01(\v2\x19.features.PaginationLinksR\x05links\x122\n" +

@@ -18,8 +18,9 @@ import (
 )
 
 type mockHTTPFeatureAPI struct {
-	listFeatures func(context.Context, *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error)
-	tradeHistory func(context.Context, *pb.GetFeatureTradeHistoryRequest) (*pb.GetFeatureTradeHistoryResponse, error)
+	listFeatures   func(context.Context, *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error)
+	listMyFeatures func(context.Context, *pb.ListMyFeaturesRequest) (*pb.ListMyFeaturesResponse, error)
+	tradeHistory   func(context.Context, *pb.GetFeatureTradeHistoryRequest) (*pb.GetFeatureTradeHistoryResponse, error)
 }
 
 func (m *mockHTTPFeatureAPI) ListFeatures(ctx context.Context, req *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error) {
@@ -31,8 +32,11 @@ func (m *mockHTTPFeatureAPI) ListFeatures(ctx context.Context, req *pb.ListFeatu
 func (m *mockHTTPFeatureAPI) GetFeature(context.Context, *pb.GetFeatureRequest) (*pb.FeatureResponse, error) {
 	return &pb.FeatureResponse{}, nil
 }
-func (m *mockHTTPFeatureAPI) ListMyFeatures(context.Context, *pb.ListMyFeaturesRequest) (*pb.ListMyFeaturesResponse, error) {
-	return &pb.ListMyFeaturesResponse{}, nil
+func (m *mockHTTPFeatureAPI) ListMyFeatures(ctx context.Context, req *pb.ListMyFeaturesRequest) (*pb.ListMyFeaturesResponse, error) {
+	if m.listMyFeatures != nil {
+		return m.listMyFeatures(ctx, req)
+	}
+	return &pb.ListMyFeaturesResponse{Links: &pb.PaginationLinks{}, Meta: &pb.SimplePaginationMeta{}}, nil
 }
 func (m *mockHTTPFeatureAPI) GetMyFeature(context.Context, *pb.GetMyFeatureRequest) (*pb.FeatureResponse, error) {
 	return &pb.FeatureResponse{}, nil
@@ -344,6 +348,77 @@ func TestHTTPGetSingleProfit_ExpectedResourceShape(t *testing.T) {
 	assert.Equal(t, float64(100), data["feature_db_id"])
 	assert.Equal(t, "m", data["karbari"])
 	assert.Equal(t, float64(42), data["user_id"])
+}
+
+func TestHTTPListMyFeatures_SearchFilterAddressAndPagination(t *testing.T) {
+	feature := &mockHTTPFeatureAPI{listMyFeatures: func(_ context.Context, req *pb.ListMyFeaturesRequest) (*pb.ListMyFeaturesResponse, error) {
+		assert.Equal(t, uint64(42), req.UserId)
+		assert.Equal(t, int32(2), req.Page)
+		assert.Equal(t, "TO111", req.Search)
+		assert.Equal(t, "m", req.Filter)
+		return &pb.ListMyFeaturesResponse{
+			Data: []*pb.Feature{{
+				Id: 9,
+				Properties: &pb.FeatureProperties{
+					Id:                     "TO111",
+					Address:                "12 Main St",
+					PricePsc:               "100",
+					PriceIrr:               "200",
+					Stability:              "10.00",
+					MinimumPricePercentage: 100,
+					Karbari:                "m",
+					Rgb:                    "#fff",
+				},
+			}},
+			Links: &pb.PaginationLinks{
+				First: "/api/my-features?filter=m&page=1&search=TO111",
+				Prev:  "/api/my-features?filter=m&page=1&search=TO111",
+			},
+			Meta: &pb.SimplePaginationMeta{CurrentPage: 2, Path: "/api/my-features", PerPage: 5},
+		}, nil
+	}}
+
+	w := httptest.NewRecorder()
+	req := requestWithUser(httptest.NewRequest(http.MethodGet, "/api/my-features?page=2&search=TO111&filter=m", nil), 42)
+	newHTTPFeaturesHandler(feature, &mockHTTPBuildingAPI{}).ListMyFeatures(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	data := body["data"].([]interface{})
+	require.Len(t, data, 1)
+	item := data[0].(map[string]interface{})
+	assert.Equal(t, float64(9), item["id"])
+	props := item["properties"].(map[string]interface{})
+	assert.Equal(t, "TO111", props["id"])
+	assert.Equal(t, "12 Main St", props["address"])
+	assert.Equal(t, "m", props["karbari"])
+	meta := body["meta"].(map[string]interface{})
+	assert.Equal(t, float64(2), meta["current_page"])
+	assert.Equal(t, float64(5), meta["per_page"])
+	links := body["links"].(map[string]interface{})
+	assert.Contains(t, links["first"], "page=1")
+	assert.Contains(t, links["first"], "search=TO111")
+	assert.Contains(t, links["first"], "filter=m")
+}
+
+func TestHTTPListMyFeatures_TrimsSearchAndFilter(t *testing.T) {
+	var gotSearch, gotFilter string
+	feature := &mockHTTPFeatureAPI{listMyFeatures: func(_ context.Context, req *pb.ListMyFeaturesRequest) (*pb.ListMyFeaturesResponse, error) {
+		gotSearch = req.Search
+		gotFilter = req.Filter
+		return &pb.ListMyFeaturesResponse{
+			Data:  []*pb.Feature{},
+			Links: &pb.PaginationLinks{First: "/api/my-features?page=1"},
+			Meta:  &pb.SimplePaginationMeta{CurrentPage: 1, Path: "/api/my-features", PerPage: 5},
+		}, nil
+	}}
+	w := httptest.NewRecorder()
+	req := requestWithUser(httptest.NewRequest(http.MethodGet, "/api/my-features?search=%20block%20&filter=%20t%20", nil), 1)
+	newHTTPFeaturesHandler(feature, &mockHTTPBuildingAPI{}).ListMyFeatures(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "block", gotSearch)
+	assert.Equal(t, "t", gotFilter)
 }
 
 func TestHTTPTradeHistoryRoutesExtractFeatureID(t *testing.T) {

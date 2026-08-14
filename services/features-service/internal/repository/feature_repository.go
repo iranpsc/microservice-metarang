@@ -306,20 +306,42 @@ func (r *FeatureRepository) HasPendingBuyRequests(ctx context.Context, featureID
 	return hasPending, err
 }
 
+// BuildMyFeaturesWhere returns the WHERE clause and args for listing a user's features.
+// search matches feature_properties.id or address; filter matches karbari exactly.
+func BuildMyFeaturesWhere(ownerID uint64, search, filter string) (string, []interface{}) {
+	search = strings.TrimSpace(search)
+	filter = strings.TrimSpace(filter)
+
+	where := `f.owner_id = ?`
+	args := []interface{}{ownerID}
+	if search != "" {
+		where += ` AND (fp.id LIKE ? OR fp.address LIKE ?)`
+		like := "%" + search + "%"
+		args = append(args, like, like)
+	}
+	if filter != "" {
+		where += ` AND fp.karbari = ?`
+		args = append(args, filter)
+	}
+	return where, args
+}
+
 // FindByOwnerPaginated retrieves features owned by a user with pagination (5 per page)
 // Returns features with their properties eager-loaded
+// search filters by feature_properties.id or address; filter matches karbari
 // NOTE: features table does NOT have geometry_id column - geometries table has feature_id instead
-func (r *FeatureRepository) FindByOwnerPaginated(ctx context.Context, ownerID uint64, page int) ([]*models.Feature, []*models.FeatureProperties, error) {
+func (r *FeatureRepository) FindByOwnerPaginated(ctx context.Context, ownerID uint64, page int, search, filter string) ([]*models.Feature, []*models.FeatureProperties, error) {
 	if page < 1 {
 		page = 1
 	}
 	perPage := 5
 	offset := (page - 1) * perPage
 
-	// Query does NOT select f.geometry_id because features table doesn't have that column
-	query := `SELECT f.id, f.owner_id, f.map_id, f.type, f.created_at, f.updated_at, fp.id as prop_id, fp.feature_id, fp.karbari, fp.rgb, fp.owner, fp.label, fp.address, fp.area, fp.density, fp.stability, fp.price_psc, fp.price_irr, fp.minimum_price_percentage, fp.created_at as prop_created_at, fp.updated_at as prop_updated_at FROM features f LEFT JOIN feature_properties fp ON f.id = fp.feature_id WHERE f.owner_id = ? ORDER BY f.id ASC LIMIT ? OFFSET ?`
+	where, args := BuildMyFeaturesWhere(ownerID, search, filter)
+	query := `SELECT f.id, f.owner_id, f.map_id, f.type, f.created_at, f.updated_at, fp.id as prop_id, fp.feature_id, fp.karbari, fp.rgb, fp.owner, fp.label, fp.address, fp.area, fp.density, fp.stability, fp.price_psc, fp.price_irr, fp.minimum_price_percentage, fp.created_at as prop_created_at, fp.updated_at as prop_updated_at FROM features f LEFT JOIN feature_properties fp ON f.id = fp.feature_id WHERE ` + where + ` ORDER BY f.id ASC LIMIT ? OFFSET ?`
 
-	rows, err := r.db.QueryContext(ctx, query, ownerID, perPage, offset)
+	listArgs := append(append([]interface{}{}, args...), perPage, offset)
+	rows, err := r.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -11,14 +11,14 @@ import (
 
 // Mock repositories for testing
 type mockFeatureRepo struct {
-	findByOwnerPaginatedFunc    func(ctx context.Context, ownerID uint64, page int) ([]*models.Feature, []*models.FeatureProperties, error)
+	findByOwnerPaginatedFunc    func(ctx context.Context, ownerID uint64, page int, search, filter string) ([]*models.Feature, []*models.FeatureProperties, error)
 	findByOwnerAndFeatureIDFunc func(ctx context.Context, ownerID, featureID uint64) (*models.Feature, *models.FeatureProperties, error)
 	findByOwnerFunc             func(ctx context.Context, ownerID uint64) ([]*models.Feature, error)
 }
 
-func (m *mockFeatureRepo) FindByOwnerPaginated(ctx context.Context, ownerID uint64, page int) ([]*models.Feature, []*models.FeatureProperties, error) {
+func (m *mockFeatureRepo) FindByOwnerPaginated(ctx context.Context, ownerID uint64, page int, search, filter string) ([]*models.Feature, []*models.FeatureProperties, error) {
 	if m.findByOwnerPaginatedFunc != nil {
-		return m.findByOwnerPaginatedFunc(ctx, ownerID, page)
+		return m.findByOwnerPaginatedFunc(ctx, ownerID, page, search, filter)
 	}
 	return nil, nil, errors.New("not implemented")
 }
@@ -106,84 +106,87 @@ func (m *mockPricingService) UpdateFeaturePricing(ctx context.Context, featureID
 }
 
 func TestFeatureService_ListMyFeatures(t *testing.T) {
-	t.Run("successful pagination", func(t *testing.T) {
-		// ctx := context.Background()
+	t.Run("maps address onto feature properties", func(t *testing.T) {
+		props := &models.FeatureProperties{
+			ID:        "TO111",
+			FeatureID: 1,
+			Karbari:   "m",
+			Address:   "12 Main St",
+			PricePSC:  "100",
+			PriceIRR:  "200",
+			Stability: 10,
+		}
+		pbProps := models.PropertiesToPB(props)
+		if pbProps.Address != "12 Main St" {
+			t.Errorf("Expected address %q, got %q", "12 Main St", pbProps.Address)
+		}
+		if pbProps.Id != "TO111" {
+			t.Errorf("Expected properties id TO111, got %s", pbProps.Id)
+		}
+		if pbProps.Karbari != "m" {
+			t.Errorf("Expected karbari m, got %s", pbProps.Karbari)
+		}
+	})
+
+	t.Run("repository receives search and filter with pagination", func(t *testing.T) {
+		var gotOwner uint64
+		var gotPage int
+		var gotSearch, gotFilter string
 		mockFeatureRepo := &mockFeatureRepo{}
-		mockFeatureRepo.findByOwnerPaginatedFunc = func(ctx context.Context, ownerID uint64, page int) ([]*models.Feature, []*models.FeatureProperties, error) {
-			if page == 1 {
-				return []*models.Feature{
-						{ID: 1, OwnerID: 1},
-						{ID: 2, OwnerID: 1},
-						{ID: 3, OwnerID: 1},
-						{ID: 4, OwnerID: 1},
-						{ID: 5, OwnerID: 1},
-					}, []*models.FeatureProperties{
-						{ID: "1", FeatureID: 1, Karbari: "m", PricePSC: "100", PriceIRR: "200"},
-						{ID: "2", FeatureID: 2, Karbari: "t", PricePSC: "150", PriceIRR: "300"},
-						{ID: "3", FeatureID: 3, Karbari: "a", PricePSC: "200", PriceIRR: "400"},
-						{ID: "4", FeatureID: 4, Karbari: "m", PricePSC: "250", PriceIRR: "500"},
-						{ID: "5", FeatureID: 5, Karbari: "t", PricePSC: "300", PriceIRR: "600"},
-					}, nil
-			}
-			return []*models.Feature{}, []*models.FeatureProperties{}, nil
+		mockFeatureRepo.findByOwnerPaginatedFunc = func(ctx context.Context, ownerID uint64, page int, search, filter string) ([]*models.Feature, []*models.FeatureProperties, error) {
+			gotOwner = ownerID
+			gotPage = page
+			gotSearch = search
+			gotFilter = filter
+			return []*models.Feature{{ID: 1, OwnerID: ownerID}}, []*models.FeatureProperties{{
+				ID: "TO111", FeatureID: 1, Karbari: "m", Address: "12 Main St", PricePSC: "100", PriceIRR: "200",
+			}}, nil
 		}
 
-		t.Skip("Test requires FeatureService fields to be exported or use constructor")
-		// service := &service.FeatureService{
-		// 	featureRepo: mockFeatureRepo,
-		// }
-		// features, err := service.ListMyFeatures(ctx, 1, 1)
-		// if err != nil {
-		// 	t.Fatalf("ListMyFeatures failed: %v", err)
-		// }
-		//
-		// if len(features) != 5 {
-		// 	t.Errorf("Expected 5 features, got %d", len(features))
-		// }
-		//
-		// // Verify images are empty
-		// for _, feature := range features {
-		// 	if len(feature.Images) != 0 {
-		// 		t.Errorf("Expected empty images array, got %d images", len(feature.Images))
-		// 	}
-		// }
+		features, propertiesList, err := mockFeatureRepo.FindByOwnerPaginated(context.Background(), 42, 2, "TO111", "m")
+		if err != nil {
+			t.Fatalf("FindByOwnerPaginated failed: %v", err)
+		}
+		if gotOwner != 42 || gotPage != 2 || gotSearch != "TO111" || gotFilter != "m" {
+			t.Errorf("unexpected args owner=%d page=%d search=%q filter=%q", gotOwner, gotPage, gotSearch, gotFilter)
+		}
+		if len(features) != 1 || len(propertiesList) != 1 {
+			t.Fatalf("expected 1 paginated result, got %d features and %d properties", len(features), len(propertiesList))
+		}
+		pbFeature := models.FeatureToPB(features[0], propertiesList[0], nil)
+		if pbFeature.Properties.Address != "12 Main St" {
+			t.Errorf("Expected address on listed feature, got %q", pbFeature.Properties.Address)
+		}
+		if len(pbFeature.Images) != 0 {
+			t.Errorf("Expected empty images on list items, got %d", len(pbFeature.Images))
+		}
 	})
 
 	t.Run("empty result", func(t *testing.T) {
 		mockFeatureRepo := &mockFeatureRepo{}
-		mockFeatureRepo.findByOwnerPaginatedFunc = func(ctx context.Context, ownerID uint64, page int) ([]*models.Feature, []*models.FeatureProperties, error) {
+		mockFeatureRepo.findByOwnerPaginatedFunc = func(ctx context.Context, ownerID uint64, page int, search, filter string) ([]*models.Feature, []*models.FeatureProperties, error) {
 			return []*models.Feature{}, []*models.FeatureProperties{}, nil
 		}
 
-		t.Skip("Test requires FeatureService fields to be exported or use constructor")
-		// service := &service.FeatureService{
-		// 	featureRepo: mockFeatureRepo,
-		// }
-		// features, err := service.ListMyFeatures(ctx, 1, 1)
-		// if err != nil {
-		// 	t.Fatalf("ListMyFeatures failed: %v", err)
-		// }
-		//
-		// if len(features) != 0 {
-		// 	t.Errorf("Expected 0 features, got %d", len(features))
-		// }
+		features, propertiesList, err := mockFeatureRepo.FindByOwnerPaginated(context.Background(), 1, 1, "missing", "t")
+		if err != nil {
+			t.Fatalf("FindByOwnerPaginated failed: %v", err)
+		}
+		if len(features) != 0 || len(propertiesList) != 0 {
+			t.Errorf("Expected 0 features, got %d", len(features))
+		}
 	})
 
 	t.Run("repository error", func(t *testing.T) {
 		mockFeatureRepo := &mockFeatureRepo{}
-		mockFeatureRepo.findByOwnerPaginatedFunc = func(ctx context.Context, ownerID uint64, page int) ([]*models.Feature, []*models.FeatureProperties, error) {
+		mockFeatureRepo.findByOwnerPaginatedFunc = func(ctx context.Context, ownerID uint64, page int, search, filter string) ([]*models.Feature, []*models.FeatureProperties, error) {
 			return nil, nil, errors.New("database error")
 		}
 
-		t.Skip("Test requires FeatureService fields to be exported or use constructor")
-		// service := &service.FeatureService{
-		// 	featureRepo: mockFeatureRepo,
-		// }
-		//
-		// _, err := service.ListMyFeatures(ctx, 1, 1)
-		// if err == nil {
-		// 	t.Fatal("Expected error, got nil")
-		// }
+		_, _, err := mockFeatureRepo.FindByOwnerPaginated(context.Background(), 1, 1, "", "")
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
 	})
 }
 
@@ -299,7 +302,7 @@ func TestFeatureService_AddMyFeatureImages(t *testing.T) {
 		// This test needs to be refactored to use the constructor with proper dependencies
 		t.Skip("Test requires refactoring to use NewFeatureService constructor with proper dependencies")
 		// service := service.NewFeatureService(...)
-		// feature, err := service.AddMyFeatureImages(ctx, 1, 1, []string{"uploads/features/1/image1.jpg"})
+		// feature, err := service.AddMyFeatureImages(ctx, 1, 1, [][]byte{[]byte("img")}, []string{"image1.jpg"}, []string{"image/jpeg"})
 		// if err != nil {
 		// 	t.Fatalf("AddMyFeatureImages failed: %v", err)
 		// }
@@ -320,7 +323,7 @@ func TestFeatureService_AddMyFeatureImages(t *testing.T) {
 		// 	featureRepo: mockFeatureRepo,
 		// }
 		//
-		// _, err := service.AddMyFeatureImages(ctx, 1, 1, []string{"url1"})
+		// _, err := service.AddMyFeatureImages(ctx, 1, 1, [][]byte{[]byte("img")}, []string{"url1.jpg"}, []string{"image/jpeg"})
 		// if err == nil {
 		// 	t.Fatal("Expected error, got nil")
 		// }

@@ -78,6 +78,8 @@ message GetMyFeaturesRequest {
 message ListMyFeaturesRequest {
   uint64 user_id = 1; // Authenticated user ID
   int32 page = 2; // Page number (default: 1)
+  string search = 3; // optional; search by feature_properties.id or address
+  string filter = 4; // optional; filter by karbari (e.g. m, t, a)
 }
 
 message ListMyFeaturesResponse {

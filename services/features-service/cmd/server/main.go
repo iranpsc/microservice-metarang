@@ -21,6 +21,7 @@ import (
 	"metarang/features-service/pkg/threed_client"
 	authpb "metarang/shared/pb/auth"
 	pb "metarang/shared/pb/features"
+	storagepb "metarang/shared/pb/storage"
 	"metarang/shared/pkg/auth"
 	"metarang/shared/pkg/db"
 	grpcutil "metarang/shared/pkg/grpc"
@@ -161,6 +162,19 @@ func main() {
 		log,
 	)
 
+	storageServiceAddr := getEnv("STORAGE_SERVICE_ADDR", "storage-service:50060")
+	var fileStorage service.FileStorage
+	storageConn, err := grpcutil.NewClient(storageServiceAddr)
+	if err != nil {
+		log.Warn("Failed to connect to storage service - feature image uploads disabled", "error", err)
+	} else {
+		defer func() { _ = storageConn.Close() }()
+		fileStorage = service.NewGRPCFileStorage(storagepb.NewFileStorageServiceClient(storageConn))
+		log.Info("Connected to storage service", "addr", storageServiceAddr)
+	}
+
+	appURL := getEnv("APP_URL", "http://localhost:8000")
+
 	// Initialize services
 	featureService := service.NewFeatureService(
 		featureRepo,
@@ -172,6 +186,8 @@ func main() {
 		hourlyProfitRepo,
 		pricingService,
 		database,
+		fileStorage,
+		appURL,
 	)
 
 	// Initialize marketplace service with all dependencies

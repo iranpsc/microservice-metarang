@@ -604,6 +604,22 @@ routes:
     tag: Features
     summary: List authenticated user features
     security: bearer
+    params:
+      - name: page
+        in: query
+        type: integer
+        description: Page number (default 1, 5 items per page)
+        example: 1
+      - name: search
+        in: query
+        type: string
+        description: Optional search by feature properties ID or address
+        example: TO111
+      - name: filter
+        in: query
+        type: string
+        description: Optional filter by karbari code (e.g. m, t, a)
+        example: m
   - path: /api/buy-requests
     methods: [get, post]
     tag: Features
