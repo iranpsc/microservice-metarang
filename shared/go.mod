@@ -1,6 +1,6 @@
 module metarang/shared
 
-go 1.25.12
+go 1.25.13
 
 require (
 	github.com/getsentry/sentry-go v0.47.0

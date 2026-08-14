@@ -1,6 +1,6 @@
 module metarang/auth-service
 
-go 1.25.12
+go 1.25.13
 
 require (
 	github.com/go-sql-driver/mysql v1.7.1
