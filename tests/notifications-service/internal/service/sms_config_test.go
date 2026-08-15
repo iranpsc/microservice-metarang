@@ -26,6 +26,12 @@ func TestResolveSMSAPIKey(t *testing.T) {
 		t.Setenv("KAVENEGAR_API_KEY", "legacy-key")
 		assert.Equal(t, "legacy-key", service.ResolveSMSAPIKey())
 	})
+
+	t.Run("empty SMS_API_KEY uses KAVENEGAR_API_KEY", func(t *testing.T) {
+		t.Setenv("SMS_API_KEY", "")
+		t.Setenv("KAVENEGAR_API_KEY", "legacy-only")
+		assert.Equal(t, "legacy-only", service.ResolveSMSAPIKey())
+	})
 }
 
 func TestSMSAPIKeySource(t *testing.T) {
@@ -37,6 +43,12 @@ func TestSMSAPIKeySource(t *testing.T) {
 
 	t.Run("placeholder falls back to KAVENEGAR_API_KEY", func(t *testing.T) {
 		t.Setenv("SMS_API_KEY", "change-me")
+		t.Setenv("KAVENEGAR_API_KEY", "legacy-key")
+		assert.Equal(t, "KAVENEGAR_API_KEY", service.SMSAPIKeySource())
+	})
+
+	t.Run("empty SMS_API_KEY with KAVENEGAR_API_KEY", func(t *testing.T) {
+		t.Setenv("SMS_API_KEY", "")
 		t.Setenv("KAVENEGAR_API_KEY", "legacy-key")
 		assert.Equal(t, "KAVENEGAR_API_KEY", service.SMSAPIKeySource())
 	})

@@ -30,6 +30,17 @@ func TestNewSMSChannel_KavenegarConfigured(t *testing.T) {
 	assert.Contains(t, err.Error(), "phone number is required")
 }
 
+func TestNewSMSChannel_KavenegarWithSender(t *testing.T) {
+	ch := service.NewSMSChannel(service.SMSChannelConfig{
+		Provider: "kavenegar",
+		APIKey:   "valid-api-key",
+		Sender:   "10001",
+	})
+	_, err := ch.SendOTP(context.Background(), models.OTPPayload{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "phone number is required")
+}
+
 func TestKavenegarSendSMSValidation(t *testing.T) {
 	ch := service.NewKavenegarSMSChannel("valid-api-key", "10008663")
 
