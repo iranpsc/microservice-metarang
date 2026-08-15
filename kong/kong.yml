@@ -183,6 +183,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Calendar API
   - name: calendar-api
@@ -207,6 +209,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Levels API — higher priority than catch-all /api → grpc-gateway
   - name: levels-api
@@ -230,6 +234,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Features API — higher priority than catch-all /api → grpc-gateway.
   # Include OPTIONS so preflight always matches this route (PATCH must be allowed).
@@ -267,6 +273,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Notifications API — higher priority than catch-all /api → grpc-gateway
   - name: notifications-api
@@ -291,6 +299,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Social API — higher priority than catch-all /api → grpc-gateway
   - name: social-api
@@ -320,6 +330,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Financial API — higher priority than catch-all /api → grpc-gateway
   - name: financial-api
@@ -345,6 +357,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Commercial API — higher priority than catch-all /api → grpc-gateway
   # and higher than auth-api for /api/citizen/*/wallet/history/*
@@ -370,6 +384,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Dynasty API — higher priority than catch-all /api → grpc-gateway
   - name: dynasty-api
@@ -395,6 +411,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Training API — higher priority than catch-all /api → grpc-gateway
   - name: training-api
@@ -423,6 +441,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Auth API
   # /api/user/transactions* and /api/citizen/*/wallet/history* are routed by commercial-api (priority 98).
@@ -470,6 +490,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # Support API — tickets, reports, notes
   - name: support-api
@@ -500,6 +522,8 @@ routes:
           redis:
             host: redis
             port: 6379
+            ssl: false
+            ssl_verify: false
 
   # OpenAPI documentation (Swagger UI) — catch-all at /; lower priority than /api and /uploads
   - name: api-docs
