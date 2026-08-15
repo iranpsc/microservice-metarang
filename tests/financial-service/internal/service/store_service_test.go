@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"metarang/financial-service/internal/models"
@@ -10,9 +11,13 @@ import (
 
 type mockOptionRepo struct {
 	options map[string]*models.Option
+	findErr error
 }
 
 func (m *mockOptionRepo) FindByCodes(ctx context.Context, codes []string) ([]*models.Option, error) {
+	if m.findErr != nil {
+		return nil, m.findErr
+	}
 	var result []*models.Option
 	for _, code := range codes {
 		if opt, ok := m.options[code]; ok {
@@ -24,9 +29,13 @@ func (m *mockOptionRepo) FindByCodes(ctx context.Context, codes []string) ([]*mo
 
 type mockImageRepo struct {
 	images map[uint64]string
+	err    error
 }
 
 func (m *mockImageRepo) FindImageURLByImageable(ctx context.Context, imageableType string, imageableID uint64) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
 	if url, ok := m.images[imageableID]; ok {
 		return url, nil
 	}
@@ -108,5 +117,13 @@ func TestStoreService_GetStorePackages(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestStoreService_OptionLookupError(t *testing.T) {
+	svc := service.NewStoreService(&mockOptionRepo{findErr: errors.New("options down")}, &mockVariableRepo{}, &mockImageRepo{})
+	_, err := svc.GetStorePackages(context.Background(), []string{"AA", "BB"})
+	if err == nil {
+		t.Fatal("expected option lookup error")
 	}
 }

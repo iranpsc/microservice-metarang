@@ -115,6 +115,44 @@ func TestResolveFrontendURL(t *testing.T) {
 	if got := config.ResolveFrontendURL(); got != "https://frontend.example.com/app" {
 		t.Fatalf("expected normalized frontend URL, got %q", got)
 	}
+
+	t.Setenv("FRONTEND_URL", "")
+	if got := config.ResolveFrontendURL(); got != "" {
+		t.Fatalf("expected empty frontend URL, got %q", got)
+	}
+
+	t.Setenv("FRONTEND_URL", "frontend.local")
+	if got := config.ResolveFrontendURL(); got != "http://frontend.local" {
+		t.Fatalf("expected scheme prefix, got %q", got)
+	}
+}
+
+func TestResolveSadadCallbackURL_InvalidPortAndPaymentFallback(t *testing.T) {
+	t.Setenv("SADAD_CALLBACK_URL", "")
+	t.Setenv("PAYMENT_CALLBACK_URL", "https://api.example.com/api/order/callback")
+	t.Setenv("SADAD_CALLBACK_PORT", "not-a-port")
+	t.Setenv("PROJECT_URL", "http://localhost:8000")
+	if got := config.ResolveSadadCallbackURL(); got != "https://api.example.com/api/order/callback" {
+		t.Fatalf("got %q", got)
+	}
+
+	t.Setenv("PAYMENT_CALLBACK_URL", "")
+	t.Setenv("SADAD_CALLBACK_URL", "https://api.example.com/api/order/callback")
+	t.Setenv("SADAD_CALLBACK_PORT", "0")
+	if got := config.ResolveSadadCallbackURL(); got != "https://api.example.com/api/order/callback" {
+		t.Fatalf("invalid port should leave url unchanged, got %q", got)
+	}
+}
+
+func TestResolveProjectURL_DefaultAndScheme(t *testing.T) {
+	t.Setenv("PROJECT_URL", "")
+	if got := config.ResolveProjectURL(); got != "http://localhost:8000" {
+		t.Fatalf("got %q", got)
+	}
+	t.Setenv("PROJECT_URL", "project.local")
+	if got := config.ResolveProjectURL(); got != "http://project.local" {
+		t.Fatalf("got %q", got)
+	}
 }
 
 func TestMain(m *testing.M) {

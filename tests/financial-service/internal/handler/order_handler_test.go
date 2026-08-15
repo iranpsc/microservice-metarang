@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"metarang/financial-service/internal/handler"
@@ -252,6 +253,31 @@ func TestOrderHandler_CreateOrder(t *testing.T) {
 		st, ok := status.FromError(err)
 		if !ok || st.Code() != codes.PermissionDenied {
 			t.Errorf("expected PermissionDenied, got %v", err)
+		}
+	})
+
+	t.Run("service error - payment failed with detail", func(t *testing.T) {
+		mockService := &mockOrderService{
+			createOrderFunc: func(ctx context.Context, userID uint64, amount int32, asset string) (string, error) {
+				return "", fmt.Errorf("%w: gateway rejected", service.ErrPaymentFailed)
+			},
+		}
+		h := handler.NewOrderHandler(mockService)
+
+		req := &pb.CreateOrderRequest{
+			UserId: 1,
+			Amount: 10,
+			Asset:  "psc",
+		}
+
+		_, err := h.CreateOrder(ctx, req)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
+		st, ok := status.FromError(err)
+		if !ok || st.Code() != codes.InvalidArgument {
+			t.Errorf("expected InvalidArgument, got %v", err)
 		}
 	})
 

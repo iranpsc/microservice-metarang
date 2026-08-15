@@ -20,10 +20,18 @@ import (
 
 // Mock repositories
 type mockOrderRepo struct {
-	orders map[uint64]*models.Order
+	orders          map[uint64]*models.Order
+	createErr       error
+	updateErr       error
+	deleteErr       error
+	findWithUserErr error
+	userPhone       *string
 }
 
 func (m *mockOrderRepo) Create(ctx context.Context, order *models.Order) error {
+	if m.createErr != nil {
+		return m.createErr
+	}
 	if m.orders == nil {
 		m.orders = make(map[uint64]*models.Order)
 	}
@@ -40,19 +48,29 @@ func (m *mockOrderRepo) FindByID(ctx context.Context, id uint64) (*models.Order,
 }
 
 func (m *mockOrderRepo) FindByIDWithUser(ctx context.Context, id uint64) (*models.Order, *models.User, error) {
+	if m.findWithUserErr != nil {
+		return nil, nil, m.findWithUserErr
+	}
 	order, ok := m.orders[id]
 	if !ok {
 		return nil, nil, nil
 	}
+	phone := "09123456789"
+	if m.userPhone != nil {
+		phone = *m.userPhone
+	}
 	user := &models.User{
 		ID:    order.UserID,
 		Name:  "Test User",
-		Phone: "09123456789",
+		Phone: phone,
 	}
 	return order, user, nil
 }
 
 func (m *mockOrderRepo) Update(ctx context.Context, order *models.Order) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
 	if _, ok := m.orders[order.ID]; !ok {
 		return sql.ErrNoRows
 	}
@@ -65,15 +83,25 @@ func (m *mockOrderRepo) UpdateWithTx(ctx context.Context, tx *sql.Tx, order *mod
 }
 
 func (m *mockOrderRepo) Delete(ctx context.Context, id uint64) error {
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
 	delete(m.orders, id)
 	return nil
 }
 
 type mockTransactionRepo struct {
-	transactions map[string]*models.Transaction
+	transactions     map[string]*models.Transaction
+	createErr        error
+	updateErr        error
+	deleteErr        error
+	findByPayableErr error
 }
 
 func (m *mockTransactionRepo) Create(ctx context.Context, transaction *models.Transaction) error {
+	if m.createErr != nil {
+		return m.createErr
+	}
 	if m.transactions == nil {
 		m.transactions = make(map[string]*models.Transaction)
 	}
@@ -82,6 +110,9 @@ func (m *mockTransactionRepo) Create(ctx context.Context, transaction *models.Tr
 }
 
 func (m *mockTransactionRepo) Update(ctx context.Context, transaction *models.Transaction) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
 	if _, ok := m.transactions[transaction.ID]; !ok {
 		return sql.ErrNoRows
 	}
@@ -94,6 +125,9 @@ func (m *mockTransactionRepo) UpdateWithTx(ctx context.Context, tx *sql.Tx, tran
 }
 
 func (m *mockTransactionRepo) Delete(ctx context.Context, id string) error {
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
 	delete(m.transactions, id)
 	return nil
 }
@@ -106,6 +140,9 @@ func (m *mockTransactionRepo) FindByID(ctx context.Context, id string) (*models.
 }
 
 func (m *mockTransactionRepo) FindByPayable(ctx context.Context, payableType string, payableID uint64) (*models.Transaction, error) {
+	if m.findByPayableErr != nil {
+		return nil, m.findByPayableErr
+	}
 	for _, t := range m.transactions {
 		if t.PayableType != nil && *t.PayableType == payableType &&
 			t.PayableID != nil && *t.PayableID == payableID {
@@ -115,14 +152,19 @@ func (m *mockTransactionRepo) FindByPayable(ctx context.Context, payableType str
 	return nil, nil
 }
 
-type mockPaymentRepo struct{}
+type mockPaymentRepo struct {
+	createErr error
+}
 
 func (m *mockPaymentRepo) Create(ctx context.Context, payment *models.Payment) error {
+	if m.createErr != nil {
+		return m.createErr
+	}
 	return nil
 }
 
 func (m *mockPaymentRepo) CreateWithTx(ctx context.Context, tx *sql.Tx, payment *models.Payment) error {
-	return nil
+	return m.Create(ctx, payment)
 }
 
 type mockVariableRepo struct {
@@ -137,10 +179,15 @@ func (m *mockVariableRepo) GetRate(ctx context.Context, asset string) (float64, 
 }
 
 type mockFirstOrderRepo struct {
-	count int
+	count     int
+	createErr error
+	countErr  error
 }
 
 func (m *mockFirstOrderRepo) Create(ctx context.Context, firstOrder *models.FirstOrder) error {
+	if m.createErr != nil {
+		return m.createErr
+	}
 	m.count++
 	return nil
 }
@@ -150,6 +197,9 @@ func (m *mockFirstOrderRepo) CreateWithTx(ctx context.Context, tx *sql.Tx, first
 }
 
 func (m *mockFirstOrderRepo) Count(ctx context.Context, userID uint64) (int, error) {
+	if m.countErr != nil {
+		return 0, m.countErr
+	}
 	return m.count, nil
 }
 
@@ -177,15 +227,23 @@ func (m *mockSadadClient) VerifyPayment(params sadad.VerificationParams) (*sadad
 }
 
 type mockOrderPolicy struct {
-	canBuy      bool
-	canGetBonus bool
+	canBuy         bool
+	canGetBonus    bool
+	canBuyErr      error
+	canGetBonusErr error
 }
 
 func (m *mockOrderPolicy) CanBuyFromStore(ctx context.Context, userID uint64) (bool, error) {
+	if m.canBuyErr != nil {
+		return false, m.canBuyErr
+	}
 	return m.canBuy, nil
 }
 
 func (m *mockOrderPolicy) CanGetBonus(ctx context.Context, userID uint64, asset string) (bool, error) {
+	if m.canGetBonusErr != nil {
+		return false, m.canGetBonusErr
+	}
 	return m.canGetBonus, nil
 }
 
@@ -336,6 +394,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 type mockWalletClient struct {
 	addBalanceCalls []*commercialpb.AddBalanceRequest
+	addErr          error
 }
 
 func (m *mockWalletClient) GetWallet(ctx context.Context, in *commercialpb.GetWalletRequest, opts ...grpc.CallOption) (*commercialpb.WalletResponse, error) {
@@ -351,6 +410,9 @@ func (m *mockWalletClient) DeductBalance(ctx context.Context, in *commercialpb.D
 }
 
 func (m *mockWalletClient) AddBalance(ctx context.Context, in *commercialpb.AddBalanceRequest, opts ...grpc.CallOption) (*commercialpb.AddBalanceResponse, error) {
+	if m.addErr != nil {
+		return nil, m.addErr
+	}
 	m.addBalanceCalls = append(m.addBalanceCalls, in)
 	return &commercialpb.AddBalanceResponse{Success: true}, nil
 }

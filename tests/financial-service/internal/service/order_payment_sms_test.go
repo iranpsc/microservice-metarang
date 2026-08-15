@@ -15,10 +15,14 @@ import (
 
 type mockSMSServiceClient struct {
 	lastRequest *notificationspb.SendSMSRequest
+	sendErr     error
 }
 
 func (m *mockSMSServiceClient) SendSMS(_ context.Context, req *notificationspb.SendSMSRequest, _ ...grpc.CallOption) (*notificationspb.SMSResponse, error) {
 	m.lastRequest = req
+	if m.sendErr != nil {
+		return nil, m.sendErr
+	}
 	return &notificationspb.SMSResponse{Sent: true}, nil
 }
 
