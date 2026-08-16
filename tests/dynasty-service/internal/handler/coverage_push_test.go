@@ -253,6 +253,10 @@ func TestDynastyHandler_GetUserDynasty_Existing(t *testing.T) {
 	resp, err := h.GetUserDynasty(context.Background(), &dynastypb.GetUserDynastyRequest{UserId: userID})
 	require.NoError(t, err)
 	assert.True(t, resp.UserHasDynasty)
+	require.NotNil(t, resp.DynastyFeature)
+	require.Len(t, resp.Features, 1)
+	assert.Equal(t, uint64(100), resp.Features[0].Id)
+	assert.Equal(t, "15000", resp.Features[0].Stability)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

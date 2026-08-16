@@ -92,6 +92,9 @@ func TestDynastyHandler_CreateDynasty(t *testing.T) {
 		assert.NotEmpty(t, resp.CreatedAt) // Jalali formatted date
 		assert.NotNil(t, resp.DynastyFeature)
 		assert.Equal(t, featureID, resp.DynastyFeature.Id)
+		require.NotEmpty(t, resp.Features)
+		assert.Equal(t, featureID, resp.Features[0].Id)
+		assert.Equal(t, "15000", resp.Features[0].Stability)
 
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -225,6 +228,9 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 		assert.Equal(t, dynastyID, resp.Id)
 		assert.NotNil(t, resp.DynastyFeature)
 		assert.Equal(t, newFeatureID, resp.DynastyFeature.Id)
+		require.NotEmpty(t, resp.Features)
+		assert.Equal(t, newFeatureID, resp.Features[0].Id)
+		assert.Equal(t, "20000", resp.Features[0].Stability)
 
 		require.NoError(t, mock.ExpectationsWereMet())
 	})

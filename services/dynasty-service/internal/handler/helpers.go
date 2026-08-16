@@ -83,15 +83,31 @@ func buildDynastyFeature(details map[string]interface{}, memberCount int32, upda
 func buildAvailableFeatures(features []map[string]interface{}) []*dynastypb.AvailableFeature {
 	var result []*dynastypb.AvailableFeature
 	for _, f := range features {
-		result = append(result, &dynastypb.AvailableFeature{
-			Id:           getUint64(f["id"]),
-			PropertiesId: getString(f["properties_id"]),
-			Density:      getString(f["density"]),
-			Stability:    getString(f["stability"]),
-			Area:         getString(f["area"]),
-		})
+		if item := availableFeatureFromDetails(f); item != nil {
+			result = append(result, item)
+		}
 	}
 	return result
+}
+
+func availableFeatureFromDetails(details map[string]interface{}) *dynastypb.AvailableFeature {
+	if details == nil {
+		return nil
+	}
+	return &dynastypb.AvailableFeature{
+		Id:           getUint64(details["id"]),
+		PropertiesId: getString(details["properties_id"]),
+		Density:      getString(details["density"]),
+		Stability:    getString(details["stability"]),
+		Area:         getString(details["area"]),
+	}
+}
+
+func withSelectedFeature(selected *dynastypb.AvailableFeature, others []*dynastypb.AvailableFeature) []*dynastypb.AvailableFeature {
+	if selected == nil {
+		return others
+	}
+	return append([]*dynastypb.AvailableFeature{selected}, others...)
 }
 
 func memberTitle(member string) string {

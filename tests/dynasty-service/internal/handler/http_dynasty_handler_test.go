@@ -209,7 +209,10 @@ func TestHTTPDynastyHandler_GetDynasty(t *testing.T) {
 						Id: 100, PropertiesId: "p1", Area: "a", Density: "d",
 						FeatureProfitIncrease: "0.5", FamilyMembersCount: 3, LastUpdated: "1403/01/02",
 					},
-					Features: []*dynastypb.AvailableFeature{{Id: 1, PropertiesId: "x", Density: "1", Stability: "2", Area: "3"}},
+					Features: []*dynastypb.AvailableFeature{
+						{Id: 100, PropertiesId: "p1", Density: "d", Stability: "15000", Area: "a"},
+						{Id: 1, PropertiesId: "x", Density: "1", Stability: "2", Area: "3"},
+					},
 					Prizes: []*dynastypb.IntroductionPrize{{
 						Member: "brother", Satisfaction: 1, IntroductionProfitIncrease: 2,
 						AccumulatedCapitalReserve: 3, DataStorage: 4, Psc: "5",
@@ -222,10 +225,75 @@ func TestHTTPDynastyHandler_GetDynasty(t *testing.T) {
 		rr := httptest.NewRecorder()
 		h.GetDynasty(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), `"user-has-dynasty":true`)
-		assert.Contains(t, rr.Body.String(), `"profile-image"`)
-		assert.Contains(t, rr.Body.String(), `"features"`)
-		assert.Contains(t, rr.Body.String(), `"prizes"`)
+
+		var payload map[string]interface{}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &payload))
+		data, ok := payload["data"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, true, data["user-has-dynasty"])
+		assert.Equal(t, photo, data["profile-image"])
+		assert.Equal(t, map[string]interface{}{
+			"id": float64(100), "properties_id": "p1", "density": "d", "area": "a", "stability": "15000",
+		}, data["features"])
+		_, prizesOK := data["prizes"].([]interface{})
+		assert.True(t, prizesOK)
+	})
+
+	t.Run("success without dynasty returns available features list", func(t *testing.T) {
+		api := &fakeDynastyAPI{
+			GetUserDynastyFunc: func(context.Context, *dynastypb.GetUserDynastyRequest) (*dynastypb.DynastyResponse, error) {
+				return &dynastypb.DynastyResponse{
+					UserHasDynasty: false,
+					Features: []*dynastypb.AvailableFeature{
+						{Id: 1, PropertiesId: "x", Density: "1", Stability: "2", Area: "3"},
+					},
+					Prizes: []*dynastypb.IntroductionPrize{{
+						Member: "brother", Satisfaction: 1, IntroductionProfitIncrease: 2,
+						AccumulatedCapitalReserve: 3, DataStorage: 4, Psc: "5",
+					}},
+				}, nil
+			},
+		}
+		h := newHTTPHandler(api, nil, nil, nil)
+		rr := httptest.NewRecorder()
+		h.GetDynasty(rr, withUser(1, httptest.NewRequest(http.MethodGet, "/api/dynasty", nil)))
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		var payload map[string]interface{}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &payload))
+		data, ok := payload["data"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, false, data["user-has-dynasty"])
+		features, ok := data["features"].([]interface{})
+		require.True(t, ok)
+		require.Len(t, features, 1)
+		assert.Equal(t, map[string]interface{}{
+			"id": float64(1), "properties_id": "x", "density": "1", "stability": "2", "area": "3",
+		}, features[0])
+		_, hasID := data["id"]
+		assert.False(t, hasID)
+		_, hasDynastyFeature := data["dynasty-feature"]
+		assert.False(t, hasDynastyFeature)
+	})
+
+	t.Run("success with dynasty and missing feature details", func(t *testing.T) {
+		api := &fakeDynastyAPI{
+			GetUserDynastyFunc: func(context.Context, *dynastypb.GetUserDynastyRequest) (*dynastypb.DynastyResponse, error) {
+				return &dynastypb.DynastyResponse{UserHasDynasty: true, Id: 3, FamilyId: 4}, nil
+			},
+		}
+		h := newHTTPHandler(api, nil, nil, nil)
+		rr := httptest.NewRecorder()
+		h.GetDynasty(rr, withUser(1, httptest.NewRequest(http.MethodGet, "/api/dynasty", nil)))
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		var payload map[string]interface{}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &payload))
+		data, ok := payload["data"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, map[string]interface{}{
+			"id": "", "properties_id": "", "density": "", "area": "", "stability": "",
+		}, data["features"])
 	})
 
 	t.Run("unauthenticated", func(t *testing.T) {
