@@ -42,6 +42,18 @@ func TestSettingsAndUserRepoGaps_SQLMock(t *testing.T) {
 	require.Equal(t, uint64(9), s.ID)
 	require.Equal(t, 1, s.Privacy["score"])
 
+	mock.ExpectQuery("FROM settings").WithArgs(uint64(4)).
+		WillReturnRows(sqlmock.NewRows(cols).AddRow(
+			uint64(12), uint64(4), true, true, true, uint32(3), int32(55),
+			`{"score":true,"phone":false,"name":true}`, `{"announcements_sms":true}`, now, now,
+		))
+	s, err = settingsRepo.FindByUserID(ctx, 4)
+	require.NoError(t, err)
+	require.Equal(t, 1, s.Privacy["score"])
+	require.Equal(t, 0, s.Privacy["phone"])
+	require.Equal(t, 1, s.Privacy["name"])
+	require.Equal(t, 1, s.Privacy["level"], "boolean JSON must not wipe unrelated default keys")
+
 	mock.ExpectQuery("FROM settings").WithArgs(uint64(9)).
 		WillReturnRows(sqlmock.NewRows(cols).AddRow(
 			uint64(9), uint64(2), true, true, true, uint32(3), int32(55),

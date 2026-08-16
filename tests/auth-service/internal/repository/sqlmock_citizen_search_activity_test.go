@@ -31,6 +31,9 @@ func TestCitizenRepository_SQLMock(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), info.UserID)
 	require.Equal(t, int32(1), info.Privacy["score"])
+	require.Equal(t, int32(1), info.Privacy["name"])
+	require.Equal(t, int32(0), info.Privacy["y"])
+	require.Equal(t, int32(1), info.Privacy["level"], "defaults must fill keys omitted from stored JSON")
 
 	mock.ExpectQuery("FROM users").WithArgs("missing").WillReturnError(sql.ErrNoRows)
 	info, err = repo.GetCitizenUserInfoByCode(ctx, "missing")
@@ -50,6 +53,8 @@ func TestCitizenRepository_SQLMock(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "hm-1", profile.Code)
 	require.Len(t, profile.ProfilePhotos, 1)
+	require.True(t, profile.Privacy["score"])
+	require.True(t, profile.Privacy["name"], "unrelated public fields must remain visible")
 
 	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(0))
@@ -109,6 +114,38 @@ func TestCitizenRepository_SQLMock(t *testing.T) {
 	require.NotNil(t, profile.KYC)
 	require.NotNil(t, profile.PersonalInfo)
 	require.True(t, profile.PersonalInfo.Passions["music"])
+}
+
+func TestCitizenRepository_GetCitizenByCode_IntegerPrivacyJSON(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := repository.NewCitizenRepository(db)
+	ctx := context.Background()
+	now := time.Now()
+
+	// After POST /api/privacy the column is rewritten as 0|1 integers.
+	integerPrivacy := `{"phone":1,"name":1,"email":0,"level":1,"score":1}`
+	mock.ExpectQuery("FROM users").WithArgs("hm-9").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "phone", "code", "score", "email_verified_at"}).
+			AddRow(uint64(9), "n", "a@x.com", "09", "hm-9", int32(10), now))
+	mock.ExpectQuery("FROM kycs").WithArgs(uint64(9)).WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("FROM settings").WithArgs(uint64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "privacy"}).AddRow(uint64(1), uint64(9), integerPrivacy))
+	mock.ExpectQuery("FROM images").WithArgs(uint64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "url"}))
+	mock.ExpectQuery("FROM personal_infos").WithArgs(uint64(9)).WillReturnError(sql.ErrNoRows)
+
+	profile, err := repo.GetCitizenByCode(ctx, "hm-9")
+	require.NoError(t, err)
+	require.NotNil(t, profile)
+	require.True(t, profile.Privacy["name"], "name must stay visible after an unrelated privacy update")
+	require.True(t, profile.Privacy["level"])
+	require.True(t, profile.Privacy["score"])
+	require.True(t, profile.Privacy["occupation"], "missing keys must keep public defaults")
+	require.True(t, profile.Privacy["phone"], "updated key must apply")
+	require.False(t, profile.Privacy["email"])
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestSearchRepository_SQLMock(t *testing.T) {

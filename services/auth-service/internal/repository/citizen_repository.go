@@ -47,8 +47,7 @@ func (r *citizenRepository) GetCitizenUserInfoByCode(ctx context.Context, code s
 	}
 
 	info := &models.CitizenUserInfo{
-		UserID:  userID,
-		Privacy: map[string]int32{},
+		UserID: userID,
 	}
 
 	settingsQuery := `
@@ -59,41 +58,13 @@ func (r *citizenRepository) GetCitizenUserInfoByCode(ctx context.Context, code s
 	`
 	var privacyJSON sql.NullString
 	err = r.db.QueryRowContext(ctx, settingsQuery, userID).Scan(&privacyJSON)
-	if err == nil && privacyJSON.Valid && privacyJSON.String != "" {
-		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(privacyJSON.String), &raw); err == nil {
-			for key, value := range raw {
-				info.Privacy[key] = privacyValueToInt32(value)
-			}
-		}
+	raw := ""
+	if err == nil && privacyJSON.Valid {
+		raw = privacyJSON.String
 	}
+	info.Privacy = models.PrivacyIntToInt32Map(models.ParsePrivacyJSON(raw))
 
 	return info, nil
-}
-
-func privacyValueToInt32(value interface{}) int32 {
-	switch v := value.(type) {
-	case bool:
-		if v {
-			return 1
-		}
-		return 0
-	case float64:
-		return int32(v)
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			return 0
-		}
-		return int32(i)
-	case string:
-		if v == "1" || strings.EqualFold(v, "true") {
-			return 1
-		}
-		return 0
-	default:
-		return 0
-	}
 }
 
 // GetCitizenByCode retrieves a citizen's profile data by code
@@ -158,12 +129,11 @@ func (r *citizenRepository) GetCitizenByCode(ctx context.Context, code string) (
 	err = r.db.QueryRowContext(ctx, settingsQuery, user.ID).Scan(
 		&settingsID, &settingsUserID, &privacyJSON,
 	)
+	rawPrivacy := ""
 	if err == nil && privacyJSON.Valid {
-		var privacy map[string]bool
-		if err := json.Unmarshal([]byte(privacyJSON.String), &privacy); err == nil {
-			user.Privacy = privacy
-		}
+		rawPrivacy = privacyJSON.String
 	}
+	user.Privacy = models.PrivacyIntToBoolMap(models.ParsePrivacyJSON(rawPrivacy))
 
 	// Get profile photos
 	photosQuery := `

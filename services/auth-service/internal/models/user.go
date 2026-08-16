@@ -96,6 +96,7 @@ func DefaultPrivacySettings() map[string]int {
 	return map[string]int{
 		"nationality":                          1,
 		"fname":                                1,
+		"lname":                                1,
 		"birthdate":                            1,
 		"phone":                                0, // private by default
 		"email":                                0, // private by default
