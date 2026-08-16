@@ -61,6 +61,16 @@ func NewCommercialClient(address string) (*CommercialClient, error) {
 	}, nil
 }
 
+// NewCommercialClientFromGRPC builds a CommercialClient from existing gRPC stubs (tests).
+func NewCommercialClientFromGRPC(walletClient pb.WalletServiceClient, transactionClient pb.TransactionServiceClient) *CommercialClient {
+	return &CommercialClient{
+		walletClient:      walletClient,
+		transactionClient: transactionClient,
+		timeout:           3 * time.Second,
+		maxRetries:        1, // deterministic tests, no retry sleep
+	}
+}
+
 // SetTimeout sets the timeout for gRPC calls
 func (c *CommercialClient) SetTimeout(timeout time.Duration) {
 	c.timeout = timeout

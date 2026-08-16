@@ -3,6 +3,7 @@ module metarang/features-service/tests
 go 1.25.13
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/stretchr/testify v1.11.1
 	github.com/yaa110/go-persian-calendar v1.2.0

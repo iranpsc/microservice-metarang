@@ -833,3 +833,87 @@ func TestBuildingService_DestroyBuilding(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildingService_BuildFeature_Rollback(t *testing.T) {
+	const (
+		ownerID   uint64 = 42
+		featureID uint64 = 10
+	)
+	req := &pb.BuildFeatureRequest{
+		FeatureId:            featureID,
+		BuildingModelId:      "m1",
+		LaunchedSatisfaction: "20",
+		Rotation:             "0",
+		Position:             "1,2",
+	}
+
+	newSvc := func(createErr, deactivateErr error, refunds *int, activated *bool) *service.BuildingService {
+		buildingRepo := &mockBuildingRepository{
+			hasBuildingFunc: func(context.Context, uint64) (bool, error) { return false, nil },
+			findModelFunc: func(context.Context, string) (*pb.BuildingModel, error) {
+				return &pb.BuildingModel{RequiredSatisfaction: "10", Attributes: "[]"}, nil
+			},
+			createBuildingFunc: func(context.Context, uint64, uint64, string, string, string, string, string, time.Time, time.Time, float64) error {
+				return createErr
+			},
+			findByFeatureIDFunc: func(context.Context, uint64) ([]*pb.Building, error) { return nil, nil },
+		}
+		featureRepo := &mockFeatureRepository{
+			findByIDFunc: func(context.Context, uint64) (*models.Feature, *models.FeatureProperties, error) {
+				return &models.Feature{ID: featureID, OwnerID: ownerID}, &models.FeatureProperties{}, nil
+			},
+		}
+		profitRepo := &mockHourlyProfitRepository{
+			deactivateFunc: func(context.Context, uint64) error { return deactivateErr },
+			activateFunc: func(context.Context, uint64) error {
+				if activated != nil {
+					*activated = true
+				}
+				return nil
+			},
+		}
+		commercial := &mockCommercialClient{
+			getWalletFunc: func(context.Context, uint64) (*commercialpb.WalletResponse, error) {
+				return &commercialpb.WalletResponse{Satisfaction: "100"}, nil
+			},
+			deductBalanceFunc: func(context.Context, uint64, string, float64) error { return nil },
+			addBalanceFunc: func(context.Context, uint64, string, float64) error {
+				if refunds != nil {
+					*refunds++
+				}
+				return nil
+			},
+		}
+		svc := service.NewBuildingService(buildingRepo, featureRepo, &mockGeometryRepository{}, profitRepo, nil)
+		svc.SetCommercialClient(commercial)
+		return svc
+	}
+
+	t.Run("refunds when deactivate profits fails", func(t *testing.T) {
+		refunds := 0
+		svc := newSvc(nil, errors.New("deactivate failed"), &refunds, nil)
+		_, err := svc.BuildFeature(authContext(ownerID), req)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if refunds != 1 {
+			t.Fatalf("refunds = %d, want 1", refunds)
+		}
+	})
+
+	t.Run("reactivates profits and refunds when create building fails", func(t *testing.T) {
+		refunds := 0
+		activated := false
+		svc := newSvc(errors.New("insert failed"), nil, &refunds, &activated)
+		_, err := svc.BuildFeature(authContext(ownerID), req)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !activated {
+			t.Fatal("expected profits to be reactivated")
+		}
+		if refunds != 1 {
+			t.Fatalf("refunds = %d, want 1", refunds)
+		}
+	})
+}

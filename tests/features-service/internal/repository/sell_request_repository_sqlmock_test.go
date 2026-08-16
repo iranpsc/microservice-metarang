@@ -1,0 +1,75 @@
+package repository_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"metarang/features-service/internal/repository"
+	"metarang/features-service/tests/internal/testutil"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func sellRequestCols() []string {
+	return []string{"id", "seller_id", "feature_id", "price_psc", "price_irr", "limit", "status", "created_at", "updated_at"}
+}
+
+func TestSellRequestRepository_IsUnderpriced(t *testing.T) {
+	db, mock := testutil.NewSQLMock(t)
+	repo := repository.NewSellRequestRepository(db)
+
+	mock.ExpectQuery("SELECT EXISTS").
+		WithArgs(uint64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	ok, err := repo.IsUnderpriced(context.Background(), 5)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSellRequestRepository_GetLatestUnderpricedForSeller(t *testing.T) {
+	db, mock := testutil.NewSQLMock(t)
+	repo := repository.NewSellRequestRepository(db)
+	now := time.Now()
+
+	mock.ExpectQuery("`limit` < 100").
+		WithArgs(uint64(3)).
+		WillReturnRows(sqlmock.NewRows(sellRequestCols()).
+			AddRow(8, 3, 5, 10.0, 20.0, 90, 0, now, now))
+
+	req, err := repo.GetLatestUnderpricedForSeller(context.Background(), 3)
+	require.NoError(t, err)
+	assert.Equal(t, 90, req.Limit)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSellRequestRepository_UpdateAllForFeatureToCompleted(t *testing.T) {
+	db, mock := testutil.NewSQLMock(t)
+	repo := repository.NewSellRequestRepository(db)
+
+	mock.ExpectExec("SET status = 1, updated_at = NOW\\(\\) WHERE feature_id").
+		WithArgs(uint64(5)).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	require.NoError(t, repo.UpdateAllForFeatureToCompleted(context.Background(), 5))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSellRequestRepository_UpdateAllForFeatureToCompletedWithTx(t *testing.T) {
+	db, mock := testutil.NewSQLMock(t)
+	repo := repository.NewSellRequestRepository(db)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET status = 1, updated_at = NOW\\(\\) WHERE feature_id").
+		WithArgs(uint64(5)).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	tx, err := db.Begin()
+	require.NoError(t, err)
+	require.NoError(t, repo.UpdateAllForFeatureToCompletedWithTx(context.Background(), tx, 5))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
