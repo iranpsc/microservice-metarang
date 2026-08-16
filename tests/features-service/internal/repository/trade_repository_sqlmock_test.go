@@ -107,7 +107,8 @@ func TestTradeRepository_GetTimeRemaining(t *testing.T) {
 	assert.Equal(t, 0, h)
 	assert.Equal(t, 0, m)
 
-	h, m = repo.GetTimeRemaining(&models.Trade{CreatedAt: time.Now().Add(-1 * time.Hour)})
+	// Use 30 minutes elapsed so remaining hours stay 23 even after clock truncation.
+	h, m = repo.GetTimeRemaining(&models.Trade{CreatedAt: time.Now().Add(-30 * time.Minute)})
 	assert.Equal(t, 23, h)
 	assert.GreaterOrEqual(t, m, 0)
 }
