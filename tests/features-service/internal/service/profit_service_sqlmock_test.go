@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"metarang/features-service/internal/client"
 	"metarang/features-service/internal/repository"
 	"metarang/features-service/internal/service"
 	"metarang/features-service/tests/internal/testutil"
@@ -143,5 +144,33 @@ func TestProfitService_RunHourlyProfitCalculation_Cancelled(t *testing.T) {
 	cancel()
 	_, err := svc.RunHourlyProfitCalculation(ctx)
 	require.Error(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestProfitService_TransferProfitOnSale(t *testing.T) {
+	db, mock := testutil.NewSQLMock(t)
+	stub := testutil.NewCommercialStub()
+	svc := service.NewProfitService(
+		repository.NewHourlyProfitRepository(db),
+		repository.NewFeatureRepository(db),
+		repository.NewPropertiesRepository(db),
+		client.NewCommercialClientFromGRPC(stub, stub),
+		nil, db, logger.NewLogger("features-test"),
+	)
+	now := time.Now()
+	mock.ExpectQuery("FROM feature_hourly_profits").
+		WithArgs(uint64(1), uint64(3)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "feature_id", "asset", "amount", "dead_line", "is_active", "created_at", "updated_at",
+		}).AddRow(11, 3, 1, "yellow", 4.5, now, true, now, now))
+	mock.ExpectQuery("ORDER BY id DESC LIMIT 1").
+		WithArgs(uint64(1), uint64(3)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "asset"}).AddRow(11, "yellow"))
+	mock.ExpectExec("SET user_id").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("DELETE FROM feature_hourly_profits").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	require.NoError(t, svc.TransferProfitOnSale(context.Background(), 1, 3, 2, 10))
 	require.NoError(t, mock.ExpectationsWereMet())
 }

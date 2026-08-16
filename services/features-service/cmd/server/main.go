@@ -44,15 +44,7 @@ func main() {
 	}
 	defer sentry.Flush(2 * time.Second)
 
-	// Load configuration from environment
-	// Construct DSN from individual environment variables
-	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
-		getEnv("DB_USER", "metarang_user"),
-		getEnv("DB_PASSWORD", "metarang_password"),
-		getEnv("DB_HOST", "mysql"),
-		getEnv("DB_PORT", "3306"),
-		getEnv("DB_DATABASE", "metarang_db"),
-	)
+	dbDSN := buildMySQLDSN()
 	port := getEnv("GRPC_PORT", "50053")
 	httpPort := getEnv("HTTP_PORT", "8062")
 	metricsPort := getEnv("METRICS_PORT", "9090")
@@ -115,15 +107,11 @@ func main() {
 		defer func() { _ = commercialClient.Close() }()
 
 		// Configure timeout and retries from environment
-		if timeoutStr := getEnv("COMMERCIAL_SERVICE_TIMEOUT", "3s"); timeoutStr != "" {
-			if timeout, err := time.ParseDuration(timeoutStr); err == nil {
-				commercialClient.SetTimeout(timeout)
-			}
+		if timeout, ok := parsePositiveDuration(getEnv("COMMERCIAL_SERVICE_TIMEOUT", "3s")); ok {
+			commercialClient.SetTimeout(timeout)
 		}
-		if retriesStr := getEnv("COMMERCIAL_SERVICE_RETRIES", "3"); retriesStr != "" {
-			if retries, err := strconv.Atoi(retriesStr); err == nil && retries > 0 {
-				commercialClient.SetMaxRetries(retries)
-			}
+		if retries, ok := parsePositiveInt(getEnv("COMMERCIAL_SERVICE_RETRIES", "3")); ok {
+			commercialClient.SetMaxRetries(retries)
 		}
 	}
 
@@ -334,7 +322,7 @@ func main() {
 	}
 
 	// Start gRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	lis, err := net.Listen("tcp", grpcListenAddr(port))
 	if err != nil {
 		log.Fatal("Failed to listen", "error", err, "port", port)
 	}
@@ -381,4 +369,40 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func buildMySQLDSN() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+		getEnv("DB_USER", "metarang_user"),
+		getEnv("DB_PASSWORD", "metarang_password"),
+		getEnv("DB_HOST", "mysql"),
+		getEnv("DB_PORT", "3306"),
+		getEnv("DB_DATABASE", "metarang_db"),
+	)
+}
+
+func grpcListenAddr(port string) string {
+	if port == "" {
+		port = "50053"
+	}
+	return ":" + port
+}
+
+func parsePositiveDuration(s string) (time.Duration, bool) {
+	if s == "" {
+		return 0, false
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, false
+	}
+	return d, true
+}
+
+func parsePositiveInt(s string) (int, bool) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
 }

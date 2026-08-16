@@ -21,6 +21,9 @@ type mockHTTPFeatureAPI struct {
 	listFeatures   func(context.Context, *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error)
 	listMyFeatures func(context.Context, *pb.ListMyFeaturesRequest) (*pb.ListMyFeaturesResponse, error)
 	tradeHistory   func(context.Context, *pb.GetFeatureTradeHistoryRequest) (*pb.GetFeatureTradeHistoryResponse, error)
+	getFeature     func(context.Context, *pb.GetFeatureRequest) (*pb.FeatureResponse, error)
+	getMyFeature   func(context.Context, *pb.GetMyFeatureRequest) (*pb.FeatureResponse, error)
+	addImages      func(context.Context, *pb.AddMyFeatureImagesRequest) (*pb.FeatureResponse, error)
 }
 
 func (m *mockHTTPFeatureAPI) ListFeatures(ctx context.Context, req *pb.ListFeaturesRequest) (*pb.FeaturesResponse, error) {
@@ -29,8 +32,11 @@ func (m *mockHTTPFeatureAPI) ListFeatures(ctx context.Context, req *pb.ListFeatu
 	}
 	return &pb.FeaturesResponse{}, nil
 }
-func (m *mockHTTPFeatureAPI) GetFeature(context.Context, *pb.GetFeatureRequest) (*pb.FeatureResponse, error) {
-	return &pb.FeatureResponse{}, nil
+func (m *mockHTTPFeatureAPI) GetFeature(ctx context.Context, req *pb.GetFeatureRequest) (*pb.FeatureResponse, error) {
+	if m.getFeature != nil {
+		return m.getFeature(ctx, req)
+	}
+	return &pb.FeatureResponse{Feature: sampleHTTPFeature()}, nil
 }
 func (m *mockHTTPFeatureAPI) ListMyFeatures(ctx context.Context, req *pb.ListMyFeaturesRequest) (*pb.ListMyFeaturesResponse, error) {
 	if m.listMyFeatures != nil {
@@ -39,10 +45,16 @@ func (m *mockHTTPFeatureAPI) ListMyFeatures(ctx context.Context, req *pb.ListMyF
 	return &pb.ListMyFeaturesResponse{Links: &pb.PaginationLinks{}, Meta: &pb.SimplePaginationMeta{}}, nil
 }
 func (m *mockHTTPFeatureAPI) GetMyFeature(context.Context, *pb.GetMyFeatureRequest) (*pb.FeatureResponse, error) {
-	return &pb.FeatureResponse{}, nil
+	if m.getMyFeature != nil {
+		return m.getMyFeature(context.Background(), nil)
+	}
+	return &pb.FeatureResponse{Feature: sampleHTTPFeature()}, nil
 }
 func (m *mockHTTPFeatureAPI) AddMyFeatureImages(context.Context, *pb.AddMyFeatureImagesRequest) (*pb.FeatureResponse, error) {
-	return &pb.FeatureResponse{}, nil
+	if m.addImages != nil {
+		return m.addImages(context.Background(), nil)
+	}
+	return &pb.FeatureResponse{Feature: sampleHTTPFeature()}, nil
 }
 func (m *mockHTTPFeatureAPI) RemoveMyFeatureImage(context.Context, *pb.RemoveMyFeatureImageRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
@@ -59,14 +71,47 @@ func (m *mockHTTPFeatureAPI) GetFeatureTradeHistory(ctx context.Context, req *pb
 
 type mockHTTPMarketplaceAPI struct{}
 
+func sampleHTTPFeature() *pb.Feature {
+	return &pb.Feature{
+		Id: 1, OwnerId: 2, IsHourlyProfitActive: true,
+		Properties: &pb.FeatureProperties{Id: "p1", Address: "a", Karbari: "m", Rgb: "d", Owner: "o", Label: "l", Area: "10", Density: 1, Stability: "1", PricePsc: "1", PriceIrr: "2"},
+		Images:     []*pb.Image{{Id: 4, Url: "https://img"}},
+		Seller:     &pb.Seller{Id: 3, Name: "Ali", Code: "hm-3"},
+		Geometry:   &pb.Geometry{Id: 5, Coordinates: []*pb.Coordinate{{Id: 6, X: "1", Y: "2"}}},
+		BuildingModels: []*pb.Building{{
+			ConstructionStartDate: "2026-01-01T00:00:00Z",
+			ConstructionEndDate:   "2099-02-01T00:00:00Z",
+			Rotation:              "0",
+			Position:              "1,2",
+			Model:                 &pb.BuildingModel{Id: 11, ModelId: "1001", Name: "Tower", File: `{"url":"m.glb"}`, Images: "[]"},
+		}},
+	}
+}
+
+func sampleBuyRequest() *pb.BuyRequestResponse {
+	return &pb.BuyRequestResponse{
+		Id: 9, FeatureId: 1, Status: 0, Note: "n", PricePsc: "10", PriceIrr: "20",
+		Buyer:             &pb.BuyerInfo{Id: 2, Code: "hm-2", ProfilePhoto: "p"},
+		Seller:            &pb.SellerInfo{Id: 3, Code: "hm-3"},
+		FeatureProperties:  &pb.FeatureProperties{Id: "p1", Karbari: "m"},
+	}
+}
+
+func sampleSellRequest() *pb.SellRequestResponse {
+	return &pb.SellRequestResponse{
+		Id: 8, FeatureId: 1, SellerId: 3, PricePsc: "10", PriceIrr: "20", Status: 0,
+		FeatureProperties: &pb.FeatureProperties{Id: "p1", Karbari: "m"},
+	}
+}
+
 func (*mockHTTPMarketplaceAPI) BuyFeature(context.Context, *pb.BuyFeatureRequest) (*pb.BuyFeatureResponse, error) {
-	return &pb.BuyFeatureResponse{}, nil
+	return &pb.BuyFeatureResponse{Feature: sampleHTTPFeature()}, nil
 }
 func (*mockHTTPMarketplaceAPI) SendBuyRequest(context.Context, *pb.SendBuyRequestRequest) (*pb.BuyRequestResponse, error) {
-	return &pb.BuyRequestResponse{}, nil
+	return sampleBuyRequest(), nil
 }
 func (*mockHTTPMarketplaceAPI) AcceptBuyRequest(context.Context, *pb.AcceptBuyRequestRequest) (*pb.BuyRequestResponse, error) {
-	return &pb.BuyRequestResponse{}, nil
+	return sampleBuyRequest(), nil
 }
 func (*mockHTTPMarketplaceAPI) RejectBuyRequest(context.Context, *pb.RejectBuyRequestRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
@@ -75,16 +120,16 @@ func (*mockHTTPMarketplaceAPI) DeleteBuyRequest(context.Context, *pb.DeleteBuyRe
 	return &emptypb.Empty{}, nil
 }
 func (*mockHTTPMarketplaceAPI) ListBuyRequests(context.Context, *pb.ListBuyRequestsRequest) (*pb.BuyRequestsResponse, error) {
-	return &pb.BuyRequestsResponse{}, nil
+	return &pb.BuyRequestsResponse{BuyRequests: []*pb.BuyRequestResponse{sampleBuyRequest()}}, nil
 }
 func (*mockHTTPMarketplaceAPI) ListReceivedBuyRequests(context.Context, *pb.ListReceivedBuyRequestsRequest) (*pb.BuyRequestsResponse, error) {
-	return &pb.BuyRequestsResponse{}, nil
+	return &pb.BuyRequestsResponse{BuyRequests: []*pb.BuyRequestResponse{sampleBuyRequest()}}, nil
 }
 func (*mockHTTPMarketplaceAPI) CreateSellRequest(context.Context, *pb.CreateSellRequestRequest) (*pb.SellRequestResponse, error) {
-	return &pb.SellRequestResponse{}, nil
+	return sampleSellRequest(), nil
 }
 func (*mockHTTPMarketplaceAPI) ListSellRequests(context.Context, *pb.ListSellRequestsRequest) (*pb.SellRequestsResponse, error) {
-	return &pb.SellRequestsResponse{}, nil
+	return &pb.SellRequestsResponse{SellRequests: []*pb.SellRequestResponse{sampleSellRequest()}}, nil
 }
 func (*mockHTTPMarketplaceAPI) DeleteSellRequest(context.Context, *pb.DeleteSellRequestRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
@@ -102,7 +147,10 @@ type mockHTTPBuildingAPI struct {
 }
 
 func (*mockHTTPBuildingAPI) GetBuildPackage(context.Context, *pb.GetBuildPackageRequest) (*pb.BuildPackageResponse, error) {
-	return &pb.BuildPackageResponse{}, nil
+	return &pb.BuildPackageResponse{
+		Models:      []*pb.BuildingModel{{Id: 1, ModelId: "1", Name: "n", Sku: "s", Images: "[]", Attributes: "[]", File: "{}", RequiredSatisfaction: "1"}},
+		Coordinates: []string{"1,2"},
+	}, nil
 }
 func (*mockHTTPBuildingAPI) BuildFeature(context.Context, *pb.BuildFeatureRequest) (*pb.BuildFeatureResponse, error) {
 	return &pb.BuildFeatureResponse{}, nil
@@ -140,9 +188,13 @@ func (m *mockHTTPBuildingAPI) ListCompletedBuildings(ctx context.Context, req *p
 
 type mockHTTPProfitAPI struct {
 	single func(context.Context, *pb.GetSingleProfitRequest) (*pb.HourlyProfitResponse, error)
+	list   func(context.Context, *pb.GetHourlyProfitsRequest) (*pb.HourlyProfitsResponse, error)
 }
 
-func (*mockHTTPProfitAPI) GetHourlyProfits(context.Context, *pb.GetHourlyProfitsRequest) (*pb.HourlyProfitsResponse, error) {
+func (m *mockHTTPProfitAPI) GetHourlyProfits(ctx context.Context, req *pb.GetHourlyProfitsRequest) (*pb.HourlyProfitsResponse, error) {
+	if m.list != nil {
+		return m.list(ctx, req)
+	}
 	return &pb.HourlyProfitsResponse{}, nil
 }
 func (*mockHTTPProfitAPI) GetProfitsByApplication(context.Context, *pb.GetProfitsByApplicationRequest) (*pb.ProfitsByApplicationResponse, error) {
@@ -152,7 +204,7 @@ func (m *mockHTTPProfitAPI) GetSingleProfit(ctx context.Context, req *pb.GetSing
 	if m.single != nil {
 		return m.single(ctx, req)
 	}
-	return &pb.HourlyProfitResponse{}, nil
+	return &pb.HourlyProfitResponse{Profit: &pb.HourlyProfit{}}, nil
 }
 
 func newHTTPFeaturesHandler(feature *mockHTTPFeatureAPI, building *mockHTTPBuildingAPI) *handler.HTTPFeaturesHandler {

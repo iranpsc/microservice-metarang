@@ -17,10 +17,16 @@ type MarketplaceMetrics struct {
 	LockedAssetsIRR   prometheus.Gauge
 }
 
-// NewMarketplaceMetrics creates a new marketplace metrics instance
+// NewMarketplaceMetrics creates a new marketplace metrics instance on the default registry.
 func NewMarketplaceMetrics() *MarketplaceMetrics {
+	return NewMarketplaceMetricsWithRegisterer(prometheus.DefaultRegisterer)
+}
+
+// NewMarketplaceMetricsWithRegisterer registers marketplace metrics on the given registerer.
+func NewMarketplaceMetricsWithRegisterer(reg prometheus.Registerer) *MarketplaceMetrics {
+	factory := promauto.With(reg)
 	return &MarketplaceMetrics{
-		BuyRequestsTotal: promauto.NewCounterVec(
+		BuyRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "metarang",
 				Subsystem: "features",
@@ -29,7 +35,7 @@ func NewMarketplaceMetrics() *MarketplaceMetrics {
 			},
 			[]string{"status"}, // status: accepted, rejected, cancelled
 		),
-		SellRequestsTotal: promauto.NewCounter(
+		SellRequestsTotal: factory.NewCounter(
 			prometheus.CounterOpts{
 				Namespace: "metarang",
 				Subsystem: "features",
@@ -37,7 +43,7 @@ func NewMarketplaceMetrics() *MarketplaceMetrics {
 				Help:      "Total number of sell requests",
 			},
 		),
-		TradesTotal: promauto.NewCounterVec(
+		TradesTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "metarang",
 				Subsystem: "features",
@@ -46,7 +52,7 @@ func NewMarketplaceMetrics() *MarketplaceMetrics {
 			},
 			[]string{"type"}, // type: limited, rgb, user
 		),
-		TradeValuePSC: promauto.NewHistogram(
+		TradeValuePSC: factory.NewHistogram(
 			prometheus.HistogramOpts{
 				Namespace: "metarang",
 				Subsystem: "features",
@@ -55,7 +61,7 @@ func NewMarketplaceMetrics() *MarketplaceMetrics {
 				Buckets:   prometheus.ExponentialBuckets(0.1, 10, 6), // 0.1 to 100000
 			},
 		),
-		TradeValueIRR: promauto.NewHistogram(
+		TradeValueIRR: factory.NewHistogram(
 			prometheus.HistogramOpts{
 				Namespace: "metarang",
 				Subsystem: "features",
@@ -64,7 +70,7 @@ func NewMarketplaceMetrics() *MarketplaceMetrics {
 				Buckets:   prometheus.ExponentialBuckets(1000, 10, 6), // 1000 to 1,000,000,000
 			},
 		),
-		LockedAssetsPSC: promauto.NewGauge(
+		LockedAssetsPSC: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "metarang",
 				Subsystem: "features",
@@ -72,7 +78,7 @@ func NewMarketplaceMetrics() *MarketplaceMetrics {
 				Help:      "Total locked PSC assets in buy requests",
 			},
 		),
-		LockedAssetsIRR: promauto.NewGauge(
+		LockedAssetsIRR: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "metarang",
 				Subsystem: "features",

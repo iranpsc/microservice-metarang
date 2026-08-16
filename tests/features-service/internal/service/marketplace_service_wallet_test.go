@@ -527,7 +527,24 @@ func TestMarketplaceService_AcceptBuyRequest_WalletThenCommit(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "buyer_id", "seller_id", "feature_id", "note", "price_psc", "price_irr",
 			"status", "requested_grace_period", "created_at", "updated_at",
-		}))
+		}).AddRow(10, uint64(4), uint64(3), 1, "n", 10.0, 20.0, 0, nil, now, now))
+	mock.ExpectQuery("FROM buy_feature_requests").
+		WithArgs(uint64(10)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "buyer_id", "seller_id", "feature_id", "note", "price_psc", "price_irr",
+			"status", "requested_grace_period", "created_at", "updated_at",
+		}).AddRow(10, uint64(4), uint64(3), 1, "n", 10.0, 20.0, 0, nil, now, now))
+	mock.ExpectQuery("FROM locked_wallets").
+		WithArgs(uint64(10)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "buy_feature_request_id", "feature_id", "psc", "irr", "created_at", "updated_at",
+		}).AddRow(8, 10, 1, 5.0, 6.0, now, now))
+	mock.ExpectExec("DELETE FROM locked_wallets").
+		WithArgs(uint64(10)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("SET deleted_at = NOW\\(\\) WHERE id").
+		WithArgs(uint64(10)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("SET status = 1, updated_at = NOW\\(\\) WHERE feature_id").
 		WithArgs(uint64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))

@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"metarang/features-service/internal/handler"
 	authpb "metarang/shared/pb/auth"
@@ -364,4 +366,105 @@ func TestHTTPCitizenBuildingsList_IncludesImages(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, float64(11), img["id"])
 	assert.Equal(t, "https://cdn.example/a.jpg", img["url"])
+}
+
+func TestHTTPCitizenFeaturesList_PaginationPrivacyAndErrors(t *testing.T) {
+	from, to := int32(16), int32(30)
+	features := &mockCitizenFeaturesHTTPAPI{
+		list: func(_ context.Context, req *featurespb.ListCitizenFeaturesRequest) (*featurespb.ListCitizenFeaturesResponse, error) {
+			assert.Equal(t, []string{"m"}, req.AllowedKarbaris)
+			assert.Equal(t, int32(2), req.Page)
+			assert.Equal(t, int32(15), req.PerPage)
+			return &featurespb.ListCitizenFeaturesResponse{
+				Data: []*featurespb.CitizenFeatureItem{{
+					Id: 9, VodId: "v", Address: "a", Area: 10, Density: 1, Karbari: "m",
+					OwnerCode: "hm-1", PricePsc: "12.5", PriceIrr: "3", Label: "l",
+					Center: &featurespb.CitizenFeatureCenter{X: 1, Y: 2},
+					Images: []*featurespb.Image{{Id: 4, Url: "https://cdn.example/f.jpg"}, nil},
+				}},
+				MapMarkers: []*featurespb.CitizenFeatureMapMarker{
+					{Id: 9, Karbari: "m", Center: &featurespb.CitizenFeatureCenter{X: 1, Y: 2}},
+					{Id: 8, Karbari: "m"},
+				},
+				Meta: &featurespb.FeatureTradeHistoryPaginationMeta{
+					CurrentPage: 2, LastPage: 3, PerPage: 15, Total: 40, From: &from, To: &to,
+				},
+			}, nil
+		},
+	}
+	citizen := &mockCitizenAuthClient{
+		userInfo: func(_ context.Context, _ *authpb.GetCitizenUserInfoRequest, _ ...grpc.CallOption) (*authpb.GetCitizenUserInfoResponse, error) {
+			return &authpb.GetCitizenUserInfoResponse{
+				UserId: 42,
+				Privacy: map[string]int32{
+					"maskoni_features": 1,
+					"tejari_features":  0,
+				},
+			}, nil
+		},
+	}
+	h := handler.NewHTTPCitizenFeaturesHandler(features, citizen)
+	req := httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/features?karbari=m&karbari=t&karbari=zz&page=2&per_page=15&search=q", nil)
+	w := httptest.NewRecorder()
+	h.Handle(w, req, "hm-1", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.NotEmpty(t, body["data"])
+	assert.NotEmpty(t, body["map_markers"])
+	links := body["links"].(map[string]interface{})
+	assert.Contains(t, links["prev"].(string), "page=1")
+	assert.Contains(t, links["next"].(string), "page=3")
+
+	nilCitizen := handler.NewHTTPCitizenFeaturesHandler(features, nil)
+	w = httptest.NewRecorder()
+	nilCitizen.Handle(w, httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/features", nil), "hm-1", nil)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	notFound := handler.NewHTTPCitizenFeaturesHandler(features, &mockCitizenAuthClient{
+		userInfo: func(context.Context, *authpb.GetCitizenUserInfoRequest, ...grpc.CallOption) (*authpb.GetCitizenUserInfoResponse, error) {
+			return nil, status.Error(codes.NotFound, "missing")
+		},
+	})
+	w = httptest.NewRecorder()
+	notFound.Handle(w, httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/features", nil), "hm-1", nil)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	otherErr := handler.NewHTTPCitizenFeaturesHandler(features, &mockCitizenAuthClient{
+		userInfo: func(context.Context, *authpb.GetCitizenUserInfoRequest, ...grpc.CallOption) (*authpb.GetCitizenUserInfoResponse, error) {
+			return nil, status.Error(codes.Unavailable, "down")
+		},
+	})
+	w = httptest.NewRecorder()
+	otherErr.Handle(w, httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/features", nil), "hm-1", nil)
+	assert.NotEqual(t, http.StatusOK, w.Code)
+}
+
+func TestHTTPCitizenBuildingsList_PaginationLinks(t *testing.T) {
+	from, to := int32(11), int32(20)
+	buildings := &mockCitizenBuildingsHTTPAPI{
+		list: func(_ context.Context, _ *featurespb.ListCitizenBuildingsRequest) (*featurespb.ListCitizenBuildingsResponse, error) {
+			visitors, empty, density := 1.0, 2.0, 3.0
+			end := "2026-01-02"
+			return &featurespb.ListCitizenBuildingsResponse{
+				Data: []*featurespb.CitizenBuildingItem{{
+					BuildingId: "sku-2", Karbari: "t", Visitors: &visitors, EmptyUnits: &empty,
+					Density: &density, ConstructionEndDate: &end,
+				}},
+				Meta: &featurespb.FeatureTradeHistoryPaginationMeta{
+					CurrentPage: 2, LastPage: 4, PerPage: 10, Total: 35, From: &from, To: &to,
+				},
+			}, nil
+		},
+	}
+	_, h := newCitizenHTTPHandlers(t, &mockCitizenFeaturesHTTPAPI{}, buildings)
+	w := httptest.NewRecorder()
+	h.Handle(w, httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/buildings?page=2", nil), "hm-1", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	links := body["links"].(map[string]interface{})
+	assert.Contains(t, links["prev"].(string), "page=1")
+	assert.Contains(t, links["next"].(string), "page=3")
 }

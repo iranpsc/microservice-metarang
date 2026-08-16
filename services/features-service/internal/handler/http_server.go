@@ -32,7 +32,15 @@ func corsPreflightMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func StartHTTPServer(handlers HTTPServerHandlers, port string, auth func(http.Handler) http.Handler, optionalAuth func(http.Handler) http.Handler) error {
+func passthroughHTTP(next http.Handler) http.Handler { return next }
+
+func newPublicHTTPHandler(handlers HTTPServerHandlers, auth func(http.Handler) http.Handler, optionalAuth func(http.Handler) http.Handler) http.Handler {
+	if auth == nil {
+		auth = passthroughHTTP
+	}
+	if optionalAuth == nil {
+		optionalAuth = passthroughHTTP
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"}, true)
@@ -71,6 +79,9 @@ func StartHTTPServer(handlers HTTPServerHandlers, port string, auth func(http.Ha
 			http.NotFound(w, r)
 		}
 	}))
-	handler := corsPreflightMiddleware(sentry.HTTPMiddleware(mux))
-	return (&http.Server{Addr: ":" + port, Handler: handler}).ListenAndServe()
+	return corsPreflightMiddleware(sentry.HTTPMiddleware(mux))
+}
+
+func StartHTTPServer(handlers HTTPServerHandlers, port string, auth func(http.Handler) http.Handler, optionalAuth func(http.Handler) http.Handler) error {
+	return (&http.Server{Addr: ":" + port, Handler: newPublicHTTPHandler(handlers, auth, optionalAuth)}).ListenAndServe()
 }

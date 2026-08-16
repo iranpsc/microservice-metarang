@@ -12,6 +12,7 @@ import (
 	commercialpb "metarang/shared/pb/commercial"
 	"metarang/shared/pkg/logger"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -101,7 +102,7 @@ func marketplaceFromDB(t *testing.T, db *sql.DB) *service.MarketplaceService {
 		nil,
 		nil,
 		nil,
-		metrics.NewMarketplaceMetrics(),
+		metrics.NewMarketplaceMetricsWithRegisterer(prometheus.NewRegistry()),
 		db,
 		log,
 	)

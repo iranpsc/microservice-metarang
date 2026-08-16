@@ -90,3 +90,26 @@ func TestFeatureRepository_UpdateOwnerWithTx(t *testing.T) {
 	require.NoError(t, repo.UpdateOwnerWithTx(context.Background(), tx, 1, 9))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestFeatureRepository_FindByBoundingBox_SQLMock(t *testing.T) {
+	db, mock := testutil.NewSQLMock(t)
+	repo := repository.NewFeatureRepository(db)
+	now := time.Now()
+	points := []string{"0,1", "1,1", "0,0", "1,0"}
+
+	mock.ExpectQuery("FROM coordinates c").
+		WillReturnRows(sqlmock.NewRows([]string{"geometry_id"}))
+	empty, err := repo.FindByBoundingBox(context.Background(), points, false)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	mock.ExpectQuery("FROM coordinates c").
+		WillReturnRows(sqlmock.NewRows([]string{"geometry_id"}).AddRow(uint64(1)))
+	mock.ExpectQuery("WHERE f.id IN").
+		WillReturnRows(sqlmock.NewRows(featureWithPropsCols()).
+			AddRow(1, 2, 1, "polygon", now, now, "p1", 1, "m", "d", "o", "l", "addr", 10.0, 1, 100.0, "0", "0", 80, now, now))
+	list, err := repo.FindByBoundingBox(context.Background(), points, false)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

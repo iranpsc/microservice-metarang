@@ -17,13 +17,7 @@ import (
 func main() {
 	log := logger.NewLogger("calculate-hourly-profits")
 
-	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
-		getEnv("DB_USER", "metarang_user"),
-		getEnv("DB_PASSWORD", "metarang_password"),
-		getEnv("DB_HOST", "mysql"),
-		getEnv("DB_PORT", "3306"),
-		getEnv("DB_DATABASE", "metarang_db"),
-	)
+	dbDSN := buildMySQLDSN()
 
 	database, err := sql.Open("mysql", dbDSN)
 	if err != nil {
@@ -62,4 +56,14 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func buildMySQLDSN() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+		getEnv("DB_USER", "metarang_user"),
+		getEnv("DB_PASSWORD", "metarang_password"),
+		getEnv("DB_HOST", "mysql"),
+		getEnv("DB_PORT", "3306"),
+		getEnv("DB_DATABASE", "metarang_db"),
+	)
 }

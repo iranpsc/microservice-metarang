@@ -184,31 +184,66 @@ func authContext(userID uint64) context.Context {
 }
 
 func TestBuildingService_GetBuildPackage(t *testing.T) {
+	featureRepo := &mockFeatureRepository{
+		findByIDFunc: func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
+			return &models.Feature{ID: 1, OwnerID: 42}, &models.FeatureProperties{
+				Karbari: "m", Area: 100, Density: 0,
+			}, nil
+		},
+	}
+	geomRepo := &mockGeometryRepository{
+		getCoordinatesFunc: func(ctx context.Context, featureID uint64) ([]string, error) {
+			return []string{"1.0,2.0"}, nil
+		},
+	}
+
 	t.Run("unauthorized user", func(t *testing.T) {
-		// Note: This test requires refactoring to use interfaces instead of concrete types
-		// The service constructor expects concrete repository types, not mocks
-		// For now, we skip this test until the service is refactored to use interfaces
-		t.Skip("Test requires service refactoring to use repository interfaces")
-		// ctx := context.Background()
-		// mockBuildingRepo := &mockBuildingRepository{}
-		// mockFeatureRepo := &mockFeatureRepository{}
-		// mockGeometryRepo := &mockGeometryRepository{}
-		// mockProfitRepo := &mockHourlyProfitRepository{}
-		//
-		// mockFeatureRepo.findByIDFunc = func(ctx context.Context, id uint64) (*models.Feature, *models.FeatureProperties, error) {
-		// 	return &models.Feature{
-		// 		ID:      1,
-		// 		OwnerID: 100, // Different owner
-		// 	}, &models.FeatureProperties{}, nil
-		// }
-		// service := service.NewBuildingService(mockBuildingRepo, mockFeatureRepo, mockGeometryRepo, mockProfitRepo, nil)
-		// _, _, err := service.GetBuildPackage(ctx, 1, 1) // featureID=1, page=1
-		// if err == nil {
-		// 	t.Error("Expected error for unauthorized user")
-		// }
-		// if err != nil && !contains(err.Error(), "unauthorized") && !contains(err.Error(), "does not own") {
-		// 	t.Errorf("Expected authorization error, got: %v", err)
-		// }
+		svc := service.NewBuildingService(&mockBuildingRepository{}, featureRepo, geomRepo, &mockHourlyProfitRepository{}, nil)
+		_, _, err := svc.GetBuildPackage(context.Background(), 1, 1)
+		if err == nil || !contains(err.Error(), "unauthorized") {
+			t.Fatalf("got %v", err)
+		}
+	})
+
+	t.Run("wrong owner", func(t *testing.T) {
+		svc := service.NewBuildingService(&mockBuildingRepository{}, featureRepo, geomRepo, &mockHourlyProfitRepository{}, nil)
+		_, _, err := svc.GetBuildPackage(authContext(99), 1, 1)
+		if err == nil || !contains(err.Error(), "does not own") {
+			t.Fatalf("got %v", err)
+		}
+	})
+
+	t.Run("success upserts models", func(t *testing.T) {
+		var upserted uint64
+		buildingRepo := &mockBuildingRepository{
+			upsertModelFunc: func(ctx context.Context, modelID uint64, name, sku, images, attributes, file string, requiredSatisfaction float64) error {
+				upserted = modelID
+				return nil
+			},
+		}
+		threeD := &mockThreeDClient{
+			getBuildPackageFunc: func(req threed_client.BuildPackageRequest) (*threed_client.BuildPackageResponse, error) {
+				if req.Density != "1" {
+					t.Fatalf("density default=%s", req.Density)
+				}
+				return &threed_client.BuildPackageResponse{Data: []threed_client.BuildingModelData{{
+					ID: 7, Name: "tower", SKU: "sku",
+					Images: []map[string]interface{}{{"url": "a"}},
+					File:   map[string]interface{}{"glb": "x"},
+				}}}, nil
+			},
+		}
+		svc := service.NewBuildingService(buildingRepo, featureRepo, geomRepo, &mockHourlyProfitRepository{}, threeD)
+		models, coords, err := svc.GetBuildPackage(authContext(42), 1, 1)
+		if err != nil {
+			t.Fatalf("GetBuildPackage: %v", err)
+		}
+		if len(models) != 1 || models[0].Id != 7 || upserted != 7 {
+			t.Fatalf("models=%v upserted=%d", models, upserted)
+		}
+		if len(coords) != 1 {
+			t.Fatalf("coords=%v", coords)
+		}
 	})
 }
 
@@ -914,6 +949,226 @@ func TestBuildingService_BuildFeature_Rollback(t *testing.T) {
 		}
 		if refunds != 1 {
 			t.Fatalf("refunds = %d, want 1", refunds)
+		}
+	})
+}
+
+func TestBuildingService_BuildFeature_Success(t *testing.T) {
+	const ownerID, featureID uint64 = 42, 10
+	var created bool
+	repo := &mockBuildingRepository{
+		hasBuildingFunc: func(context.Context, uint64) (bool, error) { return false, nil },
+		findModelFunc: func(context.Context, string) (*pb.BuildingModel, error) {
+			return &pb.BuildingModel{
+				RequiredSatisfaction: "10",
+				Attributes:           `[{"slug":"width","value":50},{"slug":"length","value":"20"},{"slug":"density","value":2}]`,
+			}, nil
+		},
+		firstOrCreateIsicCodeFunc: func(context.Context, string) (uint64, error) { return 3, nil },
+		createBuildingFunc: func(context.Context, uint64, uint64, string, string, string, string, string, time.Time, time.Time, float64) error {
+			created = true
+			return nil
+		},
+		findByFeatureIDFunc: func(context.Context, uint64) ([]*pb.Building, error) {
+			return []*pb.Building{{Id: 9}}, nil
+		},
+	}
+	svc := service.NewBuildingService(repo, &mockFeatureRepository{
+		findByIDFunc: func(context.Context, uint64) (*models.Feature, *models.FeatureProperties, error) {
+			return &models.Feature{ID: featureID, OwnerID: ownerID}, &models.FeatureProperties{}, nil
+		},
+	}, &mockGeometryRepository{}, &mockHourlyProfitRepository{
+		deactivateFunc: func(context.Context, uint64) error { return nil },
+	}, nil)
+	svc.SetCommercialClient(&mockCommercialClient{
+		getWalletFunc: func(context.Context, uint64) (*commercialpb.WalletResponse, error) {
+			return &commercialpb.WalletResponse{Satisfaction: "100"}, nil
+		},
+		deductBalanceFunc: func(context.Context, uint64, string, float64) error { return nil },
+	})
+	feat, err := svc.BuildFeature(authContext(ownerID), &pb.BuildFeatureRequest{
+		FeatureId: featureID, BuildingModelId: "m1", LaunchedSatisfaction: "20", Rotation: "0", Position: "1, 2",
+		Information: &pb.BuildingInformation{
+			ActivityLine: "shop", Name: "n", Address: "a", PostalCode: "1234567890",
+			Website: "https://example.com", Description: "d",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created || feat.Id != featureID || len(feat.BuildingModels) != 1 {
+		t.Fatalf("created=%v feat=%v", created, feat)
+	}
+}
+
+func TestBuildingService_GetBuildingsAndUpdates(t *testing.T) {
+	featureRepo := &mockFeatureRepository{
+		findByIDFunc: func(context.Context, uint64) (*models.Feature, *models.FeatureProperties, error) {
+			return &models.Feature{ID: 10, OwnerID: 42}, &models.FeatureProperties{}, nil
+		},
+	}
+
+	t.Run("GetBuildings formats dates", func(t *testing.T) {
+		repo := &mockBuildingRepository{
+			findByFeatureIDFunc: func(context.Context, uint64) ([]*pb.Building, error) {
+				return []*pb.Building{{
+					ConstructionStartDate: "2026-01-02 15:04:05",
+					ConstructionEndDate:   "2026-02-01T15:04:05Z",
+					LaunchedSatisfaction:  "12.5",
+				}}, nil
+			},
+		}
+		svc := service.NewBuildingService(repo, featureRepo, &mockGeometryRepository{}, &mockHourlyProfitRepository{}, nil)
+		got, err := svc.GetBuildings(context.Background(), 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got[0].LaunchedSatisfaction != "12.5000" {
+			t.Fatalf("sat=%s", got[0].LaunchedSatisfaction)
+		}
+	})
+
+	t.Run("UpdateBuilding success", func(t *testing.T) {
+		repo := &mockBuildingRepository{
+			findModelFunc: func(context.Context, string) (*pb.BuildingModel, error) {
+				return &pb.BuildingModel{Id: 7, ModelId: "m1", RequiredSatisfaction: "1"}, nil
+			},
+			findBuildingByFeatureAndModelFunc: func(context.Context, uint64, string) (*pb.Building, error) {
+				return &pb.Building{ConstructionStartDate: "2026-01-02 15:04:05", BubbleDiameter: "3.5"}, nil
+			},
+			updateBuildingFunc: func(context.Context, uint64, string, string, string, string, string, time.Time, float64) (*pb.Building, error) {
+				return &pb.Building{
+					ConstructionStartDate: "2026-01-02 15:04:05",
+					ConstructionEndDate:   "2026-02-01 15:04:05",
+					LaunchedSatisfaction:  "10",
+				}, nil
+			},
+		}
+		svc := service.NewBuildingService(repo, featureRepo, &mockGeometryRepository{}, &mockHourlyProfitRepository{}, nil)
+		svc.SetCommercialClient(&mockCommercialClient{
+			getWalletFunc: func(context.Context, uint64) (*commercialpb.WalletResponse, error) {
+				return &commercialpb.WalletResponse{Satisfaction: "100"}, nil
+			},
+		})
+		got, err := svc.UpdateBuilding(authContext(42), &pb.UpdateBuildingRequest{
+			FeatureId: 10, BuildingModelId: "m1", LaunchedSatisfaction: "10", Rotation: "0", Position: "1,2",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.LaunchedSatisfaction != "10.0000" {
+			t.Fatalf("sat=%s", got.LaunchedSatisfaction)
+		}
+	})
+
+	t.Run("UpdateBuilding with information", func(t *testing.T) {
+		repo := &mockBuildingRepository{
+			findModelFunc: func(context.Context, string) (*pb.BuildingModel, error) {
+				return &pb.BuildingModel{Id: 7, ModelId: "m1", RequiredSatisfaction: "1"}, nil
+			},
+			findBuildingByFeatureAndModelFunc: func(context.Context, uint64, string) (*pb.Building, error) {
+				return &pb.Building{ConstructionStartDate: "2026-01-02 15:04:05", BubbleDiameter: "3.5"}, nil
+			},
+			firstOrCreateIsicCodeFunc: func(context.Context, string) (uint64, error) { return 1, nil },
+			updateBuildingFunc: func(context.Context, uint64, string, string, string, string, string, time.Time, float64) (*pb.Building, error) {
+				return &pb.Building{LaunchedSatisfaction: "10", ConstructionStartDate: "2026-01-02T15:04:05Z"}, nil
+			},
+		}
+		svc := service.NewBuildingService(repo, featureRepo, &mockGeometryRepository{}, &mockHourlyProfitRepository{}, nil)
+		svc.SetCommercialClient(&mockCommercialClient{
+			getWalletFunc: func(context.Context, uint64) (*commercialpb.WalletResponse, error) {
+				return &commercialpb.WalletResponse{Satisfaction: "100"}, nil
+			},
+		})
+		_, err := svc.UpdateBuilding(authContext(42), &pb.UpdateBuildingRequest{
+			FeatureId: 10, BuildingModelId: "m1", LaunchedSatisfaction: "10", Rotation: "0", Position: "1,2",
+			Information: &pb.BuildingInformation{ActivityLine: "shop", Name: "n", Address: "a", Description: "d"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("UpdateBuildingInformation merges", func(t *testing.T) {
+		var saved string
+		repo := &mockBuildingRepository{
+			findModelFunc: func(context.Context, string) (*pb.BuildingModel, error) {
+				return &pb.BuildingModel{Id: 7, ModelId: "m1"}, nil
+			},
+			findBuildingByFeatureAndModelFunc: func(context.Context, uint64, string) (*pb.Building, error) {
+				return &pb.Building{Information: `{"name":"old"}`}, nil
+			},
+			firstOrCreateIsicCodeFunc: func(context.Context, string) (uint64, error) { return 1, nil },
+			updateBuildingInformationFunc: func(_ context.Context, _ uint64, _ string, information string) error {
+				saved = information
+				return nil
+			},
+		}
+		svc := service.NewBuildingService(repo, featureRepo, &mockGeometryRepository{}, &mockHourlyProfitRepository{}, nil)
+		info, err := svc.UpdateBuildingInformation(authContext(42), &pb.UpdateBuildingInformationRequest{
+			FeatureId: 10, BuildingModelId: "m1",
+			Information: &pb.BuildingInformation{ActivityLine: "shop", Name: "new", Address: "a", PostalCode: "1234567890", Description: "d"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Name != "new" || saved == "" {
+			t.Fatalf("info=%v saved=%s", info, saved)
+		}
+	})
+
+	t.Run("UpdateBuilding validation errors", func(t *testing.T) {
+		repo := &mockBuildingRepository{
+			findModelFunc: func(context.Context, string) (*pb.BuildingModel, error) {
+				return &pb.BuildingModel{Id: 7, ModelId: "m1", RequiredSatisfaction: "5"}, nil
+			},
+			findBuildingByFeatureAndModelFunc: func(context.Context, uint64, string) (*pb.Building, error) {
+				return &pb.Building{ConstructionStartDate: "not-a-date", BubbleDiameter: "x"}, nil
+			},
+			updateBuildingFunc: func(context.Context, uint64, string, string, string, string, string, time.Time, float64) (*pb.Building, error) {
+				return &pb.Building{LaunchedSatisfaction: "bad", ConstructionEndDate: "2026-02-01T15:04:05"}, nil
+			},
+		}
+		svc := service.NewBuildingService(repo, featureRepo, &mockGeometryRepository{}, &mockHourlyProfitRepository{}, nil)
+		if _, err := svc.UpdateBuilding(context.Background(), &pb.UpdateBuildingRequest{FeatureId: 10, BuildingModelId: "m1"}); err == nil {
+			t.Fatal("expected unauthorized")
+		}
+		if _, err := svc.UpdateBuilding(authContext(99), &pb.UpdateBuildingRequest{FeatureId: 10, BuildingModelId: "m1"}); err == nil {
+			t.Fatal("expected not owner")
+		}
+		if _, err := svc.UpdateBuilding(authContext(42), &pb.UpdateBuildingRequest{
+			FeatureId: 10, BuildingModelId: "m1", LaunchedSatisfaction: "x",
+		}); err == nil {
+			t.Fatal("expected invalid satisfaction")
+		}
+		if _, err := svc.UpdateBuilding(authContext(42), &pb.UpdateBuildingRequest{
+			FeatureId: 10, BuildingModelId: "m1", LaunchedSatisfaction: "1", Rotation: "0", Position: "1,2",
+		}); err == nil {
+			t.Fatal("expected below required")
+		}
+		svc.SetCommercialClient(&mockCommercialClient{
+			getWalletFunc: func(context.Context, uint64) (*commercialpb.WalletResponse, error) {
+				return &commercialpb.WalletResponse{Satisfaction: "100"}, nil
+			},
+		})
+		if _, err := svc.UpdateBuilding(authContext(42), &pb.UpdateBuildingRequest{
+			FeatureId: 10, BuildingModelId: "m1", LaunchedSatisfaction: "10", Rotation: "bad", Position: "1,2",
+		}); err == nil {
+			t.Fatal("expected invalid rotation")
+		}
+		if _, err := svc.UpdateBuilding(authContext(42), &pb.UpdateBuildingRequest{
+			FeatureId: 10, BuildingModelId: "m1", LaunchedSatisfaction: "10", Rotation: "0", Position: "oops",
+		}); err == nil {
+			t.Fatal("expected invalid position")
+		}
+		got, err := svc.UpdateBuilding(authContext(42), &pb.UpdateBuildingRequest{
+			FeatureId: 10, BuildingModelId: "m1", LaunchedSatisfaction: "10", Rotation: "0", Position: "1,2",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got == nil {
+			t.Fatal("expected building")
 		}
 	})
 }
