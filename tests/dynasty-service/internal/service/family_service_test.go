@@ -76,3 +76,39 @@ func TestFamilyService_GetFamilyMembers(t *testing.T) {
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestFamilyService_GetFamily_RepoError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := service.NewFamilyService(repository.NewFamilyRepository(db), repository.NewDynastyRepository(db))
+	mock.ExpectQuery("FROM families WHERE id").WithArgs(uint64(10)).WillReturnError(assert.AnError)
+	_, err = svc.GetFamily(context.Background(), 10, 0)
+	require.Error(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFamilyService_GetUserBasicInfo(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := service.NewFamilyService(repository.NewFamilyRepository(db), repository.NewDynastyRepository(db))
+	mock.ExpectQuery("SELECT id, code, name FROM users").
+		WithArgs(uint64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "code", "name"}).AddRow(5, "C5", "Name5"))
+	mock.ExpectQuery("SELECT url FROM images").
+		WithArgs(uint64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"url"}).AddRow("https://img"))
+
+	info, err := svc.GetUserBasicInfo(context.Background(), 5)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	assert.Equal(t, uint64(5), info.ID)
+	assert.Equal(t, "C5", info.Code)
+	assert.Equal(t, "Name5", info.Name)
+	require.NotNil(t, info.ProfilePhoto)
+	assert.Equal(t, "https://img", *info.ProfilePhoto)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -233,4 +234,148 @@ func TestUserSearchService_SearchUsers_KYCErrorDoesNotFailSearch(t *testing.T) {
 	assert.Equal(t, "1", results[0].Levels[0].Slug)
 	require.NotNil(t, results[0].Levels[0].Gem)
 	assert.Equal(t, "B Gem", results[0].Levels[0].Gem.Name)
+}
+
+func TestUserSearchService_SearchUsers_ScanError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := service.NewUserSearchService(db, nil, nil)
+	mock.ExpectQuery("FROM users u").
+		WithArgs("%bad%", "%bad%", "%bad%", 5).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "code", "name", "display_name"}).
+			AddRow("not-a-uint", "U", "N", "D"))
+	_, err = svc.SearchUsers(context.Background(), "bad", 5)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to scan user")
+}
+
+func TestUserSearchService_SearchUsers_BirthdateAndLevelVariants(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	laterAnniversary := time.Now().UTC().AddDate(-25, 1, 0)
+	kyc := &stubKYCPort{
+		resp: &authpb.KYCResponse{
+			Status:    1,
+			Birthdate: laterAnniversary.Format("2006-01-02"),
+		},
+	}
+	levels := &stubLevelsPort{
+		resp: &levelspb.UserLevelResponse{
+			LatestLevel: &levelspb.Level{
+				Id:   10,
+				Name: "Gold",
+				Slug: "gold",
+				Gem:  &levelspb.LevelGem{Id: 99, Name: "Gold Gem", PngFile: "g.png"},
+			},
+			PreviousLevels: []*levelspb.Level{
+				nil,
+				{Id: 10, Name: "Gold dup", Slug: "gold"},
+				{Id: 2, Name: "Silver", Slug: "silver"},
+				{Id: 1, Name: "Bronze", Slug: "bronze", Gem: &levelspb.LevelGem{Id: 0, Name: ""}},
+			},
+		},
+		gems: map[uint64]*levelspb.LevelGem{
+			1: {Id: 11, Name: "Bronze Gem", PngFile: "b.png"},
+		},
+	}
+	svc := service.NewUserSearchService(db, kyc, levels)
+
+	mock.ExpectQuery("FROM users u").
+		WithArgs("%z%", "%z%", "%z%", 5).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "code", "name", "display_name"}).
+			AddRow(3, "U3", "Z", "Z User"))
+	mock.ExpectQuery("SELECT url FROM images").
+		WithArgs(uint64(3)).
+		WillReturnError(sql.ErrNoRows)
+
+	results, err := svc.SearchUsers(context.Background(), "z", 5)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.True(t, results[0].Verified)
+	assert.Equal(t, int32(24), results[0].Age)
+	assert.Nil(t, results[0].Image)
+	require.Len(t, results[0].Levels, 3)
+	assert.Equal(t, "silver", results[0].Levels[0].Slug)
+	assert.Equal(t, "gold", results[0].Levels[1].Slug)
+	assert.Equal(t, "bronze", results[0].Levels[2].Slug)
+	require.NotNil(t, results[0].Levels[1].Gem)
+	assert.Equal(t, uint64(99), results[0].Levels[1].Gem.ID)
+	require.NotNil(t, results[0].Levels[2].Gem)
+	assert.Equal(t, "Bronze Gem", results[0].Levels[2].Gem.Name)
+	assert.ElementsMatch(t, []uint64{1, 2}, levels.gemCalls)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUserSearchService_SearchUsers_InvalidAndEmptyBirthdates(t *testing.T) {
+	cases := []struct {
+		name      string
+		birthdate string
+	}{
+		{name: "Empty", birthdate: ""},
+		{name: "Invalid", birthdate: "not-a-date"},
+		{name: "FutureGregorian", birthdate: "2099-01-01"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+
+			kyc := &stubKYCPort{resp: &authpb.KYCResponse{Status: 1, Birthdate: tc.birthdate}}
+			svc := service.NewUserSearchService(db, kyc, &stubLevelsPort{resp: nil})
+			mock.ExpectQuery("FROM users u").
+				WithArgs("%q%", "%q%", "%q%", 3).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "code", "name", "display_name"}).
+					AddRow(4, "U4", "Q", "Q User"))
+			mock.ExpectQuery("SELECT url FROM images").
+				WithArgs(uint64(4)).
+				WillReturnError(sql.ErrNoRows)
+			results, err := svc.SearchUsers(context.Background(), "q", 3)
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			assert.Equal(t, int32(0), results[0].Age)
+			assert.Empty(t, results[0].Levels)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestUserSearchService_SearchUsers_NilKYCAndGetLevelGemError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	kyc := &stubKYCPort{resp: nil}
+	levels := &stubLevelsPort{
+		resp: &levelspb.UserLevelResponse{
+			LatestLevel: nil,
+			PreviousLevels: []*levelspb.Level{
+				{Id: 7, Name: "Seven", Slug: "7"},
+			},
+		},
+		gemErr: errors.New("gem down"),
+	}
+	svc := service.NewUserSearchService(db, kyc, levels)
+	mock.ExpectQuery("FROM users u").
+		WithArgs("%n%", "%n%", "%n%", 2).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "code", "name", "display_name"}).
+			AddRow(8, "U8", "N", "N User"))
+	mock.ExpectQuery("SELECT url FROM images").
+		WithArgs(uint64(8)).
+		WillReturnError(sql.ErrNoRows)
+
+	results, err := svc.SearchUsers(context.Background(), "n", 2)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.False(t, results[0].Verified)
+	assert.Equal(t, int32(0), results[0].Age)
+	assert.Empty(t, results[0].Level)
+	require.Len(t, results[0].Levels, 1)
+	assert.Equal(t, uint64(7), results[0].Levels[0].ID)
+	assert.Nil(t, results[0].Levels[0].Gem)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

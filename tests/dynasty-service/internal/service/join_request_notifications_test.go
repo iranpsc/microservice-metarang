@@ -195,6 +195,38 @@ func TestJoinRequestService_SendJoinRequest_EmptyTemplates_SkipSendNotification(
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestJoinRequestService_SendJoinRequest_ReceiverInfoFailure_SkipsNotifications(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	notif := &recordingNotificationPort{}
+	svc := service.NewJoinRequestService(
+		repository.NewJoinRequestRepository(db),
+		repository.NewDynastyRepository(db),
+		repository.NewFamilyRepository(db),
+		repository.NewPrizeRepository(db),
+		notif,
+		"",
+	)
+
+	mock.ExpectQuery("SELECT message FROM dynasty_messages").
+		WithArgs("receiver_message").
+		WillReturnRows(sqlmock.NewRows([]string{"message"}).AddRow("tmpl"))
+	mock.ExpectExec("INSERT INTO join_requests").
+		WithArgs(uint64(1), uint64(2), 0, "wife", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	expectUserBasicInfo(mock, 1, "A", "Alice")
+	mock.ExpectQuery("SELECT u.id, u.code, u.name").
+		WithArgs(uint64(2)).
+		WillReturnError(sql.ErrNoRows)
+
+	_, err = svc.SendJoinRequest(context.Background(), 1, 2, "wife", nil, nil)
+	require.NoError(t, err)
+	assert.Empty(t, notif.snapshot())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestJoinRequestService_SendJoinRequest_UserInfoFetchFailure_SkipsNotifications(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
