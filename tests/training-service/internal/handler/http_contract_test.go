@@ -267,7 +267,8 @@ func TestHTTPContract_CategoryNestedRoutes(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &catBody); err != nil {
 		t.Fatal(err)
 	}
-	if catBody["slug"] != "basics" || catBody["subcategories"] == nil {
+	catData, _ := catBody["data"].(map[string]interface{})
+	if catData["slug"] != "basics" || catData["subcategories"] == nil {
 		t.Fatalf("body=%v", catBody)
 	}
 
@@ -279,7 +280,8 @@ func TestHTTPContract_CategoryNestedRoutes(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &subBody); err != nil {
 		t.Fatal(err)
 	}
-	if subBody["videos"] == nil {
+	subData, _ := subBody["data"].(map[string]interface{})
+	if subData["videos"] == nil {
 		t.Fatalf("expected attached videos: %v", subBody)
 	}
 

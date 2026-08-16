@@ -264,8 +264,9 @@ func TestHTTPGetVideo_UserInteraction(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body["user_interaction"] != true {
-		t.Fatalf("user_interaction=%v", body["user_interaction"])
+	data, ok := body["data"].(map[string]interface{})
+	if !ok || data["user_interaction"] != true {
+		t.Fatalf("user_interaction=%v body=%v", data["user_interaction"], body)
 	}
 }
 
