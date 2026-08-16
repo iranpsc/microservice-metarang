@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -346,123 +347,125 @@ func (r *citizenRepository) GetCitizenReferralOrders(ctx context.Context, referr
 	return orders, nil
 }
 
-// GetCitizenReferralChartData retrieves aggregated referral chart data
+// GetCitizenReferralChartData retrieves aggregated referral chart data.
+// total_referrals_count is the number of referred users (users.referrer_id),
+// matching GET /referrals. Order amounts come from referral_order_histories
+// and are independent — referrals without orders still count.
 func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, referrerID uint64, rangeType string) (*models.ReferralChartData, error) {
-	// Get all referrals for this referrer
-	referralsQuery := `
-		SELECT u.id
+	// yearly: all data, grouped by Gregorian year/month (converted to Jalali Y/m)
+	// monthly: last 12 months, grouped by month (converted to Jalali Y/m)
+	// weekly: last 7 days, grouped by day (converted to Jalali Y/m/d)
+	// daily: last 24 hours, grouped by day (converted to Jalali Y/m/d)
+	dateFormat, userTimeFilter, orderTimeFilter, needsTimeArg := referralChartRangeSQL(rangeType)
+	now := time.Now()
+
+	countArgs := []interface{}{referrerID}
+	if needsTimeArg {
+		countArgs = append(countArgs, now)
+	}
+	countQuery := `
+		SELECT COUNT(*)
 		FROM users u
 		WHERE u.referrer_id = ?
-	`
-
-	referralRows, err := r.db.QueryContext(ctx, referralsQuery, referrerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get referrals: %w", err)
-	}
-	defer func() { _ = referralRows.Close() }()
-
-	var referralIDs []uint64
-	for referralRows.Next() {
-		var id uint64
-		if err := referralRows.Scan(&id); err == nil {
-			referralIDs = append(referralIDs, id)
-		}
-	}
-
-	if len(referralIDs) == 0 {
-		return &models.ReferralChartData{
-			TotalReferralsCount:       "0",
-			TotalReferralOrdersAmount: "0",
-			ChartData:                 []*models.ChartDataPoint{},
-		}, nil
-	}
-
-	// Build query based on range type
-	// - yearly: ALL data, grouped by Gregorian year/month (converted to Jalali Y/m)
-	// - monthly: last 12 months, grouped by month (converted to Jalali Y/m)
-	// - weekly: last 7 days, grouped by day (converted to Jalali Y/m/d)
-	// - daily: last 24 hours, grouped by day (converted to Jalali Y/m/d)
-	var dateFormat string
-	var timeFilter string
-
-	now := time.Now()
-	switch rangeType {
-	case "yearly":
-		timeFilter = "1=1" // No time filter for yearly - show all data
-		dateFormat = "%Y/%m"
-	case "monthly":
-		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 12 MONTH)" // Last 12 months, not 1 month
-		dateFormat = "%Y/%m"
-	case "weekly":
-		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 7 DAY)" // Last 7 days, not 1 week
-		dateFormat = "%Y/%m/%d"
-	default: // daily
-		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 DAY)"
-		dateFormat = "%Y/%m/%d"
-	}
-
-	// Get total count and amount
-	totalQuery := `
-		SELECT COUNT(DISTINCT referral_id) as total_count, COALESCE(SUM(amount), 0) as total_amount
-		FROM referral_order_histories
-		WHERE referral_id IN (` + buildPlaceholders(len(referralIDs)) + `)
-		AND ` + timeFilter
-	args := make([]interface{}, len(referralIDs))
-	for i, id := range referralIDs {
-		args[i] = id
-	}
-	// Only add time parameter if not yearly (yearly uses "1=1" which needs no parameter)
-	if rangeType != "yearly" {
-		args = append(args, now)
-	}
+		AND ` + userTimeFilter
 
 	var totalCount int
-	var totalAmount int64
-	err = r.db.QueryRowContext(ctx, totalQuery, args...).Scan(&totalCount, &totalAmount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get totals: %w", err)
+	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("failed to count referrals: %w", err)
 	}
 
-	// Get chart data points
-	// Use DATE_FORMAT in GROUP BY to comply with MySQL's only_full_group_by mode
-	chartQuery := `
-		SELECT 
-			DATE_FORMAT(created_at, ?) as label,
-			COUNT(DISTINCT referral_id) as count,
-			COALESCE(SUM(amount), 0) as total_amount
-		FROM referral_order_histories
-		WHERE referral_id IN (` + buildPlaceholders(len(referralIDs)) + `)
-		AND ` + timeFilter + `
-		GROUP BY DATE_FORMAT(created_at, ?)
-		ORDER BY DATE_FORMAT(created_at, ?) ASC
+	amountArgs := []interface{}{referrerID}
+	if needsTimeArg {
+		amountArgs = append(amountArgs, now)
+	}
+	amountQuery := `
+		SELECT COALESCE(SUM(roh.amount), 0)
+		FROM referral_order_histories roh
+		INNER JOIN users u ON u.id = roh.referral_id
+		WHERE u.referrer_id = ?
+		AND ` + orderTimeFilter
+
+	var totalAmount int64
+	if err := r.db.QueryRowContext(ctx, amountQuery, amountArgs...).Scan(&totalAmount); err != nil {
+		return nil, fmt.Errorf("failed to get referral order totals: %w", err)
+	}
+
+	buckets := make(map[string]*models.ChartDataPoint)
+
+	referralChartArgs := []interface{}{dateFormat, referrerID}
+	if needsTimeArg {
+		referralChartArgs = append(referralChartArgs, now)
+	}
+	referralChartArgs = append(referralChartArgs, dateFormat, dateFormat)
+	referralChartQuery := `
+		SELECT
+			DATE_FORMAT(u.created_at, ?) as label,
+			COUNT(*) as count
+		FROM users u
+		WHERE u.referrer_id = ?
+		AND ` + userTimeFilter + `
+		GROUP BY DATE_FORMAT(u.created_at, ?)
+		ORDER BY DATE_FORMAT(u.created_at, ?) ASC
 	`
 
-	chartArgs := make([]interface{}, 0)
-	chartArgs = append(chartArgs, dateFormat) // For SELECT DATE_FORMAT
-	for _, id := range referralIDs {
-		chartArgs = append(chartArgs, id)
-	}
-	// Only add time parameter if not yearly (yearly uses "1=1" which needs no parameter)
-	if rangeType != "yearly" {
-		chartArgs = append(chartArgs, now)
-	}
-	chartArgs = append(chartArgs, dateFormat) // For GROUP BY DATE_FORMAT
-	chartArgs = append(chartArgs, dateFormat) // For ORDER BY DATE_FORMAT
-
-	chartRows, err := r.db.QueryContext(ctx, chartQuery, chartArgs...)
+	referralRows, err := r.db.QueryContext(ctx, referralChartQuery, referralChartArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get chart data: %w", err)
+		return nil, fmt.Errorf("failed to get referral chart data: %w", err)
 	}
-	defer func() { _ = chartRows.Close() }()
 
-	var chartData []*models.ChartDataPoint
-	for chartRows.Next() {
-		point := &models.ChartDataPoint{}
+	for referralRows.Next() {
 		var label string
-		err := chartRows.Scan(&label, &point.Count, &point.TotalAmount)
-		if err != nil {
+		var count int64
+		if err := referralRows.Scan(&label, &count); err != nil {
 			continue
 		}
+		point := chartBucket(buckets, label)
+		point.Count = int32(count)
+	}
+	_ = referralRows.Close()
+
+	orderChartArgs := []interface{}{dateFormat, referrerID}
+	if needsTimeArg {
+		orderChartArgs = append(orderChartArgs, now)
+	}
+	orderChartArgs = append(orderChartArgs, dateFormat, dateFormat)
+	orderChartQuery := `
+		SELECT
+			DATE_FORMAT(roh.created_at, ?) as label,
+			COALESCE(SUM(roh.amount), 0) as total_amount
+		FROM referral_order_histories roh
+		INNER JOIN users u ON u.id = roh.referral_id
+		WHERE u.referrer_id = ?
+		AND ` + orderTimeFilter + `
+		GROUP BY DATE_FORMAT(roh.created_at, ?)
+		ORDER BY DATE_FORMAT(roh.created_at, ?) ASC
+	`
+
+	orderRows, err := r.db.QueryContext(ctx, orderChartQuery, orderChartArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get referral order chart data: %w", err)
+	}
+	defer func() { _ = orderRows.Close() }()
+
+	for orderRows.Next() {
+		var label string
+		var amount int64
+		if err := orderRows.Scan(&label, &amount); err != nil {
+			continue
+		}
+		point := chartBucket(buckets, label)
+		point.TotalAmount = amount
+	}
+
+	labels := make([]string, 0, len(buckets))
+	for label := range buckets {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+
+	chartData := make([]*models.ChartDataPoint, 0, len(labels))
+	for _, label := range labels {
+		point := buckets[label]
 		point.Label = gregorianChartLabelToJalali(label, rangeType)
 		chartData = append(chartData, point)
 	}
@@ -472,6 +475,37 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 		TotalReferralOrdersAmount: fmt.Sprintf("%d", totalAmount),
 		ChartData:                 chartData,
 	}, nil
+}
+
+func referralChartRangeSQL(rangeType string) (dateFormat, userTimeFilter, orderTimeFilter string, needsTimeArg bool) {
+	switch rangeType {
+	case "yearly":
+		return "%Y/%m", "1=1", "1=1", false
+	case "monthly":
+		return "%Y/%m",
+			"DATE(u.created_at) >= DATE_SUB(?, INTERVAL 12 MONTH)",
+			"DATE(roh.created_at) >= DATE_SUB(?, INTERVAL 12 MONTH)",
+			true
+	case "weekly":
+		return "%Y/%m/%d",
+			"DATE(u.created_at) >= DATE_SUB(?, INTERVAL 7 DAY)",
+			"DATE(roh.created_at) >= DATE_SUB(?, INTERVAL 7 DAY)",
+			true
+	default:
+		return "%Y/%m/%d",
+			"DATE(u.created_at) >= DATE_SUB(?, INTERVAL 1 DAY)",
+			"DATE(roh.created_at) >= DATE_SUB(?, INTERVAL 1 DAY)",
+			true
+	}
+}
+
+func chartBucket(buckets map[string]*models.ChartDataPoint, label string) *models.ChartDataPoint {
+	if point, ok := buckets[label]; ok {
+		return point
+	}
+	point := &models.ChartDataPoint{}
+	buckets[label] = point
+	return point
 }
 
 // GetCitizenLevels is deprecated; use UserRepository.GetUserLatestLevel and GetLevelsBelowScore.
@@ -504,12 +538,4 @@ func parseGregorianChartLabel(label string) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
-}
-
-func buildPlaceholders(count int) string {
-	placeholders := make([]string, count)
-	for i := range placeholders {
-		placeholders[i] = "?"
-	}
-	return strings.Join(placeholders, ",")
 }

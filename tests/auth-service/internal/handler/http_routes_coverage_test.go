@@ -425,7 +425,16 @@ func TestHTTPAuthHandler_CoverageBatch(t *testing.T) {
 		if rr.Code != http.StatusOK {
 			t.Fatalf("referrals code=%d body=%s", rr.Code, rr.Body.String())
 		}
-		r = httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/referrals/chart?range=daily", nil)
+		var listBody map[string]interface{}
+		if err := json.Unmarshal(rr.Body.Bytes(), &listBody); err != nil {
+			t.Fatalf("referrals json: %v", err)
+		}
+		list, _ := listBody["data"].([]interface{})
+		if len(list) != 7 {
+			t.Fatalf("expected 7 referrals, got %d body=%s", len(list), rr.Body.String())
+		}
+
+		r = httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/referrals/chart?range=yearly", nil)
 		rr = httptest.NewRecorder()
 		httpH.HandleCitizenRoutes(rr, r)
 		if rr.Code != http.StatusOK {
@@ -439,19 +448,35 @@ func TestHTTPAuthHandler_CoverageBatch(t *testing.T) {
 		if data == nil {
 			t.Fatalf("missing data: %s", rr.Body.String())
 		}
-		if data["total_referrals_count"] != "1" || data["total_referral_orders_amount"] != "10" {
-			t.Fatalf("totals=%v", data)
+		if data["total_referrals_count"] != "7" || data["total_referral_orders_amount"] != "3333" {
+			t.Fatalf("chart totals must match referral list count, got %v", data)
 		}
 		points, _ := data["chart_data"].([]interface{})
-		if len(points) != 1 {
+		if len(points) != 2 {
 			t.Fatalf("chart_data=%v", data["chart_data"])
 		}
-		point, _ := points[0].(map[string]interface{})
-		if point["day"] != "1402/10/11" || point["year"] != nil || point["month"] != nil {
+		point, _ := points[1].(map[string]interface{})
+		if point["year"] != "1401/10" || point["month"] != nil || point["day"] != nil {
 			t.Fatalf("point=%v", point)
 		}
-		if point["total_referrals_count"] != float64(1) || point["total_referral_orders_amount"] != float64(10) {
+		if point["total_referrals_count"] != float64(1) || point["total_referral_orders_amount"] != float64(3333) {
 			t.Fatalf("point totals=%v", point)
+		}
+
+		r = httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/referrals/chart?range=daily", nil)
+		rr = httptest.NewRecorder()
+		httpH.HandleCitizenRoutes(rr, r)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("daily chart code=%d body=%s", rr.Code, rr.Body.String())
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &chartBody); err != nil {
+			t.Fatalf("daily chart json: %v", err)
+		}
+		data, _ = chartBody["data"].(map[string]interface{})
+		points, _ = data["chart_data"].([]interface{})
+		point, _ = points[0].(map[string]interface{})
+		if point["day"] != "1402/10/11" || point["year"] != nil {
+			t.Fatalf("daily point=%v", point)
 		}
 	})
 
@@ -524,13 +549,23 @@ func (richCitizenService) GetCitizenProfile(context.Context, string) (*models.Ci
 	return &models.CitizenProfile{ID: 1, Code: "hm-1", Name: "n"}, nil
 }
 func (richCitizenService) GetCitizenReferrals(context.Context, string, string, int32) ([]*models.CitizenReferral, *models.PaginationMeta, error) {
-	return []*models.CitizenReferral{{ID: 2, Code: "hm-2", Name: "r", Image: "/i.jpg"}},
-		&models.PaginationMeta{CurrentPage: 1, NextPageURL: "?page=2"}, nil
+	refs := make([]*models.CitizenReferral, 0, 7)
+	for i := 0; i < 6; i++ {
+		refs = append(refs, &models.CitizenReferral{ID: uint64(10 + i), Code: "hm-2", Name: "r"})
+	}
+	refs = append(refs, &models.CitizenReferral{
+		ID: 7, Code: "hm-2000004", Name: "r", Image: "/i.jpg",
+		ReferrerOrders: []*models.ReferrerOrder{{ID: 2, Amount: 3333}},
+	})
+	return refs, &models.PaginationMeta{CurrentPage: 1, NextPageURL: "?page=2"}, nil
 }
 func (richCitizenService) GetCitizenReferralChart(context.Context, string, string) (*models.ReferralChartData, error) {
 	return &models.ReferralChartData{
-		TotalReferralsCount: "1", TotalReferralOrdersAmount: "10",
-		ChartData: []*models.ChartDataPoint{{Label: "1402/10/11", Count: 1, TotalAmount: 10}},
+		TotalReferralsCount: "7", TotalReferralOrdersAmount: "3333",
+		ChartData: []*models.ChartDataPoint{
+			{Label: "1402/10/11", Count: 6, TotalAmount: 0},
+			{Label: "1401/10", Count: 1, TotalAmount: 3333},
+		},
 	}, nil
 }
 func (richCitizenService) AbsoluteURL(path string) string { return "https://app" + path }

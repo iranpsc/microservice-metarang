@@ -71,21 +71,21 @@ func TestCitizenRepository_SQLMock(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, orders, 1)
 
-	mock.ExpectQuery("FROM users u").WithArgs(uint64(1)).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	expectCitizenReferralChartQueries(mock, 0, 0, nil, nil)
 	chart, err := repo.GetCitizenReferralChartData(ctx, 1, "yearly")
 	require.NoError(t, err)
 	require.Equal(t, "0", chart.TotalReferralsCount)
+	require.Equal(t, "0", chart.TotalReferralOrdersAmount)
+	require.Empty(t, chart.ChartData)
 
-	mock.ExpectQuery("FROM users u").WithArgs(uint64(1)).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uint64(9)))
-	mock.ExpectQuery("FROM referral_order_histories").
-		WillReturnRows(sqlmock.NewRows([]string{"total_count", "total_amount"}).AddRow(1, int64(50)))
-	mock.ExpectQuery("FROM referral_order_histories").
-		WillReturnRows(sqlmock.NewRows([]string{"label", "count", "total_amount"}).AddRow("2024/01", int32(1), int64(50)))
+	expectCitizenReferralChartQueries(mock, 1, 50,
+		[]chartBucketRow{{label: "2024/01", count: 1}},
+		[]chartBucketRow{{label: "2024/01", amount: 50}},
+	)
 	chart, err = repo.GetCitizenReferralChartData(ctx, 1, "yearly")
 	require.NoError(t, err)
 	require.Equal(t, "1", chart.TotalReferralsCount)
+	require.Equal(t, "50", chart.TotalReferralOrdersAmount)
 	require.Regexp(t, `^\d{4}/\d{2}$`, chart.ChartData[0].Label)
 	require.NotEqual(t, "2024/01", chart.ChartData[0].Label)
 

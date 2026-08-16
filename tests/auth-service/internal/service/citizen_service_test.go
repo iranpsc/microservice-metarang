@@ -12,14 +12,14 @@ import (
 )
 
 type fakeCitizenRepository struct {
-	userInfo   *models.CitizenUserInfo
-	profile    *models.CitizenProfile
-	referrals  []*models.CitizenReferral
-	meta       *models.PaginationMeta
-	orders     []*models.ReferrerOrder
-	chart      *models.ReferralChartData
-	err        error
-	ordersErr  error
+	userInfo  *models.CitizenUserInfo
+	profile   *models.CitizenProfile
+	referrals []*models.CitizenReferral
+	meta      *models.PaginationMeta
+	orders    []*models.ReferrerOrder
+	chart     *models.ReferralChartData
+	err       error
+	ordersErr error
 }
 
 func (f *fakeCitizenRepository) GetCitizenUserInfoByCode(context.Context, string) (*models.CitizenUserInfo, error) {
@@ -60,9 +60,9 @@ func (s *stubHelper) GetUserLevel(context.Context, uint64) (*service.LevelInfo, 
 func (s *stubHelper) GetUserWallet(context.Context, uint64) (*service.WalletInfo, error) {
 	return nil, errors.New("n/a")
 }
-func (s *stubHelper) CreateWallet(context.Context, uint64) error             { return nil }
-func (s *stubHelper) CreateUserVariables(context.Context, uint64) error      { return nil }
-func (s *stubHelper) Close() error                                           { return nil }
+func (s *stubHelper) CreateWallet(context.Context, uint64) error        { return nil }
+func (s *stubHelper) CreateUserVariables(context.Context, uint64) error { return nil }
+func (s *stubHelper) Close() error                                      { return nil }
 
 var _ service.HelperService = (*stubHelper)(nil)
 
@@ -105,7 +105,10 @@ func TestCitizenService(t *testing.T) {
 			referrals: []*models.CitizenReferral{{ID: 9, Code: "hm-9"}},
 			meta:      &models.PaginationMeta{CurrentPage: 1},
 			orders:    []*models.ReferrerOrder{{ID: 1, Amount: 100, CreatedAt: time.Now()}},
-			chart:     &models.ReferralChartData{},
+			chart: &models.ReferralChartData{
+				TotalReferralsCount:       "7",
+				TotalReferralOrdersAmount: "3333",
+			},
 		}
 		svc := service.NewCitizenService(repo, users, nil, "https://app.example/")
 		refs, meta, err := svc.GetCitizenReferrals(ctx, "hm-1", "", 1)
@@ -121,7 +124,11 @@ func TestCitizenService(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		chart, err := svc.GetCitizenReferralChart(ctx, "hm-1", "invalid")
+		chart, err := svc.GetCitizenReferralChart(ctx, "hm-1", "yearly")
+		if err != nil || chart == nil || chart.TotalReferralsCount != "7" || chart.TotalReferralOrdersAmount != "3333" {
+			t.Fatalf("%v %v", chart, err)
+		}
+		chart, err = svc.GetCitizenReferralChart(ctx, "hm-1", "invalid")
 		if err != nil || chart == nil {
 			t.Fatalf("%v %v", chart, err)
 		}
