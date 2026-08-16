@@ -343,4 +343,7 @@ func TestVideoDetailsToProto_URLVariants(t *testing.T) {
 	if _, err := handler.VideoDetailsToProto(&service.VideoDetails{}); err == nil {
 		t.Fatal("expected invalid video")
 	}
+	if _, err := handler.VideoDetailsToProto(nil); err == nil {
+		t.Fatal("expected nil video error")
+	}
 }

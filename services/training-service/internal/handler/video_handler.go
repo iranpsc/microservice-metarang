@@ -127,7 +127,7 @@ func (h *VideoHandler) GetVideoByFileName(ctx context.Context, req *trainingpb.G
 
 // SearchVideos searches videos by title
 func (h *VideoHandler) SearchVideos(ctx context.Context, req *trainingpb.SearchVideosRequest) (*trainingpb.VideosResponse, error) {
-	validationErrors := validateRequired("query", req.Query, getLocale(ctx))
+	validationErrors := ValidateRequired("query", req.Query, getLocale(ctx))
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
 	}
