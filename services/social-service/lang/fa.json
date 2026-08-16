@@ -1,9 +1,0 @@
-{
-  "challenge.timings_failed": "بارگذاری زمان‌بندی چالش ممکن نشد",
-  "challenge.question_failed": "بارگذاری سوال ممکن نشد",
-  "challenge.answer_invalid": "پاسخ نامعتبر است",
-  "follow.user_not_found": "کاربر یافت نشد",
-  "follow.cannot_follow_self": "نمی‌توانید خودتان را دنبال کنید",
-  "follow.already_following": "قبلاً این کاربر را دنبال می‌کنید",
-  "follow.profile_blocked": "دنبال کردن برای این پروفایل مجاز نیست"
-}

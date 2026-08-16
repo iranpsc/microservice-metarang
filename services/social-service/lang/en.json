@@ -1,9 +1,0 @@
-{
-  "challenge.timings_failed": "Could not load challenge timings",
-  "challenge.question_failed": "Could not load question",
-  "challenge.answer_invalid": "Invalid answer submission",
-  "follow.user_not_found": "User not found",
-  "follow.cannot_follow_self": "You cannot follow yourself",
-  "follow.already_following": "Already following this user",
-  "follow.profile_blocked": "Following is blocked for this profile"
-}
