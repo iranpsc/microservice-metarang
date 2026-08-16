@@ -36,11 +36,11 @@ func RegisterTicketHandler(grpcServer *grpc.Server, ticketService service.Ticket
 func (h *TicketHandler) CreateTicket(ctx context.Context, req *pb.CreateTicketRequest) (*pb.TicketResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("user_id", req.UserId, locale),
-		validateRequired("title", req.Title, locale),
-		validateRequired("content", req.Content, locale),
-		validateMaxLen("title", req.Title, 250, locale),
-		validateMaxLen("content", req.Content, 500, locale),
+		ValidateRequired("user_id", req.UserId, locale),
+		ValidateRequired("title", req.Title, locale),
+		ValidateRequired("content", req.Content, locale),
+		ValidateMaxLen("title", req.Title, 250, locale),
+		ValidateMaxLen("content", req.Content, 500, locale),
 	)
 	if req.ReceiverId == 0 && req.Department == "" {
 		validationErrors = mergeValidationErrors(validationErrors, map[string]string{
@@ -76,7 +76,7 @@ func (h *TicketHandler) CreateTicket(ctx context.Context, req *pb.CreateTicketRe
 
 func (h *TicketHandler) GetTickets(ctx context.Context, req *pb.GetTicketsRequest) (*pb.TicketsResponse, error) {
 	locale := handlerLocale(ctx)
-	validationErrors := validateRequired("user_id", req.UserId, locale)
+	validationErrors := ValidateRequired("user_id", req.UserId, locale)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
 	}
@@ -119,8 +119,8 @@ func (h *TicketHandler) GetTickets(ctx context.Context, req *pb.GetTicketsReques
 func (h *TicketHandler) GetTicket(ctx context.Context, req *pb.GetTicketRequest) (*pb.TicketResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("ticket_id", req.TicketId, locale),
-		validateRequired("user_id", req.UserId, locale),
+		ValidateRequired("ticket_id", req.TicketId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -141,12 +141,12 @@ func (h *TicketHandler) GetTicket(ctx context.Context, req *pb.GetTicketRequest)
 func (h *TicketHandler) UpdateTicket(ctx context.Context, req *pb.UpdateTicketRequest) (*pb.TicketResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("ticket_id", req.TicketId, locale),
-		validateRequired("user_id", req.UserId, locale),
-		validateRequired("title", req.Title, locale),
-		validateRequired("content", req.Content, locale),
-		validateMaxLen("title", req.Title, 250, locale),
-		validateMaxLen("content", req.Content, 500, locale),
+		ValidateRequired("ticket_id", req.TicketId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
+		ValidateRequired("title", req.Title, locale),
+		ValidateRequired("content", req.Content, locale),
+		ValidateMaxLen("title", req.Title, 250, locale),
+		ValidateMaxLen("content", req.Content, 500, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -163,10 +163,10 @@ func (h *TicketHandler) UpdateTicket(ctx context.Context, req *pb.UpdateTicketRe
 func (h *TicketHandler) AddResponse(ctx context.Context, req *pb.AddResponseRequest) (*pb.TicketResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("ticket_id", req.TicketId, locale),
-		validateRequired("user_id", req.UserId, locale),
-		validateRequired("response", req.Response, locale),
-		validateMaxLen("response", req.Response, 500, locale),
+		ValidateRequired("ticket_id", req.TicketId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
+		ValidateRequired("response", req.Response, locale),
+		ValidateMaxLen("response", req.Response, 500, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -188,8 +188,8 @@ func (h *TicketHandler) AddResponse(ctx context.Context, req *pb.AddResponseRequ
 func (h *TicketHandler) CloseTicket(ctx context.Context, req *pb.CloseTicketRequest) (*pb.TicketResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("ticket_id", req.TicketId, locale),
-		validateRequired("user_id", req.UserId, locale),
+		ValidateRequired("ticket_id", req.TicketId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)

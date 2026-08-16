@@ -35,8 +35,8 @@ func RegisterUserEventHandler(grpcServer *grpc.Server, userEventService service.
 func (h *UserEventHandler) CreateUserEvent(ctx context.Context, req *pb.CreateUserEventRequest) (*pb.UserEventResponse, error) {
 	locale := "en" // TODO: Get locale from config or context
 	validationErrors := mergeValidationErrors(
-		validateRequired("user_id", req.UserId, locale),
-		validateRequired("title", req.Title, locale),
+		ValidateRequired("user_id", req.UserId, locale),
+		ValidateRequired("title", req.Title, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -52,7 +52,7 @@ func (h *UserEventHandler) CreateUserEvent(ctx context.Context, req *pb.CreateUs
 
 func (h *UserEventHandler) GetUserEvents(ctx context.Context, req *pb.GetUserEventsRequest) (*pb.UserEventsResponse, error) {
 	locale := "en" // TODO: Get locale from config or context
-	validationErrors := validateRequired("user_id", req.UserId, locale)
+	validationErrors := ValidateRequired("user_id", req.UserId, locale)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
 	}
@@ -93,8 +93,8 @@ func (h *UserEventHandler) GetUserEvents(ctx context.Context, req *pb.GetUserEve
 func (h *UserEventHandler) GetUserEvent(ctx context.Context, req *pb.GetUserEventRequest) (*pb.UserEventResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("event_id", req.EventId, locale),
-		validateRequired("user_id", req.UserId, locale),
+		ValidateRequired("event_id", req.EventId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -115,8 +115,8 @@ func (h *UserEventHandler) GetUserEvent(ctx context.Context, req *pb.GetUserEven
 func (h *UserEventHandler) ReportUserEvent(ctx context.Context, req *pb.ReportUserEventRequest) (*pb.UserEventReportResponse, error) {
 	locale := "en" // TODO: Get locale from config or context
 	validationErrors := mergeValidationErrors(
-		validateRequired("event_id", req.EventId, locale),
-		validateRequired("event_description", req.EventDescription, locale),
+		ValidateRequired("event_id", req.EventId, locale),
+		ValidateRequired("event_description", req.EventDescription, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -133,8 +133,8 @@ func (h *UserEventHandler) ReportUserEvent(ctx context.Context, req *pb.ReportUs
 func (h *UserEventHandler) SendEventReportResponse(ctx context.Context, req *pb.SendEventReportResponseRequest) (*pb.SendEventReportResponseReply, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("event_id", req.EventId, locale),
-		validateRequired("response", req.Response, locale),
+		ValidateRequired("event_id", req.EventId, locale),
+		ValidateRequired("response", req.Response, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -162,8 +162,8 @@ func (h *UserEventHandler) SendEventReportResponse(ctx context.Context, req *pb.
 func (h *UserEventHandler) CloseUserEventReport(ctx context.Context, req *pb.CloseUserEventReportRequest) (*pbCommon.Empty, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("event_id", req.EventId, locale),
-		validateRequired("user_id", req.UserId, locale),
+		ValidateRequired("event_id", req.EventId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)

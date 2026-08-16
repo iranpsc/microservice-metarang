@@ -16,8 +16,8 @@ func returnValidationError(fields map[string]string) error {
 	return status.Errorf(codes.InvalidArgument, "%s", encodedError)
 }
 
-// validateRequired validates that a field is not empty/zero
-func validateRequired(fieldName string, value interface{}, locale string) map[string]string {
+// ValidateRequired validates that a field is not empty/zero.
+func ValidateRequired(fieldName string, value interface{}, locale string) map[string]string {
 	validationErrors := make(map[string]string)
 	t := helpers.GetLocaleTranslations(locale)
 
@@ -74,9 +74,10 @@ var validReportSubjects = map[string]struct{}{
 	"disrespect":    {},
 }
 
-func validateReportSubject(subject, locale string) map[string]string {
+// ValidateReportSubject validates report subject values.
+func ValidateReportSubject(subject, locale string) map[string]string {
 	if subject == "" {
-		return validateRequired("subject", "", locale)
+		return ValidateRequired("subject", "", locale)
 	}
 	if _, ok := validReportSubjects[subject]; !ok {
 		t := helpers.GetLocaleTranslations(locale)
@@ -85,7 +86,8 @@ func validateReportSubject(subject, locale string) map[string]string {
 	return nil
 }
 
-func validateMaxLen(field, val string, max int, locale string) map[string]string {
+// ValidateMaxLen validates maximum string length.
+func ValidateMaxLen(field, val string, max int, locale string) map[string]string {
 	if len(val) > max {
 		t := helpers.GetLocaleTranslations(locale)
 		return map[string]string{field: fmt.Sprintf(t.Max, field, fmt.Sprintf("%d", max))}

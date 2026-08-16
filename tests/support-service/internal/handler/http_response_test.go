@@ -1,4 +1,4 @@
-package handler
+package handler_test
 
 import (
 	"bytes"
@@ -10,11 +10,13 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"metarang/support-service/internal/handler"
 )
 
 func TestWriteJSON_WrapsAndSkipsExistingData(t *testing.T) {
 	rr := httptest.NewRecorder()
-	writeJSON(rr, http.StatusOK, map[string]interface{}{"id": 1})
+	handler.ExportWriteJSON(rr, http.StatusOK, map[string]interface{}{"id": 1})
 	var body map[string]interface{}
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
@@ -24,7 +26,7 @@ func TestWriteJSON_WrapsAndSkipsExistingData(t *testing.T) {
 	}
 
 	rr = httptest.NewRecorder()
-	writeJSON(rr, http.StatusOK, map[string]interface{}{"data": []int{1}})
+	handler.ExportWriteJSON(rr, http.StatusOK, map[string]interface{}{"data": []int{1}})
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
@@ -33,13 +35,13 @@ func TestWriteJSON_WrapsAndSkipsExistingData(t *testing.T) {
 	}
 
 	rr = httptest.NewRecorder()
-	writeJSON(rr, http.StatusBadRequest, map[string]string{"error": "nope"})
+	handler.ExportWriteJSON(rr, http.StatusBadRequest, map[string]string{"error": "nope"})
 	if !bytes.Contains(rr.Body.Bytes(), []byte(`"error"`)) {
 		t.Fatalf("error payload %s", rr.Body.String())
 	}
 
 	rr = httptest.NewRecorder()
-	writeJSON(rr, http.StatusOK, nil)
+	handler.ExportWriteJSON(rr, http.StatusOK, nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("nil data code=%d", rr.Code)
 	}
@@ -62,7 +64,7 @@ func TestWriteHandlerError_Mappings(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rr := httptest.NewRecorder()
-		writeHandlerError(rr, tc.err)
+		handler.ExportWriteHandlerError(rr, tc.err)
 		if rr.Code != tc.code {
 			t.Fatalf("err=%v code=%d want=%d body=%s", tc.err, rr.Code, tc.code, rr.Body.String())
 		}
@@ -70,25 +72,25 @@ func TestWriteHandlerError_Mappings(t *testing.T) {
 }
 
 func TestExtractIDFromPathAndSplitJalaliDateTime(t *testing.T) {
-	if got := extractIDFromPath("/api/tickets/12", "/api/tickets/", "/api/support/tickets/"); got != "12" {
+	if got := handler.ExportExtractIDFromPath("/api/tickets/12", "/api/tickets/", "/api/support/tickets/"); got != "12" {
 		t.Fatalf("got=%q", got)
 	}
-	if got := extractIDFromPath("/api/support/tickets/12/extra", "/api/tickets/", "/api/support/tickets/"); got != "12" {
+	if got := handler.ExportExtractIDFromPath("/api/support/tickets/12/extra", "/api/tickets/", "/api/support/tickets/"); got != "12" {
 		t.Fatalf("got=%q", got)
 	}
-	if got := extractIDFromPath("/nope/1", "/api/tickets/"); got != "" {
+	if got := handler.ExportExtractIDFromPath("/nope/1", "/api/tickets/"); got != "" {
 		t.Fatalf("got=%q", got)
 	}
 
-	d, tm := splitJalaliDateTime("1403/01/01 12:00:00")
+	d, tm := handler.ExportSplitJalaliDateTime("1403/01/01 12:00:00")
 	if d != "1403/01/01" || tm != "12:00:00" {
 		t.Fatalf("d=%q tm=%q", d, tm)
 	}
-	d, tm = splitJalaliDateTime("1403/01/01")
+	d, tm = handler.ExportSplitJalaliDateTime("1403/01/01")
 	if d != "1403/01/01" || tm != "" {
 		t.Fatalf("date only d=%q tm=%q", d, tm)
 	}
-	d, tm = splitJalaliDateTime("  ")
+	d, tm = handler.ExportSplitJalaliDateTime("  ")
 	if d != "" || tm != "" {
 		t.Fatalf("empty d=%q tm=%q", d, tm)
 	}
@@ -97,16 +99,16 @@ func TestExtractIDFromPathAndSplitJalaliDateTime(t *testing.T) {
 func TestDecodeJSONBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"a":1}`))
 	var v map[string]int
-	if err := decodeJSONBody(req, &v); err != nil || v["a"] != 1 {
+	if err := handler.ExportDecodeJSONBody(req, &v); err != nil || v["a"] != 1 {
 		t.Fatalf("v=%v err=%v", v, err)
 	}
 }
 
 func TestSpoofedMethodFromValues(t *testing.T) {
-	if spoofedMethodFromValues(nil) != "" {
+	if handler.ExportSpoofedMethodFromValues(nil) != "" {
 		t.Fatal("empty")
 	}
-	if spoofedMethodFromValues([]string{" patch "}) != "PATCH" {
+	if handler.ExportSpoofedMethodFromValues([]string{" patch "}) != "PATCH" {
 		t.Fatal("upper")
 	}
 }

@@ -41,11 +41,11 @@ func handlerLocale(ctx context.Context) string {
 func (h *NoteHandler) CreateNote(ctx context.Context, req *pb.CreateNoteRequest) (*pb.NoteResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("user_id", req.UserId, locale),
-		validateRequired("title", req.Title, locale),
-		validateRequired("content", req.Content, locale),
-		validateMaxLen("title", req.Title, 130, locale),
-		validateMaxLen("content", req.Content, 2000, locale),
+		ValidateRequired("user_id", req.UserId, locale),
+		ValidateRequired("title", req.Title, locale),
+		ValidateRequired("content", req.Content, locale),
+		ValidateMaxLen("title", req.Title, 130, locale),
+		ValidateMaxLen("content", req.Content, 2000, locale),
 	)
 	if len(req.Attachments) > 5 {
 		validationErrors = mergeValidationErrors(validationErrors, map[string]string{
@@ -71,7 +71,7 @@ func (h *NoteHandler) CreateNote(ctx context.Context, req *pb.CreateNoteRequest)
 
 func (h *NoteHandler) GetNotes(ctx context.Context, req *pb.GetNotesRequest) (*pb.NotesResponse, error) {
 	locale := handlerLocale(ctx)
-	validationErrors := validateRequired("user_id", req.UserId, locale)
+	validationErrors := ValidateRequired("user_id", req.UserId, locale)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
 	}
@@ -95,8 +95,8 @@ func (h *NoteHandler) GetNotes(ctx context.Context, req *pb.GetNotesRequest) (*p
 func (h *NoteHandler) GetNote(ctx context.Context, req *pb.GetNoteRequest) (*pb.NoteResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("note_id", req.NoteId, locale),
-		validateRequired("user_id", req.UserId, locale),
+		ValidateRequired("note_id", req.NoteId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
@@ -117,12 +117,12 @@ func (h *NoteHandler) GetNote(ctx context.Context, req *pb.GetNoteRequest) (*pb.
 func (h *NoteHandler) UpdateNote(ctx context.Context, req *pb.UpdateNoteRequest) (*pb.NoteResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("note_id", req.NoteId, locale),
-		validateRequired("user_id", req.UserId, locale),
-		validateRequired("title", req.Title, locale),
-		validateRequired("content", req.Content, locale),
-		validateMaxLen("title", req.Title, 130, locale),
-		validateMaxLen("content", req.Content, 2000, locale),
+		ValidateRequired("note_id", req.NoteId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
+		ValidateRequired("title", req.Title, locale),
+		ValidateRequired("content", req.Content, locale),
+		ValidateMaxLen("title", req.Title, 130, locale),
+		ValidateMaxLen("content", req.Content, 2000, locale),
 	)
 	if len(req.Attachments) > 5 {
 		validationErrors = mergeValidationErrors(validationErrors, map[string]string{
@@ -145,8 +145,8 @@ func (h *NoteHandler) UpdateNote(ctx context.Context, req *pb.UpdateNoteRequest)
 func (h *NoteHandler) DeleteNote(ctx context.Context, req *pb.DeleteNoteRequest) (*pbCommon.Empty, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("note_id", req.NoteId, locale),
-		validateRequired("user_id", req.UserId, locale),
+		ValidateRequired("note_id", req.NoteId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
