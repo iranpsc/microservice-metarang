@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -39,7 +40,7 @@ func (m *mockHelperService) GetUserWallet(context.Context, uint64) (*service.Wal
 }
 func (m *mockHelperService) CreateWallet(context.Context, uint64) error        { return nil }
 func (m *mockHelperService) CreateUserVariables(context.Context, uint64) error { return nil }
-func (m *mockHelperService) Close() error                                     { return nil }
+func (m *mockHelperService) Close() error                                      { return nil }
 
 func multipartRequest(t *testing.T, method, url, field, filename, contentType string, data []byte, extra map[string]string) *http.Request {
 	t.Helper()
@@ -430,6 +431,28 @@ func TestHTTPAuthHandler_CoverageBatch(t *testing.T) {
 		if rr.Code != http.StatusOK {
 			t.Fatalf("chart code=%d body=%s", rr.Code, rr.Body.String())
 		}
+		var chartBody map[string]interface{}
+		if err := json.Unmarshal(rr.Body.Bytes(), &chartBody); err != nil {
+			t.Fatalf("chart json: %v", err)
+		}
+		data, _ := chartBody["data"].(map[string]interface{})
+		if data == nil {
+			t.Fatalf("missing data: %s", rr.Body.String())
+		}
+		if data["total_referrals_count"] != "1" || data["total_referral_orders_amount"] != "10" {
+			t.Fatalf("totals=%v", data)
+		}
+		points, _ := data["chart_data"].([]interface{})
+		if len(points) != 1 {
+			t.Fatalf("chart_data=%v", data["chart_data"])
+		}
+		point, _ := points[0].(map[string]interface{})
+		if point["day"] != "1402/10/11" || point["year"] != nil || point["month"] != nil {
+			t.Fatalf("point=%v", point)
+		}
+		if point["total_referrals_count"] != float64(1) || point["total_referral_orders_amount"] != float64(10) {
+			t.Fatalf("point totals=%v", point)
+		}
 	})
 
 	t.Run("personal info update", func(t *testing.T) {
@@ -507,14 +530,14 @@ func (richCitizenService) GetCitizenReferrals(context.Context, string, string, i
 func (richCitizenService) GetCitizenReferralChart(context.Context, string, string) (*models.ReferralChartData, error) {
 	return &models.ReferralChartData{
 		TotalReferralsCount: "1", TotalReferralOrdersAmount: "10",
-		ChartData: []*models.ChartDataPoint{{Label: "l", Count: 1, TotalAmount: 10}},
+		ChartData: []*models.ChartDataPoint{{Label: "1402/10/11", Count: 1, TotalAmount: 10}},
 	}, nil
 }
-func (richCitizenService) AbsoluteURL(path string) string       { return "https://app" + path }
-func (richCitizenService) PassionIconURL(string) string         { return "https://app/p.png" }
-func (richCitizenService) NationalityFlagURL() string           { return "https://app/f.png" }
-func (richCitizenService) CitizenPosition() string              { return "pos" }
-func (richCitizenService) CitizenAvatar() string                { return "https://app/a.png" }
+func (richCitizenService) AbsoluteURL(path string) string { return "https://app" + path }
+func (richCitizenService) PassionIconURL(string) string   { return "https://app/p.png" }
+func (richCitizenService) NationalityFlagURL() string     { return "https://app/f.png" }
+func (richCitizenService) CitizenPosition() string        { return "pos" }
+func (richCitizenService) CitizenAvatar() string          { return "https://app/a.png" }
 func (richCitizenService) ScorePercentageToNextLevel(context.Context, uint64, int32) float64 {
 	return 1
 }

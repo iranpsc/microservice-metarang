@@ -192,13 +192,79 @@ func TestCitizenRichProfileAndHTTPBuilders(t *testing.T) {
 	_ = handler.UserListLevelToHTTPForTest(nil)
 }
 
+func TestBuildCitizenReferralChartHTTPResponse(t *testing.T) {
+	resp := &pb.CitizenReferralChartResponse{
+		Data: &pb.ReferralChartData{
+			TotalReferralsCount:       "1",
+			TotalReferralOrdersAmount: "21111",
+			ChartData: []*pb.ChartDataPoint{
+				{Label: "1401/10", Count: 1, TotalAmount: 21111},
+			},
+		},
+	}
+
+	t.Run("yearly uses year field", func(t *testing.T) {
+		out := handler.BuildCitizenReferralChartHTTPResponseForTest(resp, "yearly")
+		data, _ := out["data"].(map[string]interface{})
+		if data["total_referrals_count"] != "1" || data["total_referral_orders_amount"] != "21111" {
+			t.Fatalf("totals=%v", data)
+		}
+		points, _ := data["chart_data"].([]map[string]interface{})
+		if len(points) != 1 {
+			t.Fatalf("chart_data=%v", data["chart_data"])
+		}
+		point := points[0]
+		if point["year"] != "1401/10" || point["month"] != nil || point["day"] != nil {
+			t.Fatalf("point=%v", point)
+		}
+		if point["total_referrals_count"] != int32(1) || point["total_referral_orders_amount"] != int64(21111) {
+			t.Fatalf("point totals=%v", point)
+		}
+	})
+
+	t.Run("monthly uses month field", func(t *testing.T) {
+		out := handler.BuildCitizenReferralChartHTTPResponseForTest(resp, "monthly")
+		data, _ := out["data"].(map[string]interface{})
+		points, _ := data["chart_data"].([]map[string]interface{})
+		if points[0]["month"] != "1401/10" || points[0]["year"] != nil {
+			t.Fatalf("point=%v", points[0])
+		}
+	})
+
+	t.Run("daily uses day field", func(t *testing.T) {
+		daily := &pb.CitizenReferralChartResponse{
+			Data: &pb.ReferralChartData{
+				TotalReferralsCount:       "1",
+				TotalReferralOrdersAmount: "21111",
+				ChartData: []*pb.ChartDataPoint{
+					{Label: "1401/10/11", Count: 1, TotalAmount: 21111},
+				},
+			},
+		}
+		out := handler.BuildCitizenReferralChartHTTPResponseForTest(daily, "daily")
+		data, _ := out["data"].(map[string]interface{})
+		points, _ := data["chart_data"].([]map[string]interface{})
+		if points[0]["day"] != "1401/10/11" || points[0]["year"] != nil {
+			t.Fatalf("point=%v", points[0])
+		}
+	})
+
+	t.Run("nil data defaults", func(t *testing.T) {
+		out := handler.BuildCitizenReferralChartHTTPResponseForTest(&pb.CitizenReferralChartResponse{}, "daily")
+		data, _ := out["data"].(map[string]interface{})
+		if data["total_referrals_count"] != "0" || data["total_referral_orders_amount"] != "0" {
+			t.Fatalf("defaults=%v", data)
+		}
+	})
+}
+
 func TestHTTPHelpersCoverageExtras(t *testing.T) {
 	type q struct {
-		Name  string `json:"name" form:"name"`
-		Count int32  `json:"count" form:"count"`
-		Flag  bool   `json:"flag" form:"flag"`
+		Name  string  `json:"name" form:"name"`
+		Count int32   `json:"count" form:"count"`
+		Flag  bool    `json:"flag" form:"flag"`
 		Amt   float64 `json:"amt" form:"amt"`
-		ID    uint64 `json:"id" form:"id"`
+		ID    uint64  `json:"id" form:"id"`
 	}
 	r := httptest.NewRequest(http.MethodGet, "/x?name=bob&count=3&flag=true&amt=1.5&id=9", nil)
 	var got q

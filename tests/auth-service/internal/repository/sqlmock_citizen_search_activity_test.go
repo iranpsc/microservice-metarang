@@ -77,10 +77,12 @@ func TestCitizenRepository_SQLMock(t *testing.T) {
 	mock.ExpectQuery("FROM referral_order_histories").
 		WillReturnRows(sqlmock.NewRows([]string{"total_count", "total_amount"}).AddRow(1, int64(50)))
 	mock.ExpectQuery("FROM referral_order_histories").
-		WillReturnRows(sqlmock.NewRows([]string{"label", "count", "total_amount"}).AddRow("2024", int32(1), int64(50)))
+		WillReturnRows(sqlmock.NewRows([]string{"label", "count", "total_amount"}).AddRow("2024/01", int32(1), int64(50)))
 	chart, err = repo.GetCitizenReferralChartData(ctx, 1, "yearly")
 	require.NoError(t, err)
 	require.Equal(t, "1", chart.TotalReferralsCount)
+	require.Regexp(t, `^\d{4}/\d{2}$`, chart.ChartData[0].Label)
+	require.NotEqual(t, "2024/01", chart.ChartData[0].Label)
 
 	cur, prev, err := repo.GetCitizenLevels(ctx, 1)
 	require.NoError(t, err)

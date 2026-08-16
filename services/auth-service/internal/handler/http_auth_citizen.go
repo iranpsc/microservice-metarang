@@ -105,7 +105,7 @@ func (h *HTTPAuthHandler) GetCitizenReferralChart(w http.ResponseWriter, r *http
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildCitizenReferralChartHTTPResponse(resp))
+	writeJSON(w, http.StatusOK, buildCitizenReferralChartHTTPResponse(resp, rangeType))
 }
 
 func buildCitizenReferralsHTTPResponse(r *http.Request, resp *pb.CitizenReferralsResponse) map[string]interface{} {
@@ -169,23 +169,24 @@ func buildCitizenReferralsHTTPResponse(r *http.Request, resp *pb.CitizenReferral
 	return response
 }
 
-func buildCitizenReferralChartHTTPResponse(resp *pb.CitizenReferralChartResponse) map[string]interface{} {
+func buildCitizenReferralChartHTTPResponse(resp *pb.CitizenReferralChartResponse, rangeType string) map[string]interface{} {
 	chartPayload := map[string]interface{}{
-		"total_referrals_count":        "0",
-		"total_referral_orders_amount": "0",
 		"chart_data":                   []interface{}{},
+		"total_referral_orders_amount": "0",
+		"total_referrals_count":        "0",
 	}
 
-	if resp.Data != nil {
+	if resp != nil && resp.Data != nil {
 		chartPayload["total_referrals_count"] = resp.Data.TotalReferralsCount
 		chartPayload["total_referral_orders_amount"] = resp.Data.TotalReferralOrdersAmount
 
+		dateField := referralChartDateField(rangeType)
 		chartData := make([]map[string]interface{}, 0, len(resp.Data.ChartData))
 		for _, point := range resp.Data.ChartData {
 			chartData = append(chartData, map[string]interface{}{
-				"label":        point.Label,
-				"count":        point.Count,
-				"total_amount": point.TotalAmount,
+				"total_referrals_count":        point.Count,
+				dateField:                      point.Label,
+				"total_referral_orders_amount": point.TotalAmount,
 			})
 		}
 		chartPayload["chart_data"] = chartData
@@ -193,5 +194,16 @@ func buildCitizenReferralChartHTTPResponse(resp *pb.CitizenReferralChartResponse
 
 	return map[string]interface{}{
 		"data": chartPayload,
+	}
+}
+
+func referralChartDateField(rangeType string) string {
+	switch strings.ToLower(rangeType) {
+	case "yearly":
+		return "year"
+	case "monthly":
+		return "month"
+	default:
+		return "day"
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"metarang/auth-service/internal/models"
+	"metarang/shared/pkg/helpers"
 )
 
 type CitizenRepository interface {
@@ -407,10 +408,10 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 	}
 
 	// Build query based on range type
-	// - yearly: ALL data, no time filter (groups by year from first to current)
-	// - monthly: last 12 months
-	// - weekly: last 7 days
-	// - daily: last 24 hours
+	// - yearly: ALL data, grouped by Gregorian year/month (converted to Jalali Y/m)
+	// - monthly: last 12 months, grouped by month (converted to Jalali Y/m)
+	// - weekly: last 7 days, grouped by day (converted to Jalali Y/m/d)
+	// - daily: last 24 hours, grouped by day (converted to Jalali Y/m/d)
 	var dateFormat string
 	var timeFilter string
 
@@ -421,13 +422,13 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 		dateFormat = "%Y/%m"
 	case "monthly":
 		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 12 MONTH)" // Last 12 months, not 1 month
-		dateFormat = "%Y/%m/%d"
+		dateFormat = "%Y/%m"
 	case "weekly":
 		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 7 DAY)" // Last 7 days, not 1 week
 		dateFormat = "%Y/%m/%d"
 	default: // daily
 		timeFilter = "DATE(created_at) >= DATE_SUB(?, INTERVAL 1 DAY)"
-		dateFormat = "%Y/%m/%d %H"
+		dateFormat = "%Y/%m/%d"
 	}
 
 	// Get total count and amount
@@ -492,8 +493,7 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 		if err != nil {
 			continue
 		}
-		// Convert Gregorian date to Jalali format
-		point.Label = label // TODO: Convert to Jalali if needed
+		point.Label = gregorianChartLabelToJalali(label, rangeType)
 		chartData = append(chartData, point)
 	}
 
@@ -507,6 +507,33 @@ func (r *citizenRepository) GetCitizenReferralChartData(ctx context.Context, ref
 // GetCitizenLevels is deprecated; use UserRepository.GetUserLatestLevel and GetLevelsBelowScore.
 func (r *citizenRepository) GetCitizenLevels(ctx context.Context, userID uint64) (*models.CitizenLevel, []*models.CitizenLevel, error) {
 	return nil, nil, nil
+}
+
+func gregorianChartLabelToJalali(label, rangeType string) string {
+	parsed, ok := parseGregorianChartLabel(label)
+	if !ok {
+		return label
+	}
+
+	jalali := helpers.FormatJalaliDate(parsed)
+	switch rangeType {
+	case "yearly", "monthly":
+		if len(jalali) >= 7 {
+			return jalali[:7]
+		}
+		return jalali
+	default:
+		return jalali
+	}
+}
+
+func parseGregorianChartLabel(label string) (time.Time, bool) {
+	for _, layout := range []string{"2006/01/02 15", "2006/01/02", "2006/01"} {
+		if t, err := time.Parse(layout, label); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func buildPlaceholders(count int) string {

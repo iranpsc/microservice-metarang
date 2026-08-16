@@ -88,6 +88,10 @@ func BuildCitizenProfileHTTPResponseForTest(resp *pb.CitizenProfileResponse) map
 	return buildCitizenProfileHTTPResponse(resp)
 }
 
+func BuildCitizenReferralChartHTTPResponseForTest(resp *pb.CitizenReferralChartResponse, rangeType string) map[string]interface{} {
+	return buildCitizenReferralChartHTTPResponse(resp, rangeType)
+}
+
 func UserListLevelToHTTPForTest(lvl *pb.Level) map[string]interface{} {
 	return userListLevelToHTTP(lvl)
 }

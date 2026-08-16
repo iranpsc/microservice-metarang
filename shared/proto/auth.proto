@@ -462,7 +462,7 @@ message ReferralChartData {
 }
 
 message ChartDataPoint {
-  string label = 1; // Jalali date/time label
+  string label = 1; // Jalali date: Y/m for yearly/monthly, Y/m/d for daily/weekly
   int32 count = 2;
   int64 total_amount = 3; // bigint in database
 }
