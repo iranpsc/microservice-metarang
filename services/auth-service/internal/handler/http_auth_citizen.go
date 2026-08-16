@@ -46,6 +46,43 @@ func (h *HTTPAuthHandler) HandleCitizenRoutes(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// GetUserLevelByCode handles GET /api/user/{code}/level
+func (h *HTTPAuthHandler) GetUserLevelByCode(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	if code == "" {
+		path := strings.TrimPrefix(r.URL.Path, "/api/user/")
+		parts := strings.Split(strings.Trim(path, "/"), "/")
+		if len(parts) > 0 {
+			code = parts[0]
+		}
+	}
+	if code == "" {
+		writeError(w, http.StatusBadRequest, "user code is required")
+		return
+	}
+
+	resp, err := h.citizenClient.GetCitizenLevel(r.Context(), &pb.GetCitizenLevelRequest{Code: code})
+	if err != nil {
+		h.writeGRPCErrorLocale(w, err)
+		return
+	}
+
+	levelPayload := map[string]interface{}{
+		"slug":  "",
+		"score": "0",
+	}
+	if resp != nil && resp.Level != nil {
+		levelPayload["slug"] = resp.Level.Slug
+		if resp.Level.Score != "" {
+			levelPayload["score"] = resp.Level.Score
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"level": levelPayload,
+	}, true)
+}
+
 // GetCitizenProfile handles GET /api/citizen/{code}
 func (h *HTTPAuthHandler) GetCitizenProfile(w http.ResponseWriter, r *http.Request, code string) {
 	grpcReq := &pb.GetCitizenProfileRequest{

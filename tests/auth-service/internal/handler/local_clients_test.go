@@ -9,19 +9,39 @@ import (
 )
 
 // stubServers embed Unimplemented* so LocalClients wrappers are exercised even when RPCs return Unimplemented.
-type stubAuth struct{ pb.UnimplementedAuthServiceServer }
-type stubUser struct{ pb.UnimplementedUserServiceServer }
-type stubKYC struct{ pb.UnimplementedKYCServiceServer }
-type stubCitizen struct{ pb.UnimplementedCitizenServiceServer }
-type stubPersonalInfo struct{ pb.UnimplementedPersonalInfoServiceServer }
+type stubAuth struct {
+	pb.UnimplementedAuthServiceServer
+}
+type stubUser struct {
+	pb.UnimplementedUserServiceServer
+}
+type stubKYC struct {
+	pb.UnimplementedKYCServiceServer
+}
+type stubCitizen struct {
+	pb.UnimplementedCitizenServiceServer
+}
+type stubPersonalInfo struct {
+	pb.UnimplementedPersonalInfoServiceServer
+}
 type stubProfileLimitation struct {
 	pb.UnimplementedProfileLimitationServiceServer
 }
-type stubProfilePhoto struct{ pb.UnimplementedProfilePhotoServiceServer }
-type stubSettings struct{ pb.UnimplementedSettingsServiceServer }
-type stubUserEvents struct{ pb.UnimplementedUserEventsServiceServer }
-type stubSearch struct{ pb.UnimplementedSearchServiceServer }
-type stubWallet struct{ pb.UnimplementedWalletConnectionServiceServer }
+type stubProfilePhoto struct {
+	pb.UnimplementedProfilePhotoServiceServer
+}
+type stubSettings struct {
+	pb.UnimplementedSettingsServiceServer
+}
+type stubUserEvents struct {
+	pb.UnimplementedUserEventsServiceServer
+}
+type stubSearch struct {
+	pb.UnimplementedSearchServiceServer
+}
+type stubWallet struct {
+	pb.UnimplementedWalletConnectionServiceServer
+}
 
 func TestLocalClients_AllMethods(t *testing.T) {
 	clients := handler.NewLocalClients(
@@ -74,6 +94,7 @@ func TestLocalClients_AllMethods(t *testing.T) {
 	_, _ = clients.Citizen.GetCitizenReferrals(ctx, &pb.GetCitizenReferralsRequest{})
 	_, _ = clients.Citizen.GetCitizenReferralChart(ctx, &pb.GetCitizenReferralChartRequest{})
 	_, _ = clients.Citizen.GetCitizenUserInfo(ctx, &pb.GetCitizenUserInfoRequest{})
+	_, _ = clients.Citizen.GetCitizenLevel(ctx, &pb.GetCitizenLevelRequest{})
 
 	// Personal info
 	_, _ = clients.PersonalInfo.GetPersonalInfo(ctx, &pb.GetPersonalInfoRequest{})

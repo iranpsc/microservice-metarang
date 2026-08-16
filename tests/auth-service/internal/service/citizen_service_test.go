@@ -44,8 +44,10 @@ func (f *fakeCitizenRepository) GetCitizenLevels(context.Context, uint64) (*mode
 var _ repository.CitizenRepository = (*fakeCitizenRepository)(nil)
 
 type stubHelper struct {
-	pct float64
-	err error
+	pct      float64
+	err      error
+	level    *service.LevelInfo
+	levelErr error
 }
 
 func (s *stubHelper) GetHourlyProfitTimePercentage(context.Context, uint64) (float64, error) {
@@ -55,7 +57,10 @@ func (s *stubHelper) GetScorePercentageToNextLevel(context.Context, uint64, int3
 	return s.pct, s.err
 }
 func (s *stubHelper) GetUserLevel(context.Context, uint64) (*service.LevelInfo, error) {
-	return nil, nil
+	if s.levelErr != nil {
+		return nil, s.levelErr
+	}
+	return s.level, nil
 }
 func (s *stubHelper) GetUserWallet(context.Context, uint64) (*service.WalletInfo, error) {
 	return nil, errors.New("n/a")
@@ -86,7 +91,7 @@ func TestCitizenService(t *testing.T) {
 				Privacy: map[string]bool{"level": true},
 			},
 		}
-		svc := service.NewCitizenService(repo, users, &stubHelper{pct: 12.5}, "https://app.example")
+		svc := service.NewCitizenService(repo, users, &stubHelper{pct: 12.5, level: &service.LevelInfo{Slug: "citizen", Score: 25, Title: "Citizen"}}, "https://app.example")
 		info, err := svc.GetCitizenUserInfo(ctx, "hm-1")
 		if err != nil || info.UserID != 1 {
 			t.Fatalf("%v %v", info, err)
@@ -97,6 +102,18 @@ func TestCitizenService(t *testing.T) {
 		}
 		if svc.ScorePercentageToNextLevel(ctx, 1, 40) != 12.5 {
 			t.Fatal("score %")
+		}
+		level, err := svc.GetCitizenLevel(ctx, "hm-1")
+		if err != nil || level == nil || level.Slug != "citizen" || level.Score != 25 {
+			t.Fatalf("level=%+v err=%v", level, err)
+		}
+		level, err = svc.GetCitizenLevel(ctx, "missing")
+		if err != nil || level != nil {
+			t.Fatalf("expected missing citizen, got %+v err=%v", level, err)
+		}
+		errHelper := service.NewCitizenService(repo, users, &stubHelper{levelErr: errors.New("levels down")}, "https://app.example")
+		if _, err := errHelper.GetCitizenLevel(ctx, "hm-1"); err == nil {
+			t.Fatal("expected levels error")
 		}
 	})
 
@@ -149,6 +166,10 @@ func TestCitizenService(t *testing.T) {
 		}
 		if svc.ScorePercentageToNextLevel(ctx, 1, 1) != 0 {
 			t.Fatal("nil helper")
+		}
+		level, err := svc.GetCitizenLevel(ctx, "hm-1")
+		if err != nil || level == nil || level.Slug != "" {
+			t.Fatalf("nil helper level=%+v err=%v", level, err)
 		}
 	})
 }

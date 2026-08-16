@@ -48,6 +48,7 @@ func StartHTTPServer(
 	mux.Handle("/api/user", authMiddleware(http.HandlerFunc(authHandler.GetUser)))
 	mux.Handle("/api/user/wallet", authMiddleware(http.HandlerFunc(authHandler.GetAuthenticatedUserWallet)))
 	mux.Handle("/api/user/profile", authMiddleware(http.HandlerFunc(authHandler.UpdateProfile)))
+	mux.HandleFunc("GET /api/user/{code}/level", authHandler.GetUserLevelByCode)
 	mux.Handle("GET /api/users/{user}/profile-limitations", authMiddleware(http.HandlerFunc(authHandler.GetProfileLimitations)))
 	mux.Handle("/api/users/", optionalAuthMiddleware(http.HandlerFunc(authHandler.HandleUsersRoutes)))
 

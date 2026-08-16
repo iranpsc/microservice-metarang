@@ -463,6 +463,21 @@ func TestHTTPAuthHandler_CoverageBatch(t *testing.T) {
 			t.Fatalf("point totals=%v", point)
 		}
 
+		r = httptest.NewRequest(http.MethodGet, "/api/user/hm-1/level", nil)
+		rr = httptest.NewRecorder()
+		httpH.GetUserLevelByCode(rr, r)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("user level code=%d body=%s", rr.Code, rr.Body.String())
+		}
+		var levelBody map[string]interface{}
+		if err := json.Unmarshal(rr.Body.Bytes(), &levelBody); err != nil {
+			t.Fatalf("user level json: %v", err)
+		}
+		level, _ := levelBody["level"].(map[string]interface{})
+		if level["slug"] != "citizen" || level["score"] != "25" {
+			t.Fatalf("level=%v body=%s", level, rr.Body.String())
+		}
+
 		r = httptest.NewRequest(http.MethodGet, "/api/citizen/hm-1/referrals/chart?range=daily", nil)
 		rr = httptest.NewRecorder()
 		httpH.HandleCitizenRoutes(rr, r)
@@ -544,6 +559,9 @@ type richCitizenService struct{}
 
 func (richCitizenService) GetCitizenUserInfo(context.Context, string) (*models.CitizenUserInfo, error) {
 	return &models.CitizenUserInfo{UserID: 1}, nil
+}
+func (richCitizenService) GetCitizenLevel(context.Context, string) (*models.CitizenLevel, error) {
+	return &models.CitizenLevel{Slug: "citizen", Score: 25}, nil
 }
 func (richCitizenService) GetCitizenProfile(context.Context, string) (*models.CitizenProfile, error) {
 	return &models.CitizenProfile{ID: 1, Code: "hm-1", Name: "n"}, nil

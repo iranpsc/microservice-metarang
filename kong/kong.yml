@@ -456,6 +456,7 @@ routes:
       - /api/users
       - /api/user/wallet
       - /api/user/profile
+      - ~/api/user/[^/]+/level$
       - ~/api/user$
       - /api/search
       - /api/kyc

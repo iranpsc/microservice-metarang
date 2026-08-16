@@ -57,6 +57,7 @@ service CitizenService {
   rpc GetCitizenReferralChart(GetCitizenReferralChartRequest) returns (CitizenReferralChartResponse);
   // Lightweight identity + privacy for public citizen feature assets
   rpc GetCitizenUserInfo(GetCitizenUserInfoRequest) returns (GetCitizenUserInfoResponse);
+  rpc GetCitizenLevel(GetCitizenLevelRequest) returns (GetCitizenLevelResponse);
 }
 
 // PersonalInfo Service - handles personal information endpoints
@@ -474,6 +475,19 @@ message GetCitizenUserInfoRequest {
 message GetCitizenUserInfoResponse {
   uint64 user_id = 1;
   map<string, int32> privacy = 2; // privacy_key -> 0|1
+}
+
+message GetCitizenLevelRequest {
+  string code = 1; // Case-insensitive citizen code
+}
+
+message GetCitizenLevelResponse {
+  CitizenLevelSummary level = 1;
+}
+
+message CitizenLevelSummary {
+  string slug = 1;
+  string score = 2;
 }
 
 // ============== PersonalInfo Service Messages ==============

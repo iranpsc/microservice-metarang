@@ -194,6 +194,7 @@ func TestStartHTTPServer_LiveRouteCoverage(t *testing.T) {
 	get("/api/users")
 	get("/api/user")
 	get("/api/user/wallet")
+	get("/api/user/hm-1/level")
 	do(http.MethodPut, "/api/user/profile", `{"name":"n","email":"a@x.com","phone":"09120000000"}`)
 	get("/api/users/1/levels")
 	get("/api/users/1/profile")

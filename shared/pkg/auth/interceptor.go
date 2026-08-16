@@ -253,6 +253,7 @@ func shouldSkipAuth(fullMethod string) bool {
 		"/auth.CitizenService/GetCitizenReferrals",
 		"/auth.CitizenService/GetCitizenReferralChart",
 		"/auth.CitizenService/GetCitizenUserInfo",
+		"/auth.CitizenService/GetCitizenLevel",
 		"/auth.SearchService/SearchUsers",
 		"/auth.SearchService/SearchFeatures",
 		"/auth.SearchService/SearchIsicCodes",

@@ -89,6 +89,17 @@ routes:
     tag: Users
     summary: Update authenticated user profile
     security: bearer
+  - path: /api/user/{code}/level
+    methods: [get]
+    tag: Users
+    summary: Get user level by citizen code
+    security: none
+    params:
+      - name: code
+        in: path
+        type: string
+        description: Citizen code
+        example: HM-2000000
   - path: /api/users/{user}
     methods: [get]
     tag: Users

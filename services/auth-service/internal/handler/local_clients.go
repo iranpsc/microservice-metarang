@@ -162,6 +162,9 @@ func (c *localCitizenClient) GetCitizenReferralChart(ctx context.Context, in *pb
 func (c *localCitizenClient) GetCitizenUserInfo(ctx context.Context, in *pb.GetCitizenUserInfoRequest, _ ...grpc.CallOption) (*pb.GetCitizenUserInfoResponse, error) {
 	return c.CitizenServiceServer.GetCitizenUserInfo(ctx, in)
 }
+func (c *localCitizenClient) GetCitizenLevel(ctx context.Context, in *pb.GetCitizenLevelRequest, _ ...grpc.CallOption) (*pb.GetCitizenLevelResponse, error) {
+	return c.CitizenServiceServer.GetCitizenLevel(ctx, in)
+}
 
 type localPersonalInfoClient struct{ pb.PersonalInfoServiceServer }
 

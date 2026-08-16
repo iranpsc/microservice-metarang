@@ -18,6 +18,7 @@ const (
 type CitizenService interface {
 	GetCitizenProfile(ctx context.Context, code string) (*models.CitizenProfile, error)
 	GetCitizenUserInfo(ctx context.Context, code string) (*models.CitizenUserInfo, error)
+	GetCitizenLevel(ctx context.Context, code string) (*models.CitizenLevel, error)
 	GetCitizenReferrals(ctx context.Context, code string, search string, page int32) ([]*models.CitizenReferral, *models.PaginationMeta, error)
 	GetCitizenReferralChart(ctx context.Context, code string, rangeType string) (*models.ReferralChartData, error)
 	ScorePercentageToNextLevel(ctx context.Context, userID uint64, score int32) float64
@@ -56,6 +57,36 @@ func (s *citizenService) GetCitizenUserInfo(ctx context.Context, code string) (*
 		return nil, fmt.Errorf("failed to get citizen user info: %w", err)
 	}
 	return info, nil
+}
+
+// GetCitizenLevel looks up a user by code and fetches their current level from levels-service.
+func (s *citizenService) GetCitizenLevel(ctx context.Context, code string) (*models.CitizenLevel, error) {
+	user, err := s.userRepo.FindByCode(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, nil
+	}
+
+	if s.helperSvc == nil {
+		return &models.CitizenLevel{}, nil
+	}
+
+	level, err := s.helperSvc.GetUserLevel(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user level: %w", err)
+	}
+	if level == nil {
+		return &models.CitizenLevel{}, nil
+	}
+
+	return &models.CitizenLevel{
+		ID:    level.ID,
+		Name:  level.Title,
+		Slug:  level.Slug,
+		Score: level.Score,
+	}, nil
 }
 
 // GetCitizenProfile retrieves a citizen's public profile (privacy applied in handler).
