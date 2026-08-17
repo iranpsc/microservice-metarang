@@ -218,6 +218,14 @@ func TestCategoryRepository_GetCategoryStats(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+
+	db, mock = newSQLMock(t)
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(5)).WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(int32(1)))
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(5)).WillReturnError(sql.ErrConnDone)
+	r = repository.NewCategoryRepository(db)
+	if _, err := r.GetCategoryStats(context.Background(), 5); err == nil {
+		t.Fatal("expected views count error")
+	}
 }
 
 func TestCategoryRepository_GetSubCategoryStats(t *testing.T) {
@@ -235,6 +243,14 @@ func TestCategoryRepository_GetSubCategoryStats(t *testing.T) {
 	_, err = r.GetSubCategoryStats(context.Background(), 8)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+
+	db, mock = newSQLMock(t)
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(8)).WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(int32(1)))
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(8)).WillReturnError(sql.ErrConnDone)
+	r = repository.NewCategoryRepository(db)
+	if _, err := r.GetSubCategoryStats(context.Background(), 8); err == nil {
+		t.Fatal("expected views count error")
 	}
 }
 

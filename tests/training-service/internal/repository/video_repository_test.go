@@ -109,6 +109,25 @@ func TestVideoRepository_GetVideoByFileName_FoundAndNotFound(t *testing.T) {
 	}
 }
 
+func TestVideoRepository_GetVideoBySlug_FoundAndNotFound(t *testing.T) {
+	db, mock := newSQLMock(t)
+	mock.ExpectQuery("SELECT id, video_sub_category_id").WithArgs("intro").
+		WillReturnRows(addVideoRow(sqlmock.NewRows(videoColumns()), 4))
+	r := repository.NewVideoRepository(db)
+	v, err := r.GetVideoBySlug(context.Background(), "intro")
+	if err != nil || v == nil || v.ID != 4 {
+		t.Fatalf("v=%+v err=%v", v, err)
+	}
+
+	db, mock = newSQLMock(t)
+	mock.ExpectQuery("SELECT id, video_sub_category_id").WithArgs("missing").WillReturnError(sql.ErrNoRows)
+	r = repository.NewVideoRepository(db)
+	v, err = r.GetVideoBySlug(context.Background(), "missing")
+	if err != nil || v != nil {
+		t.Fatalf("expected nil, got %+v err=%v", v, err)
+	}
+}
+
 func TestVideoRepository_GetVideoBySlug_ScanError(t *testing.T) {
 	db, mock := newSQLMock(t)
 	mock.ExpectQuery("SELECT id, video_sub_category_id").WithArgs("bad").WillReturnError(sql.ErrConnDone)
@@ -166,6 +185,14 @@ func TestVideoRepository_GetVideoStats(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected views error")
 	}
+
+	db, mock = newSQLMock(t)
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(8)).WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(int32(1)))
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(8)).WillReturnError(sql.ErrConnDone)
+	r = repository.NewVideoRepository(db)
+	if _, err := r.GetVideoStats(context.Background(), 8); err == nil {
+		t.Fatal("expected likes error")
+	}
 }
 
 func TestVideoRepository_GetUserInteraction(t *testing.T) {
@@ -192,6 +219,22 @@ func TestVideoRepository_GetUserInteraction(t *testing.T) {
 	_, err = r.GetUserInteraction(context.Background(), 1, 2)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestVideoRepository_IncrementViewAndAddInteraction_Success(t *testing.T) {
+	db, mock := newSQLMock(t)
+	mock.ExpectExec("INSERT INTO views").WillReturnResult(sqlmock.NewResult(1, 1))
+	r := repository.NewVideoRepository(db)
+	if err := r.IncrementView(context.Background(), 1, "ip"); err != nil {
+		t.Fatal(err)
+	}
+
+	db, mock = newSQLMock(t)
+	mock.ExpectExec("INSERT INTO interactions").WillReturnResult(sqlmock.NewResult(1, 1))
+	r = repository.NewVideoRepository(db)
+	if err := r.AddInteraction(context.Background(), 1, 2, true, "ip"); err != nil {
+		t.Fatal(err)
 	}
 }
 

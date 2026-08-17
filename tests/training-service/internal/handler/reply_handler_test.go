@@ -88,6 +88,44 @@ func TestReplyHandler_GetReplies_EnrichesUserStatsAndParent(t *testing.T) {
 	_ = liked
 }
 
+func TestReplyHandler_AddUpdateDeleteSuccess(t *testing.T) {
+	mc := &testutil.MockCommentRepo{
+		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+			if commentID == 1 {
+				return &models.Comment{ID: 1, UserID: 1, CommentableID: 9}, nil
+			}
+			return &models.Comment{ID: commentID, UserID: 4, Content: "z"}, nil
+		},
+		AddReplyFunc: func(ctx context.Context, parentCommentID, userID uint64, content string) (*models.Comment, error) {
+			return &models.Comment{ID: 20, UserID: userID, CommentableID: 9, Content: content, CreatedAt: time.Now()}, nil
+		},
+		UpdateReplyFunc: func(ctx context.Context, replyID, userID uint64, content string) error {
+			return nil
+		},
+		DeleteReplyFunc: func(ctx context.Context, replyID, userID uint64) error {
+			return nil
+		},
+	}
+	client := newReplyClient(t, mc, nil)
+	resp, err := client.AddReply(context.Background(), &trainingpb.AddReplyRequest{
+		ParentCommentId: 1, UserId: 4, Content: "hi",
+	})
+	if err != nil || resp.Id != 20 {
+		t.Fatalf("add err=%v resp=%+v", err, resp)
+	}
+
+	resp, err = client.UpdateReply(context.Background(), &trainingpb.UpdateReplyRequest{
+		ReplyId: 8, UserId: 4, Content: "z",
+	})
+	if err != nil || resp.Content != "z" {
+		t.Fatalf("update err=%v resp=%+v", err, resp)
+	}
+
+	if _, err := client.DeleteReply(context.Background(), &trainingpb.DeleteReplyRequest{ReplyId: 8, UserId: 4}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestReplyHandler_AddReply_PermissionDeniedAndValidation(t *testing.T) {
 	mc := &testutil.MockCommentRepo{
 		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {

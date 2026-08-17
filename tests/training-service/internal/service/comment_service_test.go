@@ -172,6 +172,126 @@ func TestCommentService_AddComment_RepoError(t *testing.T) {
 	}
 }
 
+func TestCommentService_AddComment_Success(t *testing.T) {
+	mc := &testutil.MockCommentRepo{
+		AddCommentFunc: func(ctx context.Context, videoID, userID uint64, content string) (*models.Comment, error) {
+			return &models.Comment{ID: 8, UserID: userID, CommentableID: videoID, Content: content, CreatedAt: time.Now()}, nil
+		},
+		GetCommentStatsFunc: func(ctx context.Context, commentID uint64) (*models.CommentStats, error) {
+			return &models.CommentStats{LikesCount: 0}, nil
+		},
+	}
+	svc := service.NewCommentService(mc, &testutil.MockUserRepo{})
+	d, err := svc.AddComment(context.Background(), 1, 2, "hello")
+	if err != nil || d.Comment.ID != 8 || d.Stats == nil {
+		t.Fatalf("d=%+v err=%v", d, err)
+	}
+
+	if _, err := svc.AddComment(context.Background(), 1, 2, ""); err == nil {
+		t.Fatal("empty content")
+	}
+	if _, err := svc.AddComment(context.Background(), 1, 2, strings.Repeat("a", 2001)); err == nil {
+		t.Fatal("too long")
+	}
+}
+
+func TestCommentService_UpdateComment_SuccessAndReloadError(t *testing.T) {
+	calls := 0
+	mc := &testutil.MockCommentRepo{
+		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+			calls++
+			if calls == 1 {
+				return &models.Comment{ID: commentID, UserID: 2, Content: "old"}, nil
+			}
+			return &models.Comment{ID: commentID, UserID: 2, Content: "new", CreatedAt: time.Now(), UpdatedAt: time.Now()}, nil
+		},
+		UpdateCommentFunc: func(ctx context.Context, commentID, userID uint64, content string) error {
+			return nil
+		},
+	}
+	svc := service.NewCommentService(mc, &testutil.MockUserRepo{})
+	d, err := svc.UpdateComment(context.Background(), 4, 2, "new")
+	if err != nil || d.Comment.Content != "new" || d.UpdatedAtJalali == "" {
+		t.Fatalf("d=%+v err=%v", d, err)
+	}
+
+	mc.GetCommentByIDFunc = func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+		return &models.Comment{ID: commentID, UserID: 9}, nil
+	}
+	_, err = svc.UpdateComment(context.Background(), 4, 2, "new")
+	if !errors.Is(err, service.ErrNotAuthorized) {
+		t.Fatalf("got %v", err)
+	}
+
+	calls = 0
+	mc.GetCommentByIDFunc = func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+		calls++
+		if calls == 1 {
+			return &models.Comment{ID: commentID, UserID: 2}, nil
+		}
+		return nil, context.Canceled
+	}
+	if _, err := svc.UpdateComment(context.Background(), 4, 2, "new"); err == nil {
+		t.Fatal("expected reload error")
+	}
+}
+
+func TestCommentService_ReportAndInteractSuccess(t *testing.T) {
+	mc := &testutil.MockCommentRepo{
+		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+			return &models.Comment{ID: commentID, UserID: 1, CommentableID: 10}, nil
+		},
+		ReportCommentFunc: func(ctx context.Context, videoID, commentID, userID uint64, content string) error {
+			if videoID != 10 || commentID != 3 || userID != 2 || content != "spam" {
+				t.Fatalf("report video=%d comment=%d user=%d content=%s", videoID, commentID, userID, content)
+			}
+			return nil
+		},
+		AddCommentInteractionFunc: func(ctx context.Context, commentID, userID uint64, liked bool, ipAddress string) error {
+			if commentID != 3 || userID != 2 || !liked {
+				t.Fatalf("interact comment=%d user=%d liked=%v", commentID, userID, liked)
+			}
+			return nil
+		},
+		DeleteCommentFunc: func(ctx context.Context, commentID, userID uint64) error {
+			if commentID != 3 || userID != 1 {
+				t.Fatalf("delete comment=%d user=%d", commentID, userID)
+			}
+			return nil
+		},
+	}
+	svc := service.NewCommentService(mc, &testutil.MockUserRepo{})
+	if err := svc.ReportComment(context.Background(), 10, 3, 2, "spam"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.AddCommentInteraction(context.Background(), 3, 2, true, "ip"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteComment(context.Background(), 3, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	mc.GetCommentByIDFunc = func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+		return &models.Comment{ID: commentID, UserID: 2}, nil
+	}
+	if err := svc.ReportComment(context.Background(), 10, 3, 2, "spam"); !errors.Is(err, service.ErrNotAuthorized) {
+		t.Fatalf("report own got %v", err)
+	}
+}
+
+func TestCommentService_GetCommentByID_Success(t *testing.T) {
+	mc := &testutil.MockCommentRepo{
+		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+			return &models.Comment{ID: commentID, UserID: 4, Content: "c", CreatedAt: time.Now()}, nil
+		},
+	}
+	svc := service.NewCommentService(mc, &testutil.MockUserRepo{})
+	d, err := svc.GetCommentByID(context.Background(), 6)
+	if err != nil || d.Comment.ID != 6 || d.User == nil {
+		t.Fatalf("d=%+v err=%v", d, err)
+	}
+}
+
 func TestCommentService_IsNotAuthorized(t *testing.T) {
 	mc := &testutil.MockCommentRepo{
 		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {

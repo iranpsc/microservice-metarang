@@ -127,6 +127,77 @@ func TestVideoService_GetVideoWithDetails_IgnoresLookupErrors(t *testing.T) {
 	}
 }
 
+func TestVideoService_GetVideoBySlug_NotFoundAndRepoError(t *testing.T) {
+	mv := &testutil.MockVideoRepo{
+		GetVideoBySlugFunc: func(ctx context.Context, slug string) (*models.Video, error) {
+			return nil, nil
+		},
+	}
+	svc := service.NewVideoService(mv, &testutil.MockCategoryRepo{}, &testutil.MockUserRepo{})
+	if _, err := svc.GetVideoBySlug(context.Background(), "missing", nil, "ip"); err == nil {
+		t.Fatal("expected not found")
+	}
+
+	mv.GetVideoBySlugFunc = func(ctx context.Context, slug string) (*models.Video, error) {
+		return nil, context.Canceled
+	}
+	if _, err := svc.GetVideoBySlug(context.Background(), "x", nil, "ip"); err == nil {
+		t.Fatal("expected repo error")
+	}
+}
+
+func TestVideoService_SearchVideos_RequiredAndSuccess(t *testing.T) {
+	svc := service.NewVideoService(&testutil.MockVideoRepo{}, &testutil.MockCategoryRepo{}, &testutil.MockUserRepo{})
+	if _, _, err := svc.SearchVideos(context.Background(), "", 1, 18); err == nil {
+		t.Fatal("expected required term")
+	}
+
+	mv := &testutil.MockVideoRepo{
+		SearchVideosFunc: func(ctx context.Context, searchTerm string, page, perPage int32) ([]*models.Video, int32, error) {
+			if searchTerm != "go" || page != 1 || perPage != 9 {
+				t.Fatalf("term=%s page=%d per=%d", searchTerm, page, perPage)
+			}
+			return []*models.Video{{ID: 2}}, 2, nil
+		},
+	}
+	svc = service.NewVideoService(mv, &testutil.MockCategoryRepo{}, &testutil.MockUserRepo{})
+	list, total, err := svc.SearchVideos(context.Background(), "go", 1, 9)
+	if err != nil || total != 2 || len(list) != 1 {
+		t.Fatal(err, total, len(list))
+	}
+}
+
+func TestVideoService_AddInteractionAndIncrementView(t *testing.T) {
+	mv := &testutil.MockVideoRepo{
+		AddInteractionFunc: func(ctx context.Context, videoID, userID uint64, liked bool, ipAddress string) error {
+			if videoID != 1 || userID != 2 || liked || ipAddress != "ip" {
+				t.Fatalf("video=%d user=%d liked=%v ip=%s", videoID, userID, liked, ipAddress)
+			}
+			return nil
+		},
+		IncrementViewFunc: func(ctx context.Context, videoID uint64, ipAddress string) error {
+			if videoID != 3 || ipAddress != "ip" {
+				t.Fatalf("video=%d ip=%s", videoID, ipAddress)
+			}
+			return nil
+		},
+		GetVideoStatsFunc: func(ctx context.Context, videoID uint64) (*models.VideoStats, error) {
+			return &models.VideoStats{ViewsCount: 1}, nil
+		},
+	}
+	svc := service.NewVideoService(mv, &testutil.MockCategoryRepo{}, &testutil.MockUserRepo{})
+	if err := svc.AddInteraction(context.Background(), 1, 2, false, "ip"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.IncrementView(context.Background(), 3, "ip"); err != nil {
+		t.Fatal(err)
+	}
+	st, err := svc.GetVideoStats(context.Background(), 9)
+	if err != nil || st.ViewsCount != 1 {
+		t.Fatal(err, st)
+	}
+}
+
 func TestVideoService_GetVideos_PassesFilters(t *testing.T) {
 	cat, sub := uint64(3), uint64(4)
 	mv := &testutil.MockVideoRepo{

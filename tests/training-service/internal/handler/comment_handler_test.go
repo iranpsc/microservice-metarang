@@ -207,6 +207,50 @@ func TestCommentHandler_ReportComment_NotFoundNilAndTooLong(t *testing.T) {
 	}
 }
 
+func TestCommentHandler_UpdateDeleteInteractAndReportSuccess(t *testing.T) {
+	mc := &testutil.MockCommentRepo{
+		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {
+			return &models.Comment{ID: commentID, UserID: 2, CommentableID: 10, Content: "ok", CreatedAt: time.Now()}, nil
+		},
+		UpdateCommentFunc: func(ctx context.Context, commentID, userID uint64, content string) error {
+			return nil
+		},
+		DeleteCommentFunc: func(ctx context.Context, commentID, userID uint64) error {
+			return nil
+		},
+		AddCommentInteractionFunc: func(ctx context.Context, commentID, userID uint64, liked bool, ipAddress string) error {
+			return nil
+		},
+		ReportCommentFunc: func(ctx context.Context, videoID, commentID, userID uint64, content string) error {
+			return nil
+		},
+	}
+	client := newCommentClient(t, mc, nil)
+
+	resp, err := client.UpdateComment(context.Background(), &trainingpb.UpdateCommentRequest{
+		CommentId: 1, UserId: 2, Content: "ok",
+	})
+	if err != nil || resp.Id != 1 {
+		t.Fatalf("update err=%v resp=%+v", err, resp)
+	}
+
+	if _, err := client.DeleteComment(context.Background(), &trainingpb.DeleteCommentRequest{CommentId: 1, UserId: 2}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := client.AddCommentInteraction(context.Background(), &trainingpb.AddCommentInteractionRequest{
+		CommentId: 1, UserId: 9, Liked: true, IpAddress: "10.0.0.1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := client.ReportComment(context.Background(), &trainingpb.ReportCommentRequest{
+		CommentId: 1, UserId: 9, Content: "spam",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCommentHandler_ReportComment_OwnComment(t *testing.T) {
 	mc := &testutil.MockCommentRepo{
 		GetCommentByIDFunc: func(ctx context.Context, commentID uint64) (*models.Comment, error) {

@@ -20,6 +20,28 @@ func addCommentRow(rows *sqlmock.Rows, id, userID, videoID uint64, parent interf
 	return rows.AddRow(id, userID, parent, `App\Models\Video`, videoID, content, now, now)
 }
 
+func TestCommentRepository_GetComments_SuccessAndScanError(t *testing.T) {
+	db, mock := newSQLMock(t)
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(10)).WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(int32(1)))
+	mock.ExpectQuery("SELECT id, user_id, parent_id").WithArgs(uint64(10), int32(10), int32(0)).
+		WillReturnRows(addCommentRow(sqlmock.NewRows(commentColumns()), 5, 2, 10, nil, "hello"))
+	r := repository.NewCommentRepository(db)
+	list, total, err := r.GetComments(context.Background(), 10, 1, 10)
+	if err != nil || total != 1 || len(list) != 1 || list[0].Content != "hello" {
+		t.Fatalf("list=%v total=%d err=%v", list, total, err)
+	}
+
+	db, mock = newSQLMock(t)
+	mock.ExpectQuery("SELECT COUNT").WithArgs(uint64(10)).WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(int32(1)))
+	mock.ExpectQuery("SELECT id, user_id, parent_id").
+		WillReturnRows(sqlmock.NewRows(commentColumns()).AddRow("bad", 2, nil, "t", 10, "x", time.Now(), time.Now()))
+	r = repository.NewCommentRepository(db)
+	_, _, err = r.GetComments(context.Background(), 10, 1, 10)
+	if err == nil {
+		t.Fatal("expected scan error")
+	}
+}
+
 func TestCommentRepository_GetComments_CountAndQueryErrors(t *testing.T) {
 	db, mock := newSQLMock(t)
 	mock.ExpectQuery("SELECT COUNT").WillReturnError(sql.ErrConnDone)

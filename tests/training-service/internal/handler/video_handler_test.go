@@ -137,6 +137,32 @@ func TestVideoHandler_GetVideo_SuccessSetsInteractionHeader(t *testing.T) {
 	}
 }
 
+func TestVideoHandler_GetVideoByFileName_Success(t *testing.T) {
+	var gotIP string
+	mv := &testutil.MockVideoRepo{
+		GetVideoByFileNameFunc: func(ctx context.Context, fileName string) (*models.Video, error) {
+			if fileName != "clip.mp4" {
+				t.Fatalf("file=%s", fileName)
+			}
+			return sampleVideo(9, "clip"), nil
+		},
+		IncrementViewFunc: func(ctx context.Context, videoID uint64, ipAddress string) error {
+			gotIP = ipAddress
+			return nil
+		},
+	}
+	client := newVideoClient(t, mv, nil, nil)
+	resp, err := client.GetVideoByFileName(context.Background(), &trainingpb.GetVideoByFileNameRequest{
+		FileName: "clip.mp4", IpAddress: "203.0.113.8",
+	})
+	if err != nil || resp.Id != 9 || resp.Title != "Tutorial" {
+		t.Fatalf("err=%v resp=%+v", err, resp)
+	}
+	if gotIP != "203.0.113.8" {
+		t.Fatalf("ip=%s", gotIP)
+	}
+}
+
 func TestVideoHandler_GetVideoByFileName_NotFoundAndIPFallback(t *testing.T) {
 	mv := &testutil.MockVideoRepo{
 		GetVideoByFileNameFunc: func(ctx context.Context, fileName string) (*models.Video, error) {
@@ -150,6 +176,22 @@ func TestVideoHandler_GetVideoByFileName_NotFoundAndIPFallback(t *testing.T) {
 	st, ok := status.FromError(err)
 	if !ok || st.Code() != codes.NotFound {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestVideoHandler_SearchVideos_Success(t *testing.T) {
+	mv := &testutil.MockVideoRepo{
+		SearchVideosFunc: func(ctx context.Context, searchTerm string, page, perPage int32) ([]*models.Video, int32, error) {
+			if searchTerm != "go" || page != 1 || perPage != 18 {
+				t.Fatalf("term=%s page=%d per=%d", searchTerm, page, perPage)
+			}
+			return []*models.Video{sampleVideo(1, "go")}, 1, nil
+		},
+	}
+	client := newVideoClient(t, mv, nil, nil)
+	resp, err := client.SearchVideos(context.Background(), &trainingpb.SearchVideosRequest{Query: "go"})
+	if err != nil || len(resp.Videos) != 1 || resp.Videos[0].Slug != "go" || resp.Pagination.Total != 1 {
+		t.Fatalf("err=%v resp=%+v", err, resp)
 	}
 }
 

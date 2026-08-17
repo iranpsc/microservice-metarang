@@ -139,6 +139,33 @@ func TestCategoryHandler_GetCategoryVideos_DefaultsAndError(t *testing.T) {
 	}
 }
 
+func TestCategoryHandler_GetCategoryVideos_WithVideosAndPagination(t *testing.T) {
+	mc := &testutil.MockCategoryRepo{
+		GetCategoryBySlugFunc: func(ctx context.Context, slug string) (*models.VideoCategory, error) {
+			return &models.VideoCategory{ID: 7, Slug: slug, Name: "Cat"}, nil
+		},
+	}
+	mv := &testutil.MockVideoRepo{
+		GetVideosFunc: func(ctx context.Context, page, perPage int32, categoryID, subCategoryID *uint64) ([]*models.Video, int32, error) {
+			if page != 2 || perPage != 5 || categoryID == nil || *categoryID != 7 || subCategoryID != nil {
+				t.Fatalf("page=%d per=%d cat=%v sub=%v", page, perPage, categoryID, subCategoryID)
+			}
+			s := "intro"
+			return []*models.Video{{
+				ID: 4, Title: "Intro", Slug: &s, FileName: "v.mp4", Image: "i.jpg", CreatedAt: time.Now(),
+			}}, 6, nil
+		},
+	}
+	client := newCategoryClient(t, mc, mv)
+	resp, err := client.GetCategoryVideos(context.Background(), &trainingpb.GetCategoryVideosRequest{
+		CategorySlug: "cat",
+		Pagination:   &commonpb.PaginationRequest{Page: 2, PerPage: 5},
+	})
+	if err != nil || len(resp.Videos) != 1 || resp.Videos[0].Title != "Intro" || resp.Pagination.LastPage != 2 {
+		t.Fatalf("err=%v resp=%+v", err, resp)
+	}
+}
+
 func TestCategoryHandler_GetCategoryVideos_EmptyList(t *testing.T) {
 	mc := &testutil.MockCategoryRepo{
 		GetCategoryBySlugFunc: func(ctx context.Context, slug string) (*models.VideoCategory, error) {
