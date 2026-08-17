@@ -154,6 +154,10 @@ message Notification {
   google.protobuf.Timestamp read_at = 5;
 }
 
+message LevelGem {
+  string png_file = 1; // Level gem PNG file URL (admin panel prepended)
+}
+
 message Level {
   uint64 id = 1;
   string title = 2;
@@ -161,6 +165,7 @@ message Level {
   int32 score = 4;
   string slug = 5;        // Level slug (e.g., "beginner")
   string image_url = 6;   // Level image URL (admin panel prepended)
+  LevelGem gem = 7;
 }
 
 // ============== Request/Response Messages ==============

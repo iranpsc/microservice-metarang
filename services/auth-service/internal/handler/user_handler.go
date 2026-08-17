@@ -296,6 +296,7 @@ func (h *userHandler) GetUserLevels(ctx context.Context, req *pb.GetUserLevelsRe
 			Score:    levelsData.LatestLevel.Score,
 			Slug:     levelsData.LatestLevel.Slug,
 			ImageUrl: levelsData.LatestLevel.Image,
+			Gem:      levelGemProto(levelsData.LatestLevel.GemPngFile),
 		}
 	}
 
@@ -307,11 +308,19 @@ func (h *userHandler) GetUserLevels(ctx context.Context, req *pb.GetUserLevelsRe
 			Score:    prevLevel.Score,
 			Slug:     prevLevel.Slug,
 			ImageUrl: prevLevel.Image,
+			Gem:      levelGemProto(prevLevel.GemPngFile),
 		}
 		response.Data.PreviousLevels = append(response.Data.PreviousLevels, level)
 	}
 
 	return response, nil
+}
+
+func levelGemProto(pngFile string) *pb.LevelGem {
+	if pngFile == "" {
+		return nil
+	}
+	return &pb.LevelGem{PngFile: pngFile}
 }
 
 // GetUserProfile handles GET /api/users/{user}/profile

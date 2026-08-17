@@ -255,7 +255,7 @@ func (s *ProfitService) GetHourlyProfitTimePercentage(ctx context.Context, userI
 
 	now := time.Now()
 	totalSeconds := math.Abs(profit.Deadline.Sub(profit.UpdatedAt).Seconds())
-	secondsPassed := math.Abs(now.Sub(profit.UpdatedAt).Seconds())
+	secondsPassed := math.Abs(profit.Deadline.Sub(now).Seconds())
 
 	if totalSeconds == 0 || secondsPassed >= totalSeconds {
 		return 0, nil

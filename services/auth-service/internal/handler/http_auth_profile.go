@@ -139,37 +139,42 @@ func (h *HTTPAuthHandler) GetUserLevels(w http.ResponseWriter, r *http.Request) 
 	data := map[string]interface{}{}
 
 	if resp.Data.LatestLevel != nil {
-		latestLevel := map[string]interface{}{
-			"id":    resp.Data.LatestLevel.Id,
-			"name":  resp.Data.LatestLevel.Title,
-			"score": resp.Data.LatestLevel.Score,
-			"slug":  resp.Data.LatestLevel.Slug,
-		}
-		if resp.Data.LatestLevel.ImageUrl != "" {
-			latestLevel["image"] = resp.Data.LatestLevel.ImageUrl
-		}
-		data["latest_level"] = latestLevel
+		data["latest_level"] = userLevelHTTPPayload(resp.Data.LatestLevel)
 	} else {
 		data["latest_level"] = nil
 	}
 
 	previousLevels := make([]map[string]interface{}, 0, len(resp.Data.PreviousLevels))
 	for _, level := range resp.Data.PreviousLevels {
-		levelData := map[string]interface{}{
-			"id":    level.Id,
-			"name":  level.Title,
-			"score": level.Score,
-			"slug":  level.Slug,
-		}
-		if level.ImageUrl != "" {
-			levelData["image"] = level.ImageUrl
-		}
-		previousLevels = append(previousLevels, levelData)
+		previousLevels = append(previousLevels, userLevelHTTPPayload(level))
 	}
 	data["previous_levels"] = previousLevels
 	data["score_percentage_to_next_level"] = resp.Data.ScorePercentageToNextLevel
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"data": data})
+}
+
+func userLevelHTTPPayload(level *pb.Level) map[string]interface{} {
+	levelData := map[string]interface{}{
+		"id":    level.Id,
+		"name":  level.Title,
+		"score": level.Score,
+		"slug":  level.Slug,
+		"gem": map[string]interface{}{
+			"png_file": levelGemPngFile(level),
+		},
+	}
+	if level.ImageUrl != "" {
+		levelData["image"] = level.ImageUrl
+	}
+	return levelData
+}
+
+func levelGemPngFile(level *pb.Level) string {
+	if level == nil || level.Gem == nil {
+		return ""
+	}
+	return level.Gem.PngFile
 }
 
 // GetUserProfile handles GET /api/users/{user}/profile

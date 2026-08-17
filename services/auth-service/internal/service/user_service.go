@@ -76,11 +76,12 @@ type UserLevelsData struct {
 
 // LevelDetail represents detailed level information
 type LevelDetail struct {
-	ID    uint64
-	Name  string
-	Score int32
-	Slug  string
-	Image string
+	ID         uint64
+	Name       string
+	Score      int32
+	Slug       string
+	Image      string
+	GemPngFile string
 }
 
 // UserProfileData represents user profile information
@@ -222,11 +223,12 @@ func (s *userService) GetUserLevels(ctx context.Context, userID uint64) (*UserLe
 
 	if latestLevelDB != nil {
 		latestLevel = &LevelDetail{
-			ID:    latestLevelDB.ID,
-			Name:  latestLevelDB.Name,
-			Score: latestLevelDB.Score,
-			Slug:  latestLevelDB.Slug,
-			Image: latestLevelDB.Image,
+			ID:         latestLevelDB.ID,
+			Name:       latestLevelDB.Name,
+			Score:      latestLevelDB.Score,
+			Slug:       latestLevelDB.Slug,
+			Image:      latestLevelDB.Image,
+			GemPngFile: latestLevelDB.GemPngFile,
 		}
 
 		// Get previous levels
@@ -237,11 +239,12 @@ func (s *userService) GetUserLevels(ctx context.Context, userID uint64) (*UserLe
 
 		for _, pl := range prevLevelsDB {
 			previousLevels = append(previousLevels, &LevelDetail{
-				ID:    pl.ID,
-				Name:  pl.Name,
-				Score: pl.Score,
-				Slug:  pl.Slug,
-				Image: pl.Image,
+				ID:         pl.ID,
+				Name:       pl.Name,
+				Score:      pl.Score,
+				Slug:       pl.Slug,
+				Image:      pl.Image,
+				GemPngFile: pl.GemPngFile,
 			})
 		}
 	}

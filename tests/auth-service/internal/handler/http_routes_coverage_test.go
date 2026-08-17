@@ -125,9 +125,9 @@ func TestHTTPAuthHandler_CoverageBatch(t *testing.T) {
 	}
 	userMock.getUserLevelsFunc = func(context.Context, uint64) (*service.UserLevelsData, error) {
 		return &service.UserLevelsData{
-			LatestLevel: &service.LevelDetail{ID: 1, Name: "L", Score: 10, Slug: "l", Image: "/i.png"},
+			LatestLevel: &service.LevelDetail{ID: 1, Name: "L", Score: 10, Slug: "l", Image: "/i.png", GemPngFile: "/gems/l.png"},
 			PreviousLevels: []*service.LevelDetail{
-				{ID: 0, Name: "P", Score: 0, Slug: "p"},
+				{ID: 0, Name: "P", Score: 0, Slug: "p", GemPngFile: "/gems/p.png"},
 			},
 			ScorePercentageToNextLevel: 33,
 		}, nil
@@ -341,6 +341,26 @@ func TestHTTPAuthHandler_CoverageBatch(t *testing.T) {
 		httpH.HandleUsersRoutes(rr, r)
 		if rr.Code != http.StatusOK {
 			t.Fatalf("levels code=%d body=%s", rr.Code, rr.Body.String())
+		}
+		var levelsResp struct {
+			Data struct {
+				LatestLevel map[string]interface{}   `json:"latest_level"`
+				Previous    []map[string]interface{} `json:"previous_levels"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &levelsResp); err != nil {
+			t.Fatalf("decode levels response: %v", err)
+		}
+		latestGem, ok := levelsResp.Data.LatestLevel["gem"].(map[string]interface{})
+		if !ok || latestGem["png_file"] != "/gems/l.png" {
+			t.Fatalf("latest level gem=%v", levelsResp.Data.LatestLevel["gem"])
+		}
+		if len(levelsResp.Data.Previous) != 1 {
+			t.Fatalf("previous levels=%v", levelsResp.Data.Previous)
+		}
+		prevGem, ok := levelsResp.Data.Previous[0]["gem"].(map[string]interface{})
+		if !ok || prevGem["png_file"] != "/gems/p.png" {
+			t.Fatalf("previous level gem=%v", levelsResp.Data.Previous[0]["gem"])
 		}
 		r = withUser(httptest.NewRequest(http.MethodGet, "/api/users/1/profile", nil), 1)
 		rr = httptest.NewRecorder()

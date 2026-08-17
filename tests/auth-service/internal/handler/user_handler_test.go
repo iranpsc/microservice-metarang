@@ -164,11 +164,21 @@ func TestUserHandler_GetUserLevels(t *testing.T) {
 		mockService.getUserLevelsFunc = func(ctx context.Context, userID uint64) (*service.UserLevelsData, error) {
 			return &service.UserLevelsData{
 				LatestLevel: &service.LevelDetail{
-					ID:    1,
-					Name:  "Beginner",
-					Score: 100,
-					Slug:  "beginner",
-					Image: "https://admin.example.com/uploads/level1.png",
+					ID:         1,
+					Name:       "Beginner",
+					Score:      100,
+					Slug:       "beginner",
+					Image:      "https://admin.example.com/uploads/level1.png",
+					GemPngFile: "https://admin.example.com/uploads/gem1.png",
+				},
+				PreviousLevels: []*service.LevelDetail{
+					{
+						ID:         0,
+						Name:       "Starter",
+						Score:      0,
+						Slug:       "starter",
+						GemPngFile: "https://admin.example.com/uploads/gem0.png",
+					},
 				},
 				ScorePercentageToNextLevel: 42.5,
 			}, nil
@@ -199,6 +209,17 @@ func TestUserHandler_GetUserLevels(t *testing.T) {
 
 		if resp.Data.LatestLevel.ImageUrl != "https://admin.example.com/uploads/level1.png" {
 			t.Errorf("Expected level image URL, got %q", resp.Data.LatestLevel.ImageUrl)
+		}
+
+		if resp.Data.LatestLevel.Gem == nil || resp.Data.LatestLevel.Gem.PngFile != "https://admin.example.com/uploads/gem1.png" {
+			t.Errorf("Expected latest level gem png_file, got %+v", resp.Data.LatestLevel.Gem)
+		}
+
+		if len(resp.Data.PreviousLevels) != 1 {
+			t.Fatalf("Expected 1 previous level, got %d", len(resp.Data.PreviousLevels))
+		}
+		if resp.Data.PreviousLevels[0].Gem == nil || resp.Data.PreviousLevels[0].Gem.PngFile != "https://admin.example.com/uploads/gem0.png" {
+			t.Errorf("Expected previous level gem png_file, got %+v", resp.Data.PreviousLevels[0].Gem)
 		}
 
 		if resp.Data.ScorePercentageToNextLevel != 42.5 {

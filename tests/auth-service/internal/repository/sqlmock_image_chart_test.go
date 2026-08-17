@@ -20,20 +20,22 @@ func TestUserRepo_FormatImageURLViaLevels(t *testing.T) {
 
 	repo := repository.NewUserRepository(db, "https://admin")
 	mock.ExpectQuery("FROM level_user").WithArgs(uint64(1)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url"}).
-			AddRow(uint64(2), "L", "l", int32(10), "lvl.png"))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url", "gem_png_file"}).
+			AddRow(uint64(2), "L", "l", int32(10), "lvl.png", "gem.png"))
 	lvl, err := repo.GetUserLatestLevel(ctx, 1)
 	require.NoError(t, err)
 	require.Equal(t, "https://admin/uploads/lvl.png", lvl.Image)
+	require.Equal(t, "https://admin/uploads/gem.png", lvl.GemPngFile)
 
 	repo2 := repository.NewUserRepository(db, "")
 	mock.ExpectQuery("FROM levels").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url"}).
-			AddRow(uint64(1), "P", "p", int32(0), "https://cdn/p.png"))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url", "gem_png_file"}).
+			AddRow(uint64(1), "P", "p", int32(0), "https://cdn/p.png", "https://cdn/gem.png"))
 	levels, err := repo2.GetLevelsBelowScore(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, levels, 1)
 	require.Equal(t, "https://cdn/p.png", levels[0].Image)
+	require.Equal(t, "https://cdn/gem.png", levels[0].GemPngFile)
 }
 
 type chartBucketRow struct {

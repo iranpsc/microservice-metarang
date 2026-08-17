@@ -42,11 +42,12 @@ type UserRepository interface {
 
 // UserLevel represents level information from database
 type UserLevel struct {
-	ID    uint64
-	Name  string
-	Score int32
-	Slug  string
-	Image string
+	ID         uint64
+	Name       string
+	Score      int32
+	Slug       string
+	Image      string
+	GemPngFile string
 }
 
 // UserWithRelations represents a user with related data for listing
@@ -633,17 +634,19 @@ func (r *userRepository) GetAllProfilePhotoURLs(ctx context.Context, userID uint
 func (r *userRepository) GetUserLatestLevel(ctx context.Context, userID uint64) (*UserLevel, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS SIGNED) as score,
-		       COALESCE(i.url, '') as image_url
+		       COALESCE(i.url, '') as image_url,
+		       COALESCE(lg.png_file, '') as gem_png_file
 		FROM level_user lu
 		INNER JOIN levels l ON l.id = lu.level_id
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
+		LEFT JOIN level_gems lg ON lg.level_id = l.id
 		WHERE lu.user_id = ?
 		ORDER BY lu.id DESC
 		LIMIT 1
 	`
 
 	var level UserLevel
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image)
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image, &level.GemPngFile)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -651,6 +654,7 @@ func (r *userRepository) GetUserLatestLevel(ctx context.Context, userID uint64) 
 		return nil, fmt.Errorf("failed to get latest level: %w", err)
 	}
 	level.Image = r.formatImageURL(level.Image)
+	level.GemPngFile = r.formatImageURL(level.GemPngFile)
 	return &level, nil
 }
 
@@ -658,9 +662,11 @@ func (r *userRepository) GetUserLatestLevel(ctx context.Context, userID uint64) 
 func (r *userRepository) GetLevelsBelowScore(ctx context.Context, score int32) ([]*UserLevel, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS SIGNED) as score,
-		       COALESCE(i.url, '') as image_url
+		       COALESCE(i.url, '') as image_url,
+		       COALESCE(lg.png_file, '') as gem_png_file
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
+		LEFT JOIN level_gems lg ON lg.level_id = l.id
 		WHERE CAST(l.score AS SIGNED) < ?
 		ORDER BY CAST(l.score AS SIGNED) ASC
 	`
@@ -674,10 +680,11 @@ func (r *userRepository) GetLevelsBelowScore(ctx context.Context, score int32) (
 	var levels []*UserLevel
 	for rows.Next() {
 		var level UserLevel
-		if err := rows.Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image); err != nil {
+		if err := rows.Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image, &level.GemPngFile); err != nil {
 			return nil, fmt.Errorf("failed to scan level: %w", err)
 		}
 		level.Image = r.formatImageURL(level.Image)
+		level.GemPngFile = r.formatImageURL(level.GemPngFile)
 		levels = append(levels, &level)
 	}
 

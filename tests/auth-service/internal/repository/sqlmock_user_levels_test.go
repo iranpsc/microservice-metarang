@@ -99,18 +99,21 @@ func TestUserRepository_ListAndLevels_SQLMock(t *testing.T) {
 
 	mock.ExpectQuery("FROM level_user").
 		WithArgs(uint64(1)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url"}).
-			AddRow(uint64(2), "L", "l", int32(10), "/l.png"))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url", "gem_png_file"}).
+			AddRow(uint64(2), "L", "l", int32(10), "/l.png", "/gems/l.png"))
 	lvl, err := repo.GetUserLatestLevel(ctx, 1)
 	require.NoError(t, err)
 	require.NotNil(t, lvl)
+	require.Equal(t, "https://admin.example/uploads/gems/l.png", lvl.GemPngFile)
 
 	mock.ExpectQuery("FROM levels").
 		WithArgs(int32(10)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url"}))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "slug", "score", "image_url", "gem_png_file"}).
+			AddRow(uint64(1), "P", "p", int32(1), "/p.png", "/gems/p.png"))
 	below, err := repo.GetLevelsBelowScore(ctx, 10)
 	require.NoError(t, err)
-	require.Empty(t, below)
+	require.Len(t, below, 1)
+	require.Equal(t, "https://admin.example/uploads/gems/p.png", below[0].GemPngFile)
 
 	mock.ExpectQuery("FROM levels").
 		WillReturnRows(sqlmock.NewRows([]string{"score"}).AddRow(int64(100)))
