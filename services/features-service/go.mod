@@ -8,7 +8,7 @@ require (
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/yaa110/go-persian-calendar v1.2.0
 	google.golang.org/grpc v1.82.1
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	metarang/shared v0.0.0
 )
 
