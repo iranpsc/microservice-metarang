@@ -104,7 +104,7 @@ func TestCitizenService(t *testing.T) {
 			t.Fatal("score %")
 		}
 		level, err := svc.GetCitizenLevel(ctx, "hm-1")
-		if err != nil || level == nil || level.Slug != "citizen" || level.Score != 25 {
+		if err != nil || level == nil || level.Slug != "citizen" || level.Score != 40 {
 			t.Fatalf("level=%+v err=%v", level, err)
 		}
 		level, err = svc.GetCitizenLevel(ctx, "missing")

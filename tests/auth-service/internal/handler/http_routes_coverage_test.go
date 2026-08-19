@@ -494,7 +494,7 @@ func TestHTTPAuthHandler_CoverageBatch(t *testing.T) {
 			t.Fatalf("user level json: %v", err)
 		}
 		level, _ := levelBody["level"].(map[string]interface{})
-		if level["slug"] != "citizen" || level["score"] != "25" {
+		if level["slug"] != "citizen" || level["score"] != "75" {
 			t.Fatalf("level=%v body=%s", level, rr.Body.String())
 		}
 
@@ -581,7 +581,7 @@ func (richCitizenService) GetCitizenUserInfo(context.Context, string) (*models.C
 	return &models.CitizenUserInfo{UserID: 1}, nil
 }
 func (richCitizenService) GetCitizenLevel(context.Context, string) (*models.CitizenLevel, error) {
-	return &models.CitizenLevel{Slug: "citizen", Score: 25}, nil
+	return &models.CitizenLevel{Slug: "citizen", Score: 75}, nil
 }
 func (richCitizenService) GetCitizenProfile(context.Context, string) (*models.CitizenProfile, error) {
 	return &models.CitizenProfile{ID: 1, Code: "hm-1", Name: "n"}, nil

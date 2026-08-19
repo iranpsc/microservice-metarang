@@ -85,7 +85,7 @@ func (s *citizenService) GetCitizenLevel(ctx context.Context, code string) (*mod
 		ID:    level.ID,
 		Name:  level.Title,
 		Slug:  level.Slug,
-		Score: level.Score,
+		Score: user.Score,
 	}, nil
 }
 
