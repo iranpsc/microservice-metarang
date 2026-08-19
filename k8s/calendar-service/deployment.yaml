@@ -34,6 +34,9 @@ spec:
         - containerPort: 50059
           name: grpc
           protocol: TCP
+        - containerPort: 8060
+          name: http
+          protocol: TCP
         - containerPort: 9090
           name: metrics
           protocol: TCP
@@ -62,6 +65,16 @@ spec:
               key: db.database
         - name: GRPC_PORT
           value: "50059"
+        - name: HTTP_PORT
+          value: "8060"
+        - name: AUTH_SERVICE_ADDR
+          value: "auth-service:50051"
+        - name: APP_URL
+          valueFrom:
+            configMapKeyRef:
+              name: metarang-config
+              key: app.url
+              optional: true
         - name: METRICS_PORT
           value: "9090"
         - name: INTERNAL_SERVICE_SECRET
@@ -99,16 +112,18 @@ spec:
             memory: "256Mi"
             cpu: "300m"
         livenessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50059"]
-          initialDelaySeconds: 60
+          httpGet:
+            path: /health
+            port: 8060
+          initialDelaySeconds: 30
           periodSeconds: 30
           timeoutSeconds: 3
           failureThreshold: 5
         readinessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50059"]
-          initialDelaySeconds: 30
+          httpGet:
+            path: /health
+            port: 8060
+          initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 3
           failureThreshold: 10
@@ -128,6 +143,10 @@ spec:
     targetPort: 50059
     protocol: TCP
     name: grpc
+  - port: 8060
+    targetPort: 8060
+    protocol: TCP
+    name: http
   - port: 9090
     targetPort: 9090
     protocol: TCP

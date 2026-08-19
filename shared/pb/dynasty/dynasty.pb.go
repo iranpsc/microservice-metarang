@@ -322,7 +322,6 @@ func (x *DynastyResponse) GetPrizes() []*IntroductionPrize {
 	return nil
 }
 
-// IntroductionPrize matches Laravel IntroductionPrizeResource for users without a dynasty.
 type IntroductionPrize struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	Member                     string                 `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
@@ -1306,6 +1305,9 @@ type UserSearchResult struct {
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Image         string                 `protobuf:"bytes,4,opt,name=image,proto3" json:"image,omitempty"`
 	Level         string                 `protobuf:"bytes,5,opt,name=level,proto3" json:"level,omitempty"`
+	Verified      bool                   `protobuf:"varint,6,opt,name=verified,proto3" json:"verified,omitempty"`
+	Age           int32                  `protobuf:"varint,7,opt,name=age,proto3" json:"age,omitempty"`
+	Levels        []*UserSearchLevelItem `protobuf:"bytes,8,rep,name=levels,proto3" json:"levels,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1375,6 +1377,147 @@ func (x *UserSearchResult) GetLevel() string {
 	return ""
 }
 
+func (x *UserSearchResult) GetVerified() bool {
+	if x != nil {
+		return x.Verified
+	}
+	return false
+}
+
+func (x *UserSearchResult) GetAge() int32 {
+	if x != nil {
+		return x.Age
+	}
+	return 0
+}
+
+func (x *UserSearchResult) GetLevels() []*UserSearchLevelItem {
+	if x != nil {
+		return x.Levels
+	}
+	return nil
+}
+
+type UserSearchLevelGem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Image         string                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"` // gem png_file
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserSearchLevelGem) Reset() {
+	*x = UserSearchLevelGem{}
+	mi := &file_dynasty_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserSearchLevelGem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserSearchLevelGem) ProtoMessage() {}
+
+func (x *UserSearchLevelGem) ProtoReflect() protoreflect.Message {
+	mi := &file_dynasty_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserSearchLevelGem.ProtoReflect.Descriptor instead.
+func (*UserSearchLevelGem) Descriptor() ([]byte, []int) {
+	return file_dynasty_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *UserSearchLevelGem) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UserSearchLevelGem) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UserSearchLevelGem) GetImage() string {
+	if x != nil {
+		return x.Image
+	}
+	return ""
+}
+
+type UserSearchLevelItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Slug          string                 `protobuf:"bytes,2,opt,name=slug,proto3" json:"slug,omitempty"`
+	Gem           *UserSearchLevelGem    `protobuf:"bytes,3,opt,name=gem,proto3" json:"gem,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserSearchLevelItem) Reset() {
+	*x = UserSearchLevelItem{}
+	mi := &file_dynasty_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserSearchLevelItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserSearchLevelItem) ProtoMessage() {}
+
+func (x *UserSearchLevelItem) ProtoReflect() protoreflect.Message {
+	mi := &file_dynasty_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserSearchLevelItem.ProtoReflect.Descriptor instead.
+func (*UserSearchLevelItem) Descriptor() ([]byte, []int) {
+	return file_dynasty_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *UserSearchLevelItem) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UserSearchLevelItem) GetSlug() string {
+	if x != nil {
+		return x.Slug
+	}
+	return ""
+}
+
+func (x *UserSearchLevelItem) GetGem() *UserSearchLevelGem {
+	if x != nil {
+		return x.Gem
+	}
+	return nil
+}
+
 type GetFamilyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FamilyId      uint64                 `protobuf:"varint,1,opt,name=family_id,json=familyId,proto3" json:"family_id,omitempty"`
@@ -1385,7 +1528,7 @@ type GetFamilyRequest struct {
 
 func (x *GetFamilyRequest) Reset() {
 	*x = GetFamilyRequest{}
-	mi := &file_dynasty_proto_msgTypes[22]
+	mi := &file_dynasty_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1397,7 +1540,7 @@ func (x *GetFamilyRequest) String() string {
 func (*GetFamilyRequest) ProtoMessage() {}
 
 func (x *GetFamilyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[22]
+	mi := &file_dynasty_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1410,7 +1553,7 @@ func (x *GetFamilyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFamilyRequest.ProtoReflect.Descriptor instead.
 func (*GetFamilyRequest) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{22}
+	return file_dynasty_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetFamilyRequest) GetFamilyId() uint64 {
@@ -1438,7 +1581,7 @@ type FamilyResponse struct {
 
 func (x *FamilyResponse) Reset() {
 	*x = FamilyResponse{}
-	mi := &file_dynasty_proto_msgTypes[23]
+	mi := &file_dynasty_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1450,7 +1593,7 @@ func (x *FamilyResponse) String() string {
 func (*FamilyResponse) ProtoMessage() {}
 
 func (x *FamilyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[23]
+	mi := &file_dynasty_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1463,7 +1606,7 @@ func (x *FamilyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FamilyResponse.ProtoReflect.Descriptor instead.
 func (*FamilyResponse) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{23}
+	return file_dynasty_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *FamilyResponse) GetId() uint64 {
@@ -1497,7 +1640,7 @@ type GetFamilyMembersRequest struct {
 
 func (x *GetFamilyMembersRequest) Reset() {
 	*x = GetFamilyMembersRequest{}
-	mi := &file_dynasty_proto_msgTypes[24]
+	mi := &file_dynasty_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1509,7 +1652,7 @@ func (x *GetFamilyMembersRequest) String() string {
 func (*GetFamilyMembersRequest) ProtoMessage() {}
 
 func (x *GetFamilyMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[24]
+	mi := &file_dynasty_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1522,7 +1665,7 @@ func (x *GetFamilyMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFamilyMembersRequest.ProtoReflect.Descriptor instead.
 func (*GetFamilyMembersRequest) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{24}
+	return file_dynasty_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetFamilyMembersRequest) GetFamilyId() uint64 {
@@ -1549,7 +1692,7 @@ type FamilyMembersResponse struct {
 
 func (x *FamilyMembersResponse) Reset() {
 	*x = FamilyMembersResponse{}
-	mi := &file_dynasty_proto_msgTypes[25]
+	mi := &file_dynasty_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1561,7 +1704,7 @@ func (x *FamilyMembersResponse) String() string {
 func (*FamilyMembersResponse) ProtoMessage() {}
 
 func (x *FamilyMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[25]
+	mi := &file_dynasty_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1574,7 +1717,7 @@ func (x *FamilyMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FamilyMembersResponse.ProtoReflect.Descriptor instead.
 func (*FamilyMembersResponse) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{25}
+	return file_dynasty_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *FamilyMembersResponse) GetMembers() []*FamilyMember {
@@ -1604,7 +1747,7 @@ type FamilyMember struct {
 
 func (x *FamilyMember) Reset() {
 	*x = FamilyMember{}
-	mi := &file_dynasty_proto_msgTypes[26]
+	mi := &file_dynasty_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1616,7 +1759,7 @@ func (x *FamilyMember) String() string {
 func (*FamilyMember) ProtoMessage() {}
 
 func (x *FamilyMember) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[26]
+	mi := &file_dynasty_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1629,7 +1772,7 @@ func (x *FamilyMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FamilyMember.ProtoReflect.Descriptor instead.
 func (*FamilyMember) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{26}
+	return file_dynasty_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *FamilyMember) GetId() uint64 {
@@ -1678,7 +1821,7 @@ type SetChildPermissionsRequest struct {
 
 func (x *SetChildPermissionsRequest) Reset() {
 	*x = SetChildPermissionsRequest{}
-	mi := &file_dynasty_proto_msgTypes[27]
+	mi := &file_dynasty_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1690,7 +1833,7 @@ func (x *SetChildPermissionsRequest) String() string {
 func (*SetChildPermissionsRequest) ProtoMessage() {}
 
 func (x *SetChildPermissionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[27]
+	mi := &file_dynasty_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1703,7 +1846,7 @@ func (x *SetChildPermissionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetChildPermissionsRequest.ProtoReflect.Descriptor instead.
 func (*SetChildPermissionsRequest) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{27}
+	return file_dynasty_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *SetChildPermissionsRequest) GetChildUserId() uint64 {
@@ -1746,7 +1889,7 @@ type ChildPermissions struct {
 
 func (x *ChildPermissions) Reset() {
 	*x = ChildPermissions{}
-	mi := &file_dynasty_proto_msgTypes[28]
+	mi := &file_dynasty_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1758,7 +1901,7 @@ func (x *ChildPermissions) String() string {
 func (*ChildPermissions) ProtoMessage() {}
 
 func (x *ChildPermissions) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[28]
+	mi := &file_dynasty_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1771,7 +1914,7 @@ func (x *ChildPermissions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChildPermissions.ProtoReflect.Descriptor instead.
 func (*ChildPermissions) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{28}
+	return file_dynasty_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ChildPermissions) GetVerified() bool {
@@ -1861,7 +2004,7 @@ type GetPrizesRequest struct {
 
 func (x *GetPrizesRequest) Reset() {
 	*x = GetPrizesRequest{}
-	mi := &file_dynasty_proto_msgTypes[29]
+	mi := &file_dynasty_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1873,7 +2016,7 @@ func (x *GetPrizesRequest) String() string {
 func (*GetPrizesRequest) ProtoMessage() {}
 
 func (x *GetPrizesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[29]
+	mi := &file_dynasty_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1886,7 +2029,7 @@ func (x *GetPrizesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPrizesRequest.ProtoReflect.Descriptor instead.
 func (*GetPrizesRequest) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{29}
+	return file_dynasty_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GetPrizesRequest) GetUserId() uint64 {
@@ -1913,7 +2056,7 @@ type PrizesResponse struct {
 
 func (x *PrizesResponse) Reset() {
 	*x = PrizesResponse{}
-	mi := &file_dynasty_proto_msgTypes[30]
+	mi := &file_dynasty_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1925,7 +2068,7 @@ func (x *PrizesResponse) String() string {
 func (*PrizesResponse) ProtoMessage() {}
 
 func (x *PrizesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[30]
+	mi := &file_dynasty_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1938,7 +2081,7 @@ func (x *PrizesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrizesResponse.ProtoReflect.Descriptor instead.
 func (*PrizesResponse) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{30}
+	return file_dynasty_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *PrizesResponse) GetPrizes() []*DynastyPrize {
@@ -1964,7 +2107,7 @@ type GetPrizeRequest struct {
 
 func (x *GetPrizeRequest) Reset() {
 	*x = GetPrizeRequest{}
-	mi := &file_dynasty_proto_msgTypes[31]
+	mi := &file_dynasty_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1976,7 +2119,7 @@ func (x *GetPrizeRequest) String() string {
 func (*GetPrizeRequest) ProtoMessage() {}
 
 func (x *GetPrizeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[31]
+	mi := &file_dynasty_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1989,7 +2132,7 @@ func (x *GetPrizeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPrizeRequest.ProtoReflect.Descriptor instead.
 func (*GetPrizeRequest) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{31}
+	return file_dynasty_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *GetPrizeRequest) GetPrizeId() uint64 {
@@ -2008,7 +2151,7 @@ type PrizeResponse struct {
 
 func (x *PrizeResponse) Reset() {
 	*x = PrizeResponse{}
-	mi := &file_dynasty_proto_msgTypes[32]
+	mi := &file_dynasty_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2020,7 +2163,7 @@ func (x *PrizeResponse) String() string {
 func (*PrizeResponse) ProtoMessage() {}
 
 func (x *PrizeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[32]
+	mi := &file_dynasty_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2033,7 +2176,7 @@ func (x *PrizeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrizeResponse.ProtoReflect.Descriptor instead.
 func (*PrizeResponse) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{32}
+	return file_dynasty_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *PrizeResponse) GetPrize() *DynastyPrize {
@@ -2053,7 +2196,7 @@ type ClaimPrizeRequest struct {
 
 func (x *ClaimPrizeRequest) Reset() {
 	*x = ClaimPrizeRequest{}
-	mi := &file_dynasty_proto_msgTypes[33]
+	mi := &file_dynasty_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2065,7 +2208,7 @@ func (x *ClaimPrizeRequest) String() string {
 func (*ClaimPrizeRequest) ProtoMessage() {}
 
 func (x *ClaimPrizeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[33]
+	mi := &file_dynasty_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2078,7 +2221,7 @@ func (x *ClaimPrizeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimPrizeRequest.ProtoReflect.Descriptor instead.
 func (*ClaimPrizeRequest) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{33}
+	return file_dynasty_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ClaimPrizeRequest) GetPrizeId() uint64 {
@@ -2110,7 +2253,7 @@ type DynastyPrize struct {
 
 func (x *DynastyPrize) Reset() {
 	*x = DynastyPrize{}
-	mi := &file_dynasty_proto_msgTypes[34]
+	mi := &file_dynasty_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2122,7 +2265,7 @@ func (x *DynastyPrize) String() string {
 func (*DynastyPrize) ProtoMessage() {}
 
 func (x *DynastyPrize) ProtoReflect() protoreflect.Message {
-	mi := &file_dynasty_proto_msgTypes[34]
+	mi := &file_dynasty_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2135,7 +2278,7 @@ func (x *DynastyPrize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DynastyPrize.ProtoReflect.Descriptor instead.
 func (*DynastyPrize) Descriptor() ([]byte, []int) {
-	return file_dynasty_proto_rawDescGZIP(), []int{34}
+	return file_dynasty_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *DynastyPrize) GetId() uint64 {
@@ -2297,13 +2440,24 @@ const file_dynasty_proto_rawDesc = "" +
 	"\vsearch_term\x18\x01 \x01(\tR\n" +
 	"searchTerm\"D\n" +
 	"\x13SearchUsersResponse\x12-\n" +
-	"\x04data\x18\x01 \x03(\v2\x19.dynasty.UserSearchResultR\x04data\"v\n" +
+	"\x04data\x18\x01 \x03(\v2\x19.dynasty.UserSearchResultR\x04data\"\xda\x01\n" +
 	"\x10UserSearchResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
 	"\x05image\x18\x04 \x01(\tR\x05image\x12\x14\n" +
-	"\x05level\x18\x05 \x01(\tR\x05level\"N\n" +
+	"\x05level\x18\x05 \x01(\tR\x05level\x12\x1a\n" +
+	"\bverified\x18\x06 \x01(\bR\bverified\x12\x10\n" +
+	"\x03age\x18\a \x01(\x05R\x03age\x124\n" +
+	"\x06levels\x18\b \x03(\v2\x1c.dynasty.UserSearchLevelItemR\x06levels\"N\n" +
+	"\x12UserSearchLevelGem\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05image\x18\x03 \x01(\tR\x05image\"h\n" +
+	"\x13UserSearchLevelItem\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
+	"\x04slug\x18\x02 \x01(\tR\x04slug\x12-\n" +
+	"\x03gem\x18\x03 \x01(\v2\x1b.dynasty.UserSearchLevelGemR\x03gem\"N\n" +
 	"\x10GetFamilyRequest\x12\x1b\n" +
 	"\tfamily_id\x18\x01 \x01(\x04R\bfamilyId\x12\x1d\n" +
 	"\n" +
@@ -2410,7 +2564,7 @@ func file_dynasty_proto_rawDescGZIP() []byte {
 	return file_dynasty_proto_rawDescData
 }
 
-var file_dynasty_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_dynasty_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_dynasty_proto_goTypes = []any{
 	(*CreateDynastyRequest)(nil),         // 0: dynasty.CreateDynastyRequest
 	(*GetDynastyRequest)(nil),            // 1: dynasty.GetDynastyRequest
@@ -2434,90 +2588,94 @@ var file_dynasty_proto_goTypes = []any{
 	(*SearchUsersRequest)(nil),           // 19: dynasty.SearchUsersRequest
 	(*SearchUsersResponse)(nil),          // 20: dynasty.SearchUsersResponse
 	(*UserSearchResult)(nil),             // 21: dynasty.UserSearchResult
-	(*GetFamilyRequest)(nil),             // 22: dynasty.GetFamilyRequest
-	(*FamilyResponse)(nil),               // 23: dynasty.FamilyResponse
-	(*GetFamilyMembersRequest)(nil),      // 24: dynasty.GetFamilyMembersRequest
-	(*FamilyMembersResponse)(nil),        // 25: dynasty.FamilyMembersResponse
-	(*FamilyMember)(nil),                 // 26: dynasty.FamilyMember
-	(*SetChildPermissionsRequest)(nil),   // 27: dynasty.SetChildPermissionsRequest
-	(*ChildPermissions)(nil),             // 28: dynasty.ChildPermissions
-	(*GetPrizesRequest)(nil),             // 29: dynasty.GetPrizesRequest
-	(*PrizesResponse)(nil),               // 30: dynasty.PrizesResponse
-	(*GetPrizeRequest)(nil),              // 31: dynasty.GetPrizeRequest
-	(*PrizeResponse)(nil),                // 32: dynasty.PrizeResponse
-	(*ClaimPrizeRequest)(nil),            // 33: dynasty.ClaimPrizeRequest
-	(*DynastyPrize)(nil),                 // 34: dynasty.DynastyPrize
-	(*common.UserBasic)(nil),             // 35: common.UserBasic
-	(*common.PaginationRequest)(nil),     // 36: common.PaginationRequest
-	(*common.PaginationMeta)(nil),        // 37: common.PaginationMeta
-	(*common.Empty)(nil),                 // 38: common.Empty
+	(*UserSearchLevelGem)(nil),           // 22: dynasty.UserSearchLevelGem
+	(*UserSearchLevelItem)(nil),          // 23: dynasty.UserSearchLevelItem
+	(*GetFamilyRequest)(nil),             // 24: dynasty.GetFamilyRequest
+	(*FamilyResponse)(nil),               // 25: dynasty.FamilyResponse
+	(*GetFamilyMembersRequest)(nil),      // 26: dynasty.GetFamilyMembersRequest
+	(*FamilyMembersResponse)(nil),        // 27: dynasty.FamilyMembersResponse
+	(*FamilyMember)(nil),                 // 28: dynasty.FamilyMember
+	(*SetChildPermissionsRequest)(nil),   // 29: dynasty.SetChildPermissionsRequest
+	(*ChildPermissions)(nil),             // 30: dynasty.ChildPermissions
+	(*GetPrizesRequest)(nil),             // 31: dynasty.GetPrizesRequest
+	(*PrizesResponse)(nil),               // 32: dynasty.PrizesResponse
+	(*GetPrizeRequest)(nil),              // 33: dynasty.GetPrizeRequest
+	(*PrizeResponse)(nil),                // 34: dynasty.PrizeResponse
+	(*ClaimPrizeRequest)(nil),            // 35: dynasty.ClaimPrizeRequest
+	(*DynastyPrize)(nil),                 // 36: dynasty.DynastyPrize
+	(*common.UserBasic)(nil),             // 37: common.UserBasic
+	(*common.PaginationRequest)(nil),     // 38: common.PaginationRequest
+	(*common.PaginationMeta)(nil),        // 39: common.PaginationMeta
+	(*common.Empty)(nil),                 // 40: common.Empty
 }
 var file_dynasty_proto_depIdxs = []int32{
 	6,  // 0: dynasty.DynastyResponse.dynasty_feature:type_name -> dynasty.DynastyFeature
 	7,  // 1: dynasty.DynastyResponse.features:type_name -> dynasty.AvailableFeature
 	5,  // 2: dynasty.DynastyResponse.prizes:type_name -> dynasty.IntroductionPrize
-	28, // 3: dynasty.SendJoinRequestRequest.permissions:type_name -> dynasty.ChildPermissions
-	35, // 4: dynasty.JoinRequestResponse.to_user_info:type_name -> common.UserBasic
-	34, // 5: dynasty.JoinRequestResponse.request_prize:type_name -> dynasty.DynastyPrize
-	36, // 6: dynasty.GetSentRequestsRequest.pagination:type_name -> common.PaginationRequest
-	36, // 7: dynasty.GetReceivedRequestsRequest.pagination:type_name -> common.PaginationRequest
+	30, // 3: dynasty.SendJoinRequestRequest.permissions:type_name -> dynasty.ChildPermissions
+	37, // 4: dynasty.JoinRequestResponse.to_user_info:type_name -> common.UserBasic
+	36, // 5: dynasty.JoinRequestResponse.request_prize:type_name -> dynasty.DynastyPrize
+	38, // 6: dynasty.GetSentRequestsRequest.pagination:type_name -> common.PaginationRequest
+	38, // 7: dynasty.GetReceivedRequestsRequest.pagination:type_name -> common.PaginationRequest
 	9,  // 8: dynasty.JoinRequestsResponse.requests:type_name -> dynasty.JoinRequestResponse
-	37, // 9: dynasty.JoinRequestsResponse.pagination:type_name -> common.PaginationMeta
-	28, // 10: dynasty.DefaultPermissionsResponse.permissions:type_name -> dynasty.ChildPermissions
+	39, // 9: dynasty.JoinRequestsResponse.pagination:type_name -> common.PaginationMeta
+	30, // 10: dynasty.DefaultPermissionsResponse.permissions:type_name -> dynasty.ChildPermissions
 	21, // 11: dynasty.SearchUsersResponse.data:type_name -> dynasty.UserSearchResult
-	26, // 12: dynasty.FamilyResponse.members:type_name -> dynasty.FamilyMember
-	36, // 13: dynasty.GetFamilyMembersRequest.pagination:type_name -> common.PaginationRequest
-	26, // 14: dynasty.FamilyMembersResponse.members:type_name -> dynasty.FamilyMember
-	37, // 15: dynasty.FamilyMembersResponse.pagination:type_name -> common.PaginationMeta
-	35, // 16: dynasty.FamilyMember.user_info:type_name -> common.UserBasic
-	28, // 17: dynasty.SetChildPermissionsRequest.permissions:type_name -> dynasty.ChildPermissions
-	36, // 18: dynasty.GetPrizesRequest.pagination:type_name -> common.PaginationRequest
-	34, // 19: dynasty.PrizesResponse.prizes:type_name -> dynasty.DynastyPrize
-	37, // 20: dynasty.PrizesResponse.pagination:type_name -> common.PaginationMeta
-	34, // 21: dynasty.PrizeResponse.prize:type_name -> dynasty.DynastyPrize
-	0,  // 22: dynasty.DynastyService.CreateDynasty:input_type -> dynasty.CreateDynastyRequest
-	1,  // 23: dynasty.DynastyService.GetDynasty:input_type -> dynasty.GetDynastyRequest
-	2,  // 24: dynasty.DynastyService.UpdateDynastyFeature:input_type -> dynasty.UpdateDynastyFeatureRequest
-	3,  // 25: dynasty.DynastyService.GetUserDynasty:input_type -> dynasty.GetUserDynastyRequest
-	8,  // 26: dynasty.JoinRequestService.SendJoinRequest:input_type -> dynasty.SendJoinRequestRequest
-	10, // 27: dynasty.JoinRequestService.GetSentRequests:input_type -> dynasty.GetSentRequestsRequest
-	11, // 28: dynasty.JoinRequestService.GetReceivedRequests:input_type -> dynasty.GetReceivedRequestsRequest
-	12, // 29: dynasty.JoinRequestService.GetJoinRequest:input_type -> dynasty.GetJoinRequestRequest
-	14, // 30: dynasty.JoinRequestService.AcceptJoinRequest:input_type -> dynasty.AcceptJoinRequestRequest
-	15, // 31: dynasty.JoinRequestService.RejectJoinRequest:input_type -> dynasty.RejectJoinRequestRequest
-	16, // 32: dynasty.JoinRequestService.DeleteJoinRequest:input_type -> dynasty.DeleteJoinRequestRequest
-	17, // 33: dynasty.JoinRequestService.GetDefaultPermissions:input_type -> dynasty.GetDefaultPermissionsRequest
-	19, // 34: dynasty.JoinRequestService.SearchUsers:input_type -> dynasty.SearchUsersRequest
-	22, // 35: dynasty.FamilyService.GetFamily:input_type -> dynasty.GetFamilyRequest
-	24, // 36: dynasty.FamilyService.GetFamilyMembers:input_type -> dynasty.GetFamilyMembersRequest
-	27, // 37: dynasty.FamilyService.SetChildPermissions:input_type -> dynasty.SetChildPermissionsRequest
-	29, // 38: dynasty.DynastyPrizeService.GetPrizes:input_type -> dynasty.GetPrizesRequest
-	31, // 39: dynasty.DynastyPrizeService.GetPrize:input_type -> dynasty.GetPrizeRequest
-	33, // 40: dynasty.DynastyPrizeService.ClaimPrize:input_type -> dynasty.ClaimPrizeRequest
-	4,  // 41: dynasty.DynastyService.CreateDynasty:output_type -> dynasty.DynastyResponse
-	4,  // 42: dynasty.DynastyService.GetDynasty:output_type -> dynasty.DynastyResponse
-	4,  // 43: dynasty.DynastyService.UpdateDynastyFeature:output_type -> dynasty.DynastyResponse
-	4,  // 44: dynasty.DynastyService.GetUserDynasty:output_type -> dynasty.DynastyResponse
-	9,  // 45: dynasty.JoinRequestService.SendJoinRequest:output_type -> dynasty.JoinRequestResponse
-	13, // 46: dynasty.JoinRequestService.GetSentRequests:output_type -> dynasty.JoinRequestsResponse
-	13, // 47: dynasty.JoinRequestService.GetReceivedRequests:output_type -> dynasty.JoinRequestsResponse
-	9,  // 48: dynasty.JoinRequestService.GetJoinRequest:output_type -> dynasty.JoinRequestResponse
-	38, // 49: dynasty.JoinRequestService.AcceptJoinRequest:output_type -> common.Empty
-	38, // 50: dynasty.JoinRequestService.RejectJoinRequest:output_type -> common.Empty
-	38, // 51: dynasty.JoinRequestService.DeleteJoinRequest:output_type -> common.Empty
-	18, // 52: dynasty.JoinRequestService.GetDefaultPermissions:output_type -> dynasty.DefaultPermissionsResponse
-	20, // 53: dynasty.JoinRequestService.SearchUsers:output_type -> dynasty.SearchUsersResponse
-	23, // 54: dynasty.FamilyService.GetFamily:output_type -> dynasty.FamilyResponse
-	25, // 55: dynasty.FamilyService.GetFamilyMembers:output_type -> dynasty.FamilyMembersResponse
-	38, // 56: dynasty.FamilyService.SetChildPermissions:output_type -> common.Empty
-	30, // 57: dynasty.DynastyPrizeService.GetPrizes:output_type -> dynasty.PrizesResponse
-	32, // 58: dynasty.DynastyPrizeService.GetPrize:output_type -> dynasty.PrizeResponse
-	38, // 59: dynasty.DynastyPrizeService.ClaimPrize:output_type -> common.Empty
-	41, // [41:60] is the sub-list for method output_type
-	22, // [22:41] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	23, // 12: dynasty.UserSearchResult.levels:type_name -> dynasty.UserSearchLevelItem
+	22, // 13: dynasty.UserSearchLevelItem.gem:type_name -> dynasty.UserSearchLevelGem
+	28, // 14: dynasty.FamilyResponse.members:type_name -> dynasty.FamilyMember
+	38, // 15: dynasty.GetFamilyMembersRequest.pagination:type_name -> common.PaginationRequest
+	28, // 16: dynasty.FamilyMembersResponse.members:type_name -> dynasty.FamilyMember
+	39, // 17: dynasty.FamilyMembersResponse.pagination:type_name -> common.PaginationMeta
+	37, // 18: dynasty.FamilyMember.user_info:type_name -> common.UserBasic
+	30, // 19: dynasty.SetChildPermissionsRequest.permissions:type_name -> dynasty.ChildPermissions
+	38, // 20: dynasty.GetPrizesRequest.pagination:type_name -> common.PaginationRequest
+	36, // 21: dynasty.PrizesResponse.prizes:type_name -> dynasty.DynastyPrize
+	39, // 22: dynasty.PrizesResponse.pagination:type_name -> common.PaginationMeta
+	36, // 23: dynasty.PrizeResponse.prize:type_name -> dynasty.DynastyPrize
+	0,  // 24: dynasty.DynastyService.CreateDynasty:input_type -> dynasty.CreateDynastyRequest
+	1,  // 25: dynasty.DynastyService.GetDynasty:input_type -> dynasty.GetDynastyRequest
+	2,  // 26: dynasty.DynastyService.UpdateDynastyFeature:input_type -> dynasty.UpdateDynastyFeatureRequest
+	3,  // 27: dynasty.DynastyService.GetUserDynasty:input_type -> dynasty.GetUserDynastyRequest
+	8,  // 28: dynasty.JoinRequestService.SendJoinRequest:input_type -> dynasty.SendJoinRequestRequest
+	10, // 29: dynasty.JoinRequestService.GetSentRequests:input_type -> dynasty.GetSentRequestsRequest
+	11, // 30: dynasty.JoinRequestService.GetReceivedRequests:input_type -> dynasty.GetReceivedRequestsRequest
+	12, // 31: dynasty.JoinRequestService.GetJoinRequest:input_type -> dynasty.GetJoinRequestRequest
+	14, // 32: dynasty.JoinRequestService.AcceptJoinRequest:input_type -> dynasty.AcceptJoinRequestRequest
+	15, // 33: dynasty.JoinRequestService.RejectJoinRequest:input_type -> dynasty.RejectJoinRequestRequest
+	16, // 34: dynasty.JoinRequestService.DeleteJoinRequest:input_type -> dynasty.DeleteJoinRequestRequest
+	17, // 35: dynasty.JoinRequestService.GetDefaultPermissions:input_type -> dynasty.GetDefaultPermissionsRequest
+	19, // 36: dynasty.JoinRequestService.SearchUsers:input_type -> dynasty.SearchUsersRequest
+	24, // 37: dynasty.FamilyService.GetFamily:input_type -> dynasty.GetFamilyRequest
+	26, // 38: dynasty.FamilyService.GetFamilyMembers:input_type -> dynasty.GetFamilyMembersRequest
+	29, // 39: dynasty.FamilyService.SetChildPermissions:input_type -> dynasty.SetChildPermissionsRequest
+	31, // 40: dynasty.DynastyPrizeService.GetPrizes:input_type -> dynasty.GetPrizesRequest
+	33, // 41: dynasty.DynastyPrizeService.GetPrize:input_type -> dynasty.GetPrizeRequest
+	35, // 42: dynasty.DynastyPrizeService.ClaimPrize:input_type -> dynasty.ClaimPrizeRequest
+	4,  // 43: dynasty.DynastyService.CreateDynasty:output_type -> dynasty.DynastyResponse
+	4,  // 44: dynasty.DynastyService.GetDynasty:output_type -> dynasty.DynastyResponse
+	4,  // 45: dynasty.DynastyService.UpdateDynastyFeature:output_type -> dynasty.DynastyResponse
+	4,  // 46: dynasty.DynastyService.GetUserDynasty:output_type -> dynasty.DynastyResponse
+	9,  // 47: dynasty.JoinRequestService.SendJoinRequest:output_type -> dynasty.JoinRequestResponse
+	13, // 48: dynasty.JoinRequestService.GetSentRequests:output_type -> dynasty.JoinRequestsResponse
+	13, // 49: dynasty.JoinRequestService.GetReceivedRequests:output_type -> dynasty.JoinRequestsResponse
+	9,  // 50: dynasty.JoinRequestService.GetJoinRequest:output_type -> dynasty.JoinRequestResponse
+	40, // 51: dynasty.JoinRequestService.AcceptJoinRequest:output_type -> common.Empty
+	40, // 52: dynasty.JoinRequestService.RejectJoinRequest:output_type -> common.Empty
+	40, // 53: dynasty.JoinRequestService.DeleteJoinRequest:output_type -> common.Empty
+	18, // 54: dynasty.JoinRequestService.GetDefaultPermissions:output_type -> dynasty.DefaultPermissionsResponse
+	20, // 55: dynasty.JoinRequestService.SearchUsers:output_type -> dynasty.SearchUsersResponse
+	25, // 56: dynasty.FamilyService.GetFamily:output_type -> dynasty.FamilyResponse
+	27, // 57: dynasty.FamilyService.GetFamilyMembers:output_type -> dynasty.FamilyMembersResponse
+	40, // 58: dynasty.FamilyService.SetChildPermissions:output_type -> common.Empty
+	32, // 59: dynasty.DynastyPrizeService.GetPrizes:output_type -> dynasty.PrizesResponse
+	34, // 60: dynasty.DynastyPrizeService.GetPrize:output_type -> dynasty.PrizeResponse
+	40, // 61: dynasty.DynastyPrizeService.ClaimPrize:output_type -> common.Empty
+	43, // [43:62] is the sub-list for method output_type
+	24, // [24:43] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_dynasty_proto_init() }
@@ -2531,7 +2689,7 @@ func file_dynasty_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dynasty_proto_rawDesc), len(file_dynasty_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   35,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   4,
 		},

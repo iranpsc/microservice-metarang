@@ -9,7 +9,6 @@ import (
 	ptime "github.com/yaa110/go-persian-calendar"
 )
 
-// ValidPeriods matches Laravel PeriodResolver::PERIODS.
 var ValidPeriods = []string{"daily", "weekly", "monthly", "yearly"}
 
 // PeriodBucket is a single chart bucket with a Jalali label.
@@ -34,8 +33,10 @@ type PreviousWindow struct {
 	End   time.Time
 }
 
-// ResolvePeriod ports Laravel App\Services\WalletHistory\PeriodResolver::resolve.
-func ResolvePeriod(period string, reference time.Time) (*PeriodWindow, error) {
+// ResolvePeriod resolves a reporting window and chart buckets.
+// registeredAt is used for yearly periods (one bucket per Jalali year since registration).
+// When registeredAt is zero, yearly falls back to the current Jalali year only.
+func ResolvePeriod(period string, reference time.Time, registeredAt time.Time) (*PeriodWindow, error) {
 	if !isValidPeriod(period) {
 		return nil, fmt.Errorf("invalid period [%s] provided", period)
 	}
@@ -46,11 +47,11 @@ func ResolvePeriod(period string, reference time.Time) (*PeriodWindow, error) {
 	case "daily":
 		start = startOfSecond(end.Add(-24 * time.Hour))
 	case "weekly":
-		start = startOfDay(end.AddDate(0, 0, -6))
+		start = startOfSecond(end.Add(-28 * 24 * time.Hour))
 	case "monthly":
-		start = startOfDay(end.AddDate(0, 0, -29))
-	case "yearly":
 		start = startOfMonth(end.AddDate(0, -11, 0))
+	case "yearly":
+		start = startOfJalaliYear(registrationYear(registeredAt, end))
 	}
 
 	return &PeriodWindow{
@@ -58,13 +59,13 @@ func ResolvePeriod(period string, reference time.Time) (*PeriodWindow, error) {
 		Start:       start,
 		End:         end,
 		Granularity: granularityFor(period),
-		Buckets:     buildBuckets(period, start, end),
+		Buckets:     buildBuckets(period, start, end, registeredAt),
 	}, nil
 }
 
-// ResolvePrevious ports Laravel PeriodResolver::resolvePrevious.
-func ResolvePrevious(period string, reference time.Time) (*PreviousWindow, error) {
-	current, err := ResolvePeriod(period, reference)
+// ResolvePrevious returns the immediately preceding period of equal length.
+func ResolvePrevious(period string, reference time.Time, registeredAt time.Time) (*PreviousWindow, error) {
+	current, err := ResolvePeriod(period, reference, registeredAt)
 	if err != nil {
 		return nil, err
 	}
@@ -97,33 +98,40 @@ func granularityFor(period string) string {
 	case "daily":
 		return "hourly"
 	case "weekly":
-		return "daily"
-	case "monthly":
 		return "weekly"
-	case "yearly":
+	case "monthly":
 		return "monthly"
+	case "yearly":
+		return "yearly"
 	default:
 		return ""
 	}
 }
 
-func buildBuckets(period string, start, end time.Time) []PeriodBucket {
+func buildBuckets(period string, start, end time.Time, registeredAt time.Time) []PeriodBucket {
 	switch period {
 	case "daily":
 		return hourlyBuckets(end)
 	case "weekly":
-		return dailyBuckets(end, 7)
+		return weeklyBuckets(end, 4)
 	case "monthly":
-		return weeklyBuckets(start, end)
-	case "yearly":
 		return monthlyBuckets(end, 12)
+	case "yearly":
+		return yearlyBuckets(registrationYear(registeredAt, end), end)
 	default:
 		return nil
 	}
 }
 
+func registrationYear(registeredAt, reference time.Time) time.Time {
+	if registeredAt.IsZero() {
+		return reference
+	}
+	return registeredAt
+}
+
 func hourlyBuckets(end time.Time) []PeriodBucket {
-	// Chronological order (oldest → newest), consistent with daily/weekly/monthly buckets.
+	// Chronological order (oldest → newest), consistent with weekly/monthly/yearly buckets.
 	buckets := make([]PeriodBucket, 0, 24)
 	for offset := 23; offset >= 0; offset-- {
 		bucketEnd := endOfHour(end.Add(-time.Duration(offset) * time.Hour))
@@ -137,36 +145,17 @@ func hourlyBuckets(end time.Time) []PeriodBucket {
 	return buckets
 }
 
-func dailyBuckets(end time.Time, days int) []PeriodBucket {
-	buckets := make([]PeriodBucket, 0, days)
-	for offset := days - 1; offset >= 0; offset-- {
-		bucketDate := end.AddDate(0, 0, -offset)
-		bucketStart := startOfDay(bucketDate)
-		bucketEnd := endOfDay(bucketDate)
+func weeklyBuckets(end time.Time, weeks int) []PeriodBucket {
+	buckets := make([]PeriodBucket, 0, weeks)
+	for offset := weeks - 1; offset >= 0; offset-- {
+		weekEndDay := end.AddDate(0, 0, -offset*7)
+		bucketEnd := endOfDay(weekEndDay)
+		bucketStart := startOfDay(weekEndDay.AddDate(0, 0, -6))
 		buckets = append(buckets, PeriodBucket{
 			Start: bucketStart,
 			End:   bucketEnd,
 			Label: ptime.New(bucketStart).Format("yyyy/MM/dd"),
 		})
-	}
-	return buckets
-}
-
-func weeklyBuckets(start, end time.Time) []PeriodBucket {
-	buckets := make([]PeriodBucket, 0)
-	cursor := startOfDay(start)
-	for !cursor.After(end) {
-		bucketStart := cursor
-		bucketEnd := endOfDay(cursor.AddDate(0, 0, 6))
-		if bucketEnd.After(end) {
-			bucketEnd = end
-		}
-		buckets = append(buckets, PeriodBucket{
-			Start: bucketStart,
-			End:   bucketEnd,
-			Label: ptime.New(bucketStart).Format("yyyy/MM/dd"),
-		})
-		cursor = cursor.AddDate(0, 0, 7)
 	}
 	return buckets
 }
@@ -182,6 +171,30 @@ func monthlyBuckets(end time.Time, months int) []PeriodBucket {
 			Start: bucketStart,
 			End:   bucketEnd,
 			Label: pt.Month().String() + " " + strconv.Itoa(pt.Year()),
+		})
+	}
+	return buckets
+}
+
+func yearlyBuckets(registeredAt, end time.Time) []PeriodBucket {
+	startYear := ptime.New(registeredAt).Year()
+	endYear := ptime.New(end).Year()
+	if startYear > endYear {
+		startYear = endYear
+	}
+
+	loc := end.Location()
+	buckets := make([]PeriodBucket, 0, endYear-startYear+1)
+	for year := startYear; year <= endYear; year++ {
+		bucketStart := ptime.Date(year, ptime.Farvardin, 1, 0, 0, 0, 0, loc).Time()
+		bucketEnd := endOfDay(ptime.Date(year, ptime.Farvardin, 1, 0, 0, 0, 0, loc).LastYearDay().Time())
+		if bucketEnd.After(end) {
+			bucketEnd = end
+		}
+		buckets = append(buckets, PeriodBucket{
+			Start: bucketStart,
+			End:   bucketEnd,
+			Label: strconv.Itoa(year),
 		})
 	}
 	return buckets
@@ -220,4 +233,8 @@ func startOfMonth(t time.Time) time.Time {
 
 func endOfMonth(t time.Time) time.Time {
 	return startOfMonth(t).AddDate(0, 1, 0).Add(-time.Nanosecond)
+}
+
+func startOfJalaliYear(t time.Time) time.Time {
+	return ptime.New(t).BeginningOfYear().Time()
 }

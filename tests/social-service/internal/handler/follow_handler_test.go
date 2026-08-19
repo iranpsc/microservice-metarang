@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -62,7 +63,7 @@ func TestFollowHandler_GetFollowing_OK(t *testing.T) {
 	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
 		handler.RegisterFollowHandler(gs, &stubFollowSvc{
 			getFollowing: func(ctx context.Context, uid uint64) ([]*models.FollowResource, error) {
-				return []*models.FollowResource{{ID: 2, Name: "B", Code: "c"}}, nil
+				return []*models.FollowResource{{ID: 2, Name: "B", Code: "c", ProfilePhoto: "http://p2"}}, nil
 			},
 		})
 	})
@@ -72,13 +73,16 @@ func TestFollowHandler_GetFollowing_OK(t *testing.T) {
 	if err != nil || len(resp.Data) != 1 {
 		t.Fatal(err, resp)
 	}
+	if resp.Data[0].ProfilePhoto != "http://p2" {
+		t.Fatalf("ProfilePhoto = %q, want http://p2", resp.Data[0].ProfilePhoto)
+	}
 }
 
 func TestFollowHandler_GetFollowers_OK(t *testing.T) {
 	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
 		handler.RegisterFollowHandler(gs, &stubFollowSvc{
 			getFollowers: func(ctx context.Context, uid uint64) ([]*models.FollowResource, error) {
-				return []*models.FollowResource{{ID: 1, Name: "A"}}, nil
+				return []*models.FollowResource{{ID: 1, Name: "A", ProfilePhoto: "http://p1"}}, nil
 			},
 		})
 	})
@@ -87,6 +91,9 @@ func TestFollowHandler_GetFollowers_OK(t *testing.T) {
 	resp, err := cli.GetFollowers(context.Background(), &pb.GetFollowersRequest{UserId: 9})
 	if err != nil || len(resp.Data) != 1 {
 		t.Fatal(err, resp)
+	}
+	if resp.Data[0].ProfilePhoto != "http://p1" {
+		t.Fatalf("ProfilePhoto = %q, want http://p1", resp.Data[0].ProfilePhoto)
 	}
 }
 
@@ -162,6 +169,57 @@ func TestFollowHandler_Remove_OK(t *testing.T) {
 	_, err := cli.Remove(context.Background(), &pb.RemoveRequest{UserId: 1, TargetUserId: 2})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFollowHandler_Follow_UserNotFound(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterFollowHandler(gs, &stubFollowSvc{
+			follow: func(ctx context.Context, userID, targetUserID uint64) error {
+				return service.ErrUserNotFound
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewFollowServiceClient(conn)
+	_, err := cli.Follow(context.Background(), &pb.FollowRequest{UserId: 1, TargetUserId: 2})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.NotFound {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestFollowHandler_Follow_InternalError(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterFollowHandler(gs, &stubFollowSvc{
+			follow: func(ctx context.Context, userID, targetUserID uint64) error {
+				return errors.New("db")
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewFollowServiceClient(conn)
+	_, err := cli.Follow(context.Background(), &pb.FollowRequest{UserId: 1, TargetUserId: 2})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestFollowHandler_GetFollowers_Error(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterFollowHandler(gs, &stubFollowSvc{
+			getFollowers: func(ctx context.Context, uid uint64) ([]*models.FollowResource, error) {
+				return nil, errors.New("db")
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewFollowServiceClient(conn)
+	_, err := cli.GetFollowers(context.Background(), &pb.GetFollowersRequest{UserId: 1})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.Internal {
+		t.Fatalf("got %v", err)
 	}
 }
 

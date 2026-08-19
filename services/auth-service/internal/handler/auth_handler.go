@@ -24,16 +24,17 @@ type authHandler struct {
 	pb.UnimplementedAuthServiceServer
 	authService         service.AuthService
 	tokenRepo           repository.TokenRepository
-	profilePhotoHandler *ProfilePhotoHandler
+	profilePhotoService service.ProfilePhotoService
 	locale              string
 }
 
-func RegisterAuthHandler(grpcServer *grpc.Server, authService service.AuthService, tokenRepo repository.TokenRepository, profilePhotoHandler *ProfilePhotoHandler, locale string) {
-	pb.RegisterAuthServiceServer(grpcServer, NewAuthHandler(authService, tokenRepo, profilePhotoHandler, locale))
+func RegisterAuthHandler(grpcServer *grpc.Server, authService service.AuthService, tokenRepo repository.TokenRepository, profilePhotoService service.ProfilePhotoService, locale string) pb.AuthServiceServer {
+	h := NewAuthHandler(authService, tokenRepo, profilePhotoService, locale)
+	pb.RegisterAuthServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *authHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
-	// Validate back_url is required (matching Laravel: 'back_url' => 'required|url')
 	validationErrors := make(map[string]string)
 
 	if req.BackUrl == "" {
@@ -112,7 +113,7 @@ func (h *authHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User
 		Code:                       userDetails.Code,
 		AutomaticLogout:            automaticLogout,
 		Level:                      nil, // Set below if available
-		Image:                      h.profilePhotoHandler.PrependGatewayURL(userDetails.Image),
+		Image:                      h.profilePhotoService.ResolvePhotoURL(userDetails.Image),
 		UnreadNotificationsCount:   userDetails.UnreadNotificationsCount,
 		SocrePercentageToNextLevel: userDetails.ScorePercentageToNextLevel, // TYPO PRESERVED!
 		HourlyProfitTimePercentage: userDetails.HourlyProfitTimePercentage,
@@ -170,6 +171,11 @@ func (h *authHandler) ValidateToken(ctx context.Context, req *pb.ValidateTokenRe
 }
 
 func (h *authHandler) RequestAccountSecurity(ctx context.Context, req *pb.RequestAccountSecurityRequest) (*emptypb.Empty, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate time parameter
 	validationErrors := make(map[string]string)
 
@@ -187,13 +193,18 @@ func (h *authHandler) RequestAccountSecurity(ctx context.Context, req *pb.Reques
 		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
 
-	if err := h.authService.RequestAccountSecurity(ctx, req.UserId, req.TimeMinutes, req.Phone); err != nil {
+	if err := h.authService.RequestAccountSecurity(ctx, userID, req.TimeMinutes, req.Phone); err != nil {
 		return nil, mapAccountSecurityErrorWithFields(err, h.locale)
 	}
 	return &emptypb.Empty{}, nil
 }
 
 func (h *authHandler) VerifyAccountSecurity(ctx context.Context, req *pb.VerifyAccountSecurityRequest) (*emptypb.Empty, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate code parameter
 	validationErrors := make(map[string]string)
 
@@ -224,7 +235,7 @@ func (h *authHandler) VerifyAccountSecurity(ctx context.Context, req *pb.VerifyA
 		return nil, status.Error(codes.InvalidArgument, encodedError)
 	}
 
-	if err := h.authService.VerifyAccountSecurity(ctx, req.UserId, req.Code, req.Ip, req.UserAgent); err != nil {
+	if err := h.authService.VerifyAccountSecurity(ctx, userID, req.Code, req.Ip, req.UserAgent); err != nil {
 		return nil, mapAccountSecurityErrorWithFields(err, h.locale)
 	}
 	return &emptypb.Empty{}, nil

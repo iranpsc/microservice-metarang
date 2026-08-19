@@ -2,9 +2,12 @@ package handler
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"net/url"
+	"strconv"
 	"strings"
 
+	"metarang/features-service/internal/service"
 	pb "metarang/shared/pb/features"
 	"metarang/shared/pkg/auth"
 
@@ -27,33 +30,34 @@ func (h *FeatureHandler) ListMyFeatures(ctx context.Context, req *pb.ListMyFeatu
 	if page < 1 {
 		page = 1
 	}
+	search := strings.TrimSpace(req.Search)
+	filter := strings.TrimSpace(req.Filter)
 
-	features, err := h.service.ListMyFeatures(ctx, user.UserID, page)
+	features, err := h.service.ListMyFeatures(ctx, user.UserID, page, search, filter)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list features: %v", err)
 	}
 
 	// Build pagination links (simple pagination - no total counts)
-	basePath := "/api/my-features"
 	links := &pb.PaginationLinks{
-		First: fmt.Sprintf("%s?page=1", basePath),
+		First: myFeaturesListPath(1, search, filter),
 		Last:  "", // Unknown without total
 		Prev:  "",
 		Next:  "",
 	}
 
 	if page > 1 {
-		links.Prev = fmt.Sprintf("%s?page=%d", basePath, page-1)
+		links.Prev = myFeaturesListPath(page-1, search, filter)
 	}
 
 	// If we got 5 results, there might be a next page
 	if len(features) == 5 {
-		links.Next = fmt.Sprintf("%s?page=%d", basePath, page+1)
+		links.Next = myFeaturesListPath(page+1, search, filter)
 	}
 
 	meta := &pb.SimplePaginationMeta{
 		CurrentPage: page,
-		Path:        basePath,
+		Path:        "/api/my-features",
 		PerPage:     5,
 	}
 
@@ -62,6 +66,18 @@ func (h *FeatureHandler) ListMyFeatures(ctx context.Context, req *pb.ListMyFeatu
 		Links: links,
 		Meta:  meta,
 	}, nil
+}
+
+func myFeaturesListPath(page int32, search, filter string) string {
+	values := url.Values{}
+	values.Set("page", strconv.Itoa(int(page)))
+	if search != "" {
+		values.Set("search", search)
+	}
+	if filter != "" {
+		values.Set("filter", filter)
+	}
+	return "/api/my-features?" + values.Encode()
 }
 
 // GetMyFeature handles GET /api/my-features/{user}/features/{feature}
@@ -105,28 +121,32 @@ func (h *FeatureHandler) AddMyFeatureImages(ctx context.Context, req *pb.AddMyFe
 		return nil, status.Errorf(codes.PermissionDenied, "feature does not belong to user")
 	}
 
-	// Validate images
 	if len(req.ImageData) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "at least one image is required")
 	}
 
-	// TODO: Upload images to storage service and get URLs
-	// For now, we'll expect the grpc-gateway to handle file uploads and pass URLs
-	// This is a placeholder - the actual implementation should handle file uploads
-	imageURLs := make([]string, 0, len(req.ImageData))
 	for i, imgData := range req.ImageData {
-		// In a real implementation, upload to storage service
-		// For now, create a placeholder URL
-		// The grpc-gateway should handle actual file uploads
-		_ = imgData // Use image data
-		_ = req.Filenames[i]
-		_ = req.ContentTypes[i]
-		// Placeholder - should be replaced with actual storage URL
-		imageURLs = append(imageURLs, fmt.Sprintf("uploads/features/%d/image_%d.jpg", req.FeatureId, i+1))
+		filename := ""
+		contentType := ""
+		if i < len(req.Filenames) {
+			filename = req.Filenames[i]
+		}
+		if i < len(req.ContentTypes) {
+			contentType = req.ContentTypes[i]
+		}
+		if err := validateMyFeatureImage(imgData, filename, contentType); err != nil {
+			return nil, err
+		}
 	}
 
-	feature, err := h.service.AddMyFeatureImages(ctx, req.UserId, req.FeatureId, imageURLs)
+	feature, err := h.service.AddMyFeatureImages(ctx, req.UserId, req.FeatureId, req.ImageData, req.Filenames, req.ContentTypes)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidFeatureImage) || errors.Is(err, service.ErrFeatureImageRequired) {
+			return nil, status.Errorf(codes.InvalidArgument, "%s", err.Error())
+		}
+		if errors.Is(err, service.ErrStorageUnavailable) {
+			return nil, status.Errorf(codes.Internal, "storage service not available")
+		}
 		if strings.Contains(err.Error(), "not found") {
 			return nil, status.Errorf(codes.NotFound, "feature not found")
 		}
@@ -195,4 +215,26 @@ func (h *FeatureHandler) UpdateMyFeature(ctx context.Context, req *pb.UpdateMyFe
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func validateMyFeatureImage(data []byte, filename, contentType string) error {
+	if len(data) == 0 {
+		return status.Errorf(codes.InvalidArgument, "image data is required")
+	}
+	if len(data) > 1024*1024 {
+		return status.Errorf(codes.InvalidArgument, "image size exceeds 1024 KB limit")
+	}
+
+	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	if contentType != "image/png" && contentType != "image/jpeg" && contentType != "image/jpg" && contentType != "image/bmp" {
+		return status.Errorf(codes.InvalidArgument, "invalid image type: must be PNG, JPG, or BMP")
+	}
+
+	if filename != "" {
+		lower := strings.ToLower(filename)
+		if !strings.HasSuffix(lower, ".png") && !strings.HasSuffix(lower, ".jpg") && !strings.HasSuffix(lower, ".jpeg") && !strings.HasSuffix(lower, ".bmp") {
+			return status.Errorf(codes.InvalidArgument, "invalid image type: must be PNG, JPG, or BMP")
+		}
+	}
+	return nil
 }

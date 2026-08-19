@@ -14,7 +14,7 @@ import (
 )
 
 func TestAuthHandler_RequestAccountSecurity(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful request", func(t *testing.T) {
 		mockAuthService := &mockAuthService{}
@@ -184,7 +184,7 @@ func TestAuthHandler_RequestAccountSecurity(t *testing.T) {
 }
 
 func TestAuthHandler_VerifyAccountSecurity(t *testing.T) {
-	ctx := context.Background()
+	ctx := authenticatedContext(1)
 
 	t.Run("successful verification", func(t *testing.T) {
 		mockAuthService := &mockAuthService{}

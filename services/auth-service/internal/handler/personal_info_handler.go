@@ -19,19 +19,23 @@ type personalInfoHandler struct {
 	personalInfoService service.PersonalInfoService
 }
 
-func RegisterPersonalInfoHandler(grpcServer *grpc.Server, personalInfoService service.PersonalInfoService) {
-	pb.RegisterPersonalInfoServiceServer(grpcServer, &personalInfoHandler{
-		personalInfoService: personalInfoService,
-	})
+func RegisterPersonalInfoHandler(grpcServer *grpc.Server, personalInfoService service.PersonalInfoService) pb.PersonalInfoServiceServer {
+	h := &personalInfoHandler{personalInfoService: personalInfoService}
+	pb.RegisterPersonalInfoServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *personalInfoHandler) GetPersonalInfo(ctx context.Context, req *pb.GetPersonalInfoRequest) (*pb.GetPersonalInfoResponse, error) {
-	personalInfo, err := h.personalInfoService.GetPersonalInfo(ctx, req.UserId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	personalInfo, err := h.personalInfoService.GetPersonalInfo(ctx, userID)
 	if err != nil {
 		return nil, mapPersonalInfoServiceError(err)
 	}
 
-	// If not found, return empty array (matches Laravel behavior)
 	if personalInfo == nil {
 		return &pb.GetPersonalInfoResponse{
 			Data: &pb.PersonalInfoData{},
@@ -44,6 +48,11 @@ func (h *personalInfoHandler) GetPersonalInfo(ctx context.Context, req *pb.GetPe
 }
 
 func (h *personalInfoHandler) UpdatePersonalInfo(ctx context.Context, req *pb.UpdatePersonalInfoRequest) (*emptypb.Empty, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Convert passions map from proto to Go map
 	passions := make(map[string]bool)
 	if req.Passions != nil {
@@ -52,9 +61,9 @@ func (h *personalInfoHandler) UpdatePersonalInfo(ctx context.Context, req *pb.Up
 		}
 	}
 
-	err := h.personalInfoService.UpdatePersonalInfo(
+	err = h.personalInfoService.UpdatePersonalInfo(
 		ctx,
-		req.UserId,
+		userID,
 		req.Occupation,
 		req.Education,
 		req.Memory,

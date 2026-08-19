@@ -13,8 +13,10 @@ import (
 	"google.golang.org/grpc"
 
 	"metarang/commercial-service/internal/handler"
+	"metarang/commercial-service/internal/middleware"
 	"metarang/commercial-service/internal/repository"
 	"metarang/commercial-service/internal/service"
+	authpb "metarang/shared/pb/auth"
 	"metarang/shared/pkg/auth"
 	"metarang/shared/pkg/db"
 	grpcutil "metarang/shared/pkg/grpc"
@@ -93,8 +95,12 @@ func main() {
 	}
 
 	var tokenValidator auth.TokenValidator
+	var authClient authpb.AuthServiceClient
+	var citizenClient authpb.CitizenServiceClient
 	if authConn != nil {
 		tokenValidator = auth.NewAuthServiceTokenValidator(authConn)
+		authClient = authpb.NewAuthServiceClient(authConn)
+		citizenClient = authpb.NewCitizenServiceClient(authConn)
 	}
 
 	serviceMetrics := metrics.NewMetrics("commercial_service")
@@ -115,10 +121,10 @@ func main() {
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	handler.RegisterWalletHandler(grpcServer, walletService)
-	handler.RegisterTransactionHandler(grpcServer, transactionService)
+	transactionHandler := handler.RegisterTransactionHandler(grpcServer, transactionService)
 	handler.RegisterReferralHandler(grpcServer, referralService)
 	handler.RegisterUserVariableHandler(grpcServer, userVariableService)
-	handler.RegisterWalletHistoryHandler(grpcServer, walletHistoryService)
+	walletHistoryHandler := handler.RegisterWalletHistoryHandler(grpcServer, walletHistoryService)
 
 	port := getEnv("GRPC_PORT", "50052")
 	listener, err := net.Listen("tcp", ":"+port)
@@ -126,11 +132,22 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Commercial service listening on port %s", port)
+	log.Printf("Commercial service gRPC listening on port %s", port)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPCommercialHandler(transactionHandler, walletHistoryHandler, citizenClient)
+	httpPort := getEnv("HTTP_PORT", "8067")
+	authMW := middleware.AuthMiddleware(authClient)
+
+	log.Printf("Commercial service HTTP listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

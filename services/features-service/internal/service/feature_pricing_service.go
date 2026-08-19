@@ -13,7 +13,6 @@ import (
 )
 
 // FeaturePricingService handles feature pricing updates
-// Implements Laravel's FeatureController@updateFeature logic (lines 77-105)
 type FeaturePricingService struct {
 	featureRepo    *repository.FeatureRepository
 	propertiesRepo *repository.PropertiesRepository
@@ -36,7 +35,6 @@ func NewFeaturePricingService(
 }
 
 // UpdateFeaturePricing updates feature pricing based on minimum_price_percentage
-// Implements Laravel's FeatureController@updateFeature (lines 77-105)
 func (s *FeaturePricingService) UpdateFeaturePricing(ctx context.Context, featureID, userID uint64, minimumPricePercentage int) error {
 	// Load feature
 	feature, properties, err := s.featureRepo.FindByID(ctx, featureID)
@@ -69,7 +67,6 @@ func (s *FeaturePricingService) UpdateFeaturePricing(ctx context.Context, featur
 	}
 
 	// Calculate pricing
-	// Formula from Laravel:
 	// totalPrice = stability × colorRate × percentage / 100
 	// price_psc = (totalPrice × 0.5) / pscRate
 	// price_irr = totalPrice × 0.5

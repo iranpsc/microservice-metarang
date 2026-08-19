@@ -22,7 +22,6 @@ func NewLevelHandler(service *service.LevelService) *LevelHandler {
 }
 
 // GetUserLevel retrieves user's current level and progression
-// Implements Laravel's UserController@getLevel
 func (h *LevelHandler) GetUserLevel(ctx context.Context, req *pb.GetUserLevelRequest) (*pb.UserLevelResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
@@ -37,7 +36,6 @@ func (h *LevelHandler) GetUserLevel(ctx context.Context, req *pb.GetUserLevelReq
 }
 
 // GetAllLevels retrieves all levels in the system
-// Implements Laravel's LevelController@index (V2)
 func (h *LevelHandler) GetAllLevels(ctx context.Context, req *pb.GetAllLevelsRequest) (*pb.LevelsResponse, error) {
 	levels, err := h.service.GetAllLevels(ctx)
 	if err != nil {
@@ -50,7 +48,6 @@ func (h *LevelHandler) GetAllLevels(ctx context.Context, req *pb.GetAllLevelsReq
 }
 
 // GetLevel retrieves a specific level by ID or slug
-// Implements Laravel's LevelController@show (V2)
 func (h *LevelHandler) GetLevel(ctx context.Context, req *pb.GetLevelRequest) (*pb.LevelResponse, error) {
 	if req.LevelId == 0 && req.LevelSlug == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "level_id or level_slug is required")
@@ -67,7 +64,6 @@ func (h *LevelHandler) GetLevel(ctx context.Context, req *pb.GetLevelRequest) (*
 }
 
 // GetLevelGeneralInfo retrieves general information for a level
-// Implements Laravel's LevelController@getGeneralInfo (V2)
 func (h *LevelHandler) GetLevelGeneralInfo(ctx context.Context, req *pb.GetLevelGeneralInfoRequest) (*pb.LevelGeneralInfoResponse, error) {
 	if req.LevelId == 0 && req.LevelSlug == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "level_id or level_slug is required")
@@ -86,7 +82,6 @@ func (h *LevelHandler) GetLevelGeneralInfo(ctx context.Context, req *pb.GetLevel
 }
 
 // GetLevelGem retrieves gem information for a level
-// Implements Laravel's LevelController@gem (V2)
 func (h *LevelHandler) GetLevelGem(ctx context.Context, req *pb.GetLevelGemRequest) (*pb.LevelGemResponse, error) {
 	if req.LevelId == 0 && req.LevelSlug == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "level_id or level_slug is required")
@@ -105,7 +100,6 @@ func (h *LevelHandler) GetLevelGem(ctx context.Context, req *pb.GetLevelGemReque
 }
 
 // GetLevelGift retrieves gift information for a level
-// Implements Laravel's LevelController@gift (V2)
 func (h *LevelHandler) GetLevelGift(ctx context.Context, req *pb.GetLevelGiftRequest) (*pb.LevelGiftResponse, error) {
 	if req.LevelId == 0 && req.LevelSlug == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "level_id or level_slug is required")
@@ -124,7 +118,6 @@ func (h *LevelHandler) GetLevelGift(ctx context.Context, req *pb.GetLevelGiftReq
 }
 
 // GetLevelLicenses retrieves license information for a level
-// Implements Laravel's LevelController@licenses (V2)
 func (h *LevelHandler) GetLevelLicenses(ctx context.Context, req *pb.GetLevelLicensesRequest) (*pb.LevelLicensesResponse, error) {
 	if req.LevelId == 0 && req.LevelSlug == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "level_id or level_slug is required")
@@ -143,7 +136,6 @@ func (h *LevelHandler) GetLevelLicenses(ctx context.Context, req *pb.GetLevelLic
 }
 
 // GetLevelPrizes retrieves prizes for a specific level
-// Implements Laravel's LevelController@prizes (V2)
 func (h *LevelHandler) GetLevelPrizes(ctx context.Context, req *pb.GetLevelPrizesRequest) (*pb.LevelPrizesResponse, error) {
 	if req.LevelId == 0 && req.LevelSlug == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "level_id or level_slug is required")
@@ -162,7 +154,6 @@ func (h *LevelHandler) GetLevelPrizes(ctx context.Context, req *pb.GetLevelPrize
 }
 
 // ClaimPrize allows user to claim prize for reaching a level
-// Implements Laravel's prize claiming logic with policy check
 func (h *LevelHandler) ClaimPrize(ctx context.Context, req *pb.ClaimPrizeRequest) (*pb.ClaimPrizeResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")

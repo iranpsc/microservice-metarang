@@ -17,9 +17,10 @@ type VideoHandler struct {
 	service *service.VideoService
 }
 
-func RegisterVideoHandler(grpcServer *grpc.Server, svc *service.VideoService) {
+func RegisterVideoHandler(grpcServer *grpc.Server, svc *service.VideoService) *VideoHandler {
 	handler := &VideoHandler{service: svc}
 	trainingpb.RegisterVideoServiceServer(grpcServer, handler)
+	return handler
 }
 
 // GetVideos retrieves paginated videos
@@ -126,7 +127,7 @@ func (h *VideoHandler) GetVideoByFileName(ctx context.Context, req *trainingpb.G
 
 // SearchVideos searches videos by title
 func (h *VideoHandler) SearchVideos(ctx context.Context, req *trainingpb.SearchVideosRequest) (*trainingpb.VideosResponse, error) {
-	validationErrors := validateRequired("query", req.Query, getLocale(ctx))
+	validationErrors := ValidateRequired("query", req.Query, getLocale(ctx))
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
 	}

@@ -15,11 +15,13 @@ import (
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 
+	authpb "metarang/shared/pb/auth"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
 	"metarang/shared/pkg/sentry"
 	"metarang/training-service/internal/client"
 	"metarang/training-service/internal/handler"
+	"metarang/training-service/internal/middleware"
 	"metarang/training-service/internal/repository"
 	"metarang/training-service/internal/service"
 )
@@ -153,10 +155,22 @@ func main() {
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Register handlers
-	handler.RegisterVideoHandler(grpcServer, videoService)
-	handler.RegisterCategoryHandler(grpcServer, categoryService, videoService)
-	handler.RegisterCommentHandler(grpcServer, commentService)
-	handler.RegisterReplyHandler(grpcServer, replyService)
+	videoHandler := handler.RegisterVideoHandler(grpcServer, videoService)
+	categoryHandler := handler.RegisterCategoryHandler(grpcServer, categoryService, videoService)
+	commentHandler := handler.RegisterCommentHandler(grpcServer, commentService)
+	replyHandler := handler.RegisterReplyHandler(grpcServer, replyService)
+
+	// Auth client for HTTP middleware (ValidateToken)
+	var authServiceClient authpb.AuthServiceClient
+	authAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, authDialErr := grpcutil.NewClient(authAddr)
+	if authDialErr != nil {
+		log.Printf("Warning: failed to connect to auth service at %s for HTTP middleware: %v", authAddr, authDialErr)
+	} else {
+		defer func() { _ = authConn.Close() }()
+		authServiceClient = authpb.NewAuthServiceClient(authConn)
+		log.Printf("Created auth service client for HTTP middleware at %s", authAddr)
+	}
 
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50057")
@@ -165,12 +179,23 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Training service listening on port %s", port)
+	log.Printf("gRPC server listening on port %s", port)
 
-	// Graceful shutdown
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPTrainingHandler(videoHandler, categoryHandler, commentHandler, replyHandler)
+	httpPort := getEnv("HTTP_PORT", "8069")
+	authMW := middleware.AuthMiddleware(authServiceClient)
+	optionalAuthMW := middleware.OptionalAuthMiddleware(authServiceClient)
+
+	log.Printf("HTTP server listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW, optionalAuthMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

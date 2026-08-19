@@ -22,7 +22,6 @@ func NewOrderPolicy(firstOrderRepo repository.FirstOrderRepository) OrderPolicy 
 }
 
 // CanGetBonus checks if user can get first order bonus
-// Laravel: OrderPolicy::canGetBonus
 // Rule: User can get bonus only if they haven't received first order bonus for this asset type
 func (p *orderPolicy) CanGetBonus(ctx context.Context, userID uint64, orderType string) (bool, error) {
 	// Check if user already has a first order for this type

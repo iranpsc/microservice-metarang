@@ -41,7 +41,6 @@ func (r *BuildingRepository) UpsertBuildingModel(ctx context.Context, modelID ui
 }
 
 // FindBuildingModelByModelID finds a building model by its 3D API model_id or local PK id.
-// Path params from Laravel clients may be either value: GetBuildings returns PK as "id"
 // and the 3D identifier as "model_id".
 func (r *BuildingRepository) FindBuildingModelByModelID(ctx context.Context, modelID string) (*pb.BuildingModel, error) {
 	var dbModelID uint64
@@ -596,7 +595,6 @@ func (r *BuildingRepository) FirstOrCreateIsicCode(ctx context.Context, activity
 	return uint64(insertID), nil
 }
 
-// FindCompleted returns buildings whose construction_end_date is before now (Laravel constructionCompleted scope).
 func (r *BuildingRepository) FindCompleted(ctx context.Context, now time.Time, limit, offset int) ([]models.CompletedBuildingRow, error) {
 	query := `
 		SELECT
@@ -800,9 +798,10 @@ func (r *BuildingRepository) ListUserCompletedBuildings(
 
 	query := fmt.Sprintf(`
 		SELECT
-			COALESCE(fp.id, '') AS feature_properties_id,
+			COALESCE(bm.sku, '') AS sku,
 			COALESCE(fp.karbari, '') AS karbari,
 			COALESCE(bm.attributes, '[]') AS attributes,
+			COALESCE(bm.images, '[]') AS images,
 			b.construction_end_date
 		FROM buildings b
 		INNER JOIN features f ON f.id = b.feature_id
@@ -825,9 +824,10 @@ func (r *BuildingRepository) ListUserCompletedBuildings(
 	for rows.Next() {
 		var row models.CitizenBuildingRow
 		if err := rows.Scan(
-			&row.FeaturePropertiesID,
+			&row.SKU,
 			&row.Karbari,
 			&row.AttributesJSON,
+			&row.ImagesJSON,
 			&row.ConstructionEndDate,
 		); err != nil {
 			return nil, fmt.Errorf("scan user completed building: %w", err)

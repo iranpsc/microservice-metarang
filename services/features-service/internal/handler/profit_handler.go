@@ -24,7 +24,6 @@ func NewProfitHandler(service service.ProfitServiceInterface) *ProfitHandler {
 }
 
 // GetHourlyProfits retrieves all hourly profits for a user with totals by karbari
-// Implements Laravel's FeatureHourlyProfitController@index
 // Returns HourlyProfitResource format with feature_db_id, feature_id (properties.id), karbari, formatted amounts (3 decimals), and Jalali dates
 func (h *ProfitHandler) GetHourlyProfits(ctx context.Context, req *pb.GetHourlyProfitsRequest) (*pb.HourlyProfitsResponse, error) {
 	locale := GetProjectLocale()
@@ -33,7 +32,6 @@ func (h *ProfitHandler) GetHourlyProfits(ctx context.Context, req *pb.GetHourlyP
 		return nil, ReturnValidationError(validationErrors)
 	}
 
-	// Default page size to 10 if not specified (matching Laravel's simplePaginate(10))
 	pageSize := req.PageSize
 	if pageSize <= 0 {
 		pageSize = 10
@@ -49,10 +47,8 @@ func (h *ProfitHandler) GetHourlyProfits(ctx context.Context, req *pb.GetHourlyP
 	}
 
 	// Convert internal models to protobuf with proper formatting
-	// Matching Laravel's HourlyProfitResource format
 	profitsProto := []*pb.HourlyProfit{}
 	for _, p := range profits {
-		// Format amount with 3 decimals (matching Laravel's number_format($this->amount, 3))
 		amountFormatted := fmt.Sprintf("%.3f", p.Amount)
 
 		// Format deadline as Jalali date (Y/m/d format)
@@ -84,7 +80,6 @@ func (h *ProfitHandler) GetHourlyProfits(ctx context.Context, req *pb.GetHourlyP
 }
 
 // GetSingleProfit retrieves and processes a single profit
-// Implements Laravel's FeatureHourlyProfitController@getSingleProfit
 // Returns HourlyProfitResource format after crediting wallet and resetting profit
 func (h *ProfitHandler) GetSingleProfit(ctx context.Context, req *pb.GetSingleProfitRequest) (*pb.HourlyProfitResponse, error) {
 	locale := GetProjectLocale()
@@ -104,7 +99,6 @@ func (h *ProfitHandler) GetSingleProfit(ctx context.Context, req *pb.GetSinglePr
 		return nil, status.Errorf(codes.Internal, "failed to get single profit: %v", err)
 	}
 
-	// Format amount with 3 decimals (matching Laravel's number_format($this->amount, 3))
 	amountFormatted := fmt.Sprintf("%.3f", profit.Amount)
 
 	// Format deadline as Jalali date (Y/m/d format)
@@ -128,8 +122,6 @@ func (h *ProfitHandler) GetSingleProfit(ctx context.Context, req *pb.GetSinglePr
 }
 
 // GetProfitsByApplication retrieves profits by karbari (m/t/a) and transfers to wallet
-// Implements Laravel's FeatureHourlyProfitController@getProfitsByApplication
-// Returns empty JSON object {} (HTTP 200) as per Laravel implementation
 func (h *ProfitHandler) GetProfitsByApplication(ctx context.Context, req *pb.GetProfitsByApplicationRequest) (*pb.ProfitsByApplicationResponse, error) {
 	locale := GetProjectLocale()
 	validationErrors := MergeValidationErrors(
@@ -146,14 +138,12 @@ func (h *ProfitHandler) GetProfitsByApplication(ctx context.Context, req *pb.Get
 		return nil, status.Errorf(codes.Internal, "failed to get profits by application: %v", err)
 	}
 
-	// Return success response (Laravel returns empty JSON object {})
 	return &pb.ProfitsByApplicationResponse{
 		Success: true,
 	}, nil
 }
 
 // GetHourlyProfitTimePercentage returns elapsed time percentage for the user's oldest hourly profit.
-// Implements Laravel's hourlyProfitInfo helper used by AuthenticatedUserResource.
 func (h *ProfitHandler) GetHourlyProfitTimePercentage(ctx context.Context, req *pb.GetHourlyProfitTimePercentageRequest) (*pb.GetHourlyProfitTimePercentageResponse, error) {
 	locale := GetProjectLocale()
 	validationErrors := ValidateRequired("user_id", req.UserId, locale)

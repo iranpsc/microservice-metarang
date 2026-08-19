@@ -16,6 +16,8 @@ import (
 	"metarang/social-service/internal/repository"
 )
 
+const challengePrizeAsset = "psc"
+
 var (
 	ErrQuestionNotFound      = errors.New("question not found")
 	ErrAnswerNotFound        = errors.New("answer not found")
@@ -93,15 +95,16 @@ func (s *challengeService) GetAdvertisement(ctx context.Context) ([]models.Adver
 		}
 
 		advertisements = append(advertisements, models.Advertisement{
-			Code:            seed.code,
-			Title:           lang.T(s.locale, seed.titleKey),
-			Description:     lang.T(s.locale, seed.descriptionKey),
-			InvestmentValue: seed.investmentValue,
-			EndsAt:          endsAt,
-			VideoURL:        s.advertisementAssetURL(seed.code, "mp4"),
-			ImageURL:        s.advertisementAssetURL(seed.code, "jpg"),
-			URL:             "https://metarang.com/fa/citizens/" + seed.code,
-			InvestmentAsset: "red",
+			Code:             seed.code,
+			Title:            lang.T(s.locale, seed.titleKey),
+			Description:      lang.T(s.locale, seed.descriptionKey),
+			InvestmentValue:  seed.investmentValue,
+			EndsAt:           endsAt,
+			VideoURL:         s.advertisementAssetURL(seed.code, "mp4"),
+			ImageURL:         s.advertisementAssetURL(seed.code, "jpg"),
+			URL:              "https://metarang.com/fa/citizens/" + seed.code,
+			InvestmentAsset:  "red",
+			PrizePerQuestion: 1,
 		})
 	}
 	return advertisements, nil
@@ -130,6 +133,12 @@ func (s *challengeService) GetTimings(ctx context.Context, userID uint64) (*mode
 		return nil, fmt.Errorf("failed to get participants count: %w", err)
 	}
 
+	// Get sum of views across all questions
+	views, err := s.challengeRepo.GetTotalViewsCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get views count: %w", err)
+	}
+
 	// Get user's correct and wrong answers
 	correctAnswers, err := s.challengeRepo.GetUserAnswerCount(ctx, userID, true)
 	if err != nil {
@@ -148,6 +157,7 @@ func (s *challengeService) GetTimings(ctx context.Context, userID uint64) (*mode
 		Participants:            participants,
 		CorrectAnswers:          correctAnswers,
 		WrongAnswers:            wrongAnswers,
+		Views:                   views,
 	}, nil
 }
 
@@ -188,6 +198,7 @@ func (s *challengeService) GetQuestion(ctx context.Context, userID uint64) (*mod
 		Title:        question.Title,
 		Image:        question.Image,
 		Prize:        question.Prize,
+		PrizeType:    challengePrizeAsset,
 		Participants: question.Participants,
 		Views:        question.Views,
 		CreatorCode:  question.CreatorCode,
@@ -249,7 +260,7 @@ func (s *challengeService) SubmitAnswer(ctx context.Context, userID, questionID,
 	if selectedAnswer.IsCorrect {
 		if s.commercialClient != nil {
 			prizeAmount := float64(question.Prize)
-			if err := s.commercialClient.AddBalance(ctx, userID, "psc", prizeAmount); err != nil {
+			if err := s.commercialClient.AddBalance(ctx, userID, challengePrizeAsset, prizeAmount); err != nil {
 				// Log error but don't fail the answer submission
 				fmt.Printf("failed to credit prize to wallet: %v\n", err)
 			}
@@ -297,6 +308,7 @@ func (s *challengeService) SubmitAnswer(ctx context.Context, userID, questionID,
 		Title:        updatedQuestion.Title,
 		Image:        updatedQuestion.Image,
 		Prize:        updatedQuestion.Prize,
+		PrizeType:    challengePrizeAsset,
 		Participants: updatedQuestion.Participants,
 		Views:        updatedQuestion.Views,
 		CreatorCode:  updatedQuestion.CreatorCode,

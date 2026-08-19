@@ -68,17 +68,11 @@ func (r *settingsRepository) FindByUserID(ctx context.Context, userID uint64) (*
 		return nil, fmt.Errorf("failed to find settings: %w", err)
 	}
 
-	// Parse privacy JSON
-	if privacyJSON.Valid && privacyJSON.String != "" {
-		var privacy map[string]int
-		if err := json.Unmarshal([]byte(privacyJSON.String), &privacy); err == nil {
-			settings.Privacy = privacy
-		} else {
-			settings.Privacy = models.DefaultPrivacySettings()
-		}
-	} else {
-		settings.Privacy = models.DefaultPrivacySettings()
+	rawPrivacy := ""
+	if privacyJSON.Valid {
+		rawPrivacy = privacyJSON.String
 	}
+	settings.Privacy = models.ParsePrivacyJSON(rawPrivacy)
 
 	// Parse notifications JSON
 	if notificationsJSON.Valid && notificationsJSON.String != "" {
@@ -128,17 +122,11 @@ func (r *settingsRepository) FindByID(ctx context.Context, id uint64) (*models.S
 		return nil, fmt.Errorf("failed to find settings: %w", err)
 	}
 
-	// Parse privacy JSON
-	if privacyJSON.Valid && privacyJSON.String != "" {
-		var privacy map[string]int
-		if err := json.Unmarshal([]byte(privacyJSON.String), &privacy); err == nil {
-			settings.Privacy = privacy
-		} else {
-			settings.Privacy = models.DefaultPrivacySettings()
-		}
-	} else {
-		settings.Privacy = models.DefaultPrivacySettings()
+	rawPrivacy := ""
+	if privacyJSON.Valid {
+		rawPrivacy = privacyJSON.String
 	}
+	settings.Privacy = models.ParsePrivacyJSON(rawPrivacy)
 
 	// Parse notifications JSON
 	if notificationsJSON.Valid && notificationsJSON.String != "" {

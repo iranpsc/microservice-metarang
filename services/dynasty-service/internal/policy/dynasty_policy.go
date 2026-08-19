@@ -28,7 +28,6 @@ func (p *DynastyPolicy) SetClients(featuresClient, authClient interface{}) {
 }
 
 // CanCreateDynasty checks if user can create a dynasty
-// Implements DynastyPolicy::create from Laravel
 func (p *DynastyPolicy) CanCreateDynasty(
 	ctx context.Context,
 	userID, featureID uint64,
@@ -72,7 +71,6 @@ func (p *DynastyPolicy) CanCreateDynasty(
 }
 
 // CanUpdateDynastyFeature checks if user can update dynasty feature
-// Implements DynastyPolicy::update from Laravel
 func (p *DynastyPolicy) CanUpdateDynastyFeature(
 	ctx context.Context,
 	userID, dynastyID, featureID uint64,

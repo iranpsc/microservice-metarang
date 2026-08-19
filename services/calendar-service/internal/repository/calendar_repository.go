@@ -10,7 +10,6 @@ import (
 	"metarang/shared/pkg/jalali"
 )
 
-// Laravel morph map class name stored in likeable_type / viewable_type columns.
 const calendarMorphType = "App\\Models\\Calendar"
 
 // CalendarRepositoryInterface defines the interface for calendar repository operations
@@ -63,7 +62,6 @@ func (r *CalendarRepository) GetEvents(ctx context.Context, eventType, search, d
 		args = append(args, dateStr, dateStr)
 	}
 
-	// Laravel: date filter and versions use latest() (created_at DESC); events use starts_at DESC
 	if hasDateFilter || eventType == "version" {
 		query += " ORDER BY created_at DESC"
 	} else {
@@ -169,7 +167,6 @@ func (r *CalendarRepository) FilterByDateRange(ctx context.Context, startDate, e
 }
 
 // GetLatestVersionTitle retrieves the title of the latest version event
-// NOTE: Laravel orders by starts_at DESC (line 126 in CalendarController)
 func (r *CalendarRepository) GetLatestVersionTitle(ctx context.Context) (string, error) {
 	query := "SELECT version_title FROM calendars WHERE is_version = 1 ORDER BY starts_at DESC LIMIT 1"
 
@@ -268,7 +265,6 @@ func (r *CalendarRepository) AddInteraction(ctx context.Context, eventID, userID
 	return nil
 }
 
-// IncrementView adds a view for an event (one view per IP, matching Laravel)
 func (r *CalendarRepository) IncrementView(ctx context.Context, eventID uint64, ipAddress string) error {
 	checkQuery := "SELECT COUNT(*) FROM views WHERE viewable_type = ? AND viewable_id = ? AND ip_address = ?"
 	var count int

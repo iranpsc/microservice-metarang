@@ -19,6 +19,7 @@ type ChallengeRepository interface {
 	HasUserAnswered(ctx context.Context, userID, questionID uint64) (bool, error)
 	GetUserAnswerCount(ctx context.Context, userID uint64, isCorrect bool) (int32, error)
 	GetTotalParticipantsCount(ctx context.Context) (int32, error)
+	GetTotalViewsCount(ctx context.Context) (int32, error)
 	GetSystemVariable(ctx context.Context, slug string) (float64, error)
 	GetAnswerVoteCount(ctx context.Context, answerID uint64) (int32, error)
 	GetQuestionTotalAnswers(ctx context.Context, questionID uint64) (int32, error)
@@ -174,6 +175,16 @@ func (r *challengeRepository) GetTotalParticipantsCount(ctx context.Context) (in
 	err := r.db.QueryRowContext(ctx, query).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total participants: %w", err)
+	}
+	return int32(count), nil
+}
+
+func (r *challengeRepository) GetTotalViewsCount(ctx context.Context) (int32, error) {
+	query := `SELECT COALESCE(SUM(views), 0) FROM questions`
+	var count int64
+	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total views: %w", err)
 	}
 	return int32(count), nil
 }

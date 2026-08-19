@@ -10,6 +10,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuildMyFeaturesWhere(t *testing.T) {
+	t.Run("owner only", func(t *testing.T) {
+		where, args := repository.BuildMyFeaturesWhere(42, "", "")
+		assert.Equal(t, "f.owner_id = ?", where)
+		require.Equal(t, []interface{}{uint64(42)}, args)
+	})
+
+	t.Run("search by properties id or address", func(t *testing.T) {
+		where, args := repository.BuildMyFeaturesWhere(7, "TO111", "")
+		assert.Contains(t, where, "fp.id LIKE ?")
+		assert.Contains(t, where, "fp.address LIKE ?")
+		require.Equal(t, []interface{}{uint64(7), "%TO111%", "%TO111%"}, args)
+	})
+
+	t.Run("filter by karbari", func(t *testing.T) {
+		where, args := repository.BuildMyFeaturesWhere(7, "", "m")
+		assert.Contains(t, where, "fp.karbari = ?")
+		require.Equal(t, []interface{}{uint64(7), "m"}, args)
+	})
+
+	t.Run("search and filter together", func(t *testing.T) {
+		where, args := repository.BuildMyFeaturesWhere(3, "block", "t")
+		assert.Contains(t, where, "fp.id LIKE ?")
+		assert.Contains(t, where, "fp.address LIKE ?")
+		assert.Contains(t, where, "fp.karbari = ?")
+		require.Equal(t, []interface{}{uint64(3), "%block%", "%block%", "t"}, args)
+	})
+
+	t.Run("trims whitespace", func(t *testing.T) {
+		where, args := repository.BuildMyFeaturesWhere(1, "  TO111  ", "  a  ")
+		assert.NotContains(t, where, "  TO111  ")
+		require.Equal(t, []interface{}{uint64(1), "%TO111%", "%TO111%", "a"}, args)
+	})
+}
+
 func TestFeatureRepository_FindByID(t *testing.T) {
 	db := setupTestDB(t)
 	if db == nil {

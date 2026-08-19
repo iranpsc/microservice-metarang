@@ -25,7 +25,6 @@ func NewFirstOrderRepository(db *sql.DB) FirstOrderRepository {
 }
 
 // Create creates a first order record
-// Laravel: $user->firstOrder()->create([...])
 func (r *firstOrderRepository) Create(ctx context.Context, firstOrder *models.FirstOrder) error {
 	query := `
 		INSERT INTO first_orders (user_id, type, amount, date, bonus, created_at, updated_at)

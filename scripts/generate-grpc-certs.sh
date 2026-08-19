@@ -34,5 +34,11 @@ openssl x509 -req -in "$OUT_DIR/client.csr" -CA "$CA_CERT" -CAkey "$CA_KEY" -CAc
 
 rm -f "$OUT_DIR/server.csr" "$OUT_DIR/client.csr" "$OUT_DIR/ca.srl"
 
+chmod 644 "$OUT_DIR"/*.crt
+chmod 640 "$OUT_DIR"/*.key
+if [ "$(id -u)" -eq 0 ]; then
+  chown -R 1000:1000 "$OUT_DIR"
+fi
+
 echo "Generated gRPC TLS certificates in $OUT_DIR"
-echo "Set GRPC_TLS_ENABLED=true and mount $OUT_DIR into containers at /certs"
+echo "Set GRPC_TLS_ENABLED=true in .env; docker compose will copy from $OUT_DIR or generate into the grpc_certs volume"

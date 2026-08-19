@@ -3,7 +3,6 @@ package models
 import "time"
 
 // Level represents a user level in the system
-// Maps to Laravel: App\Models\Levels\Level
 type Level struct {
 	ID              uint64    `json:"id" db:"id"`
 	Name            string    `json:"name" db:"name"`
@@ -15,7 +14,6 @@ type Level struct {
 }
 
 // LevelGeneralInfo represents detailed information about a level
-// Maps to Laravel: App\Models\Levels\LevelGeneralInfo
 type LevelGeneralInfo struct {
 	ID            uint64    `json:"id" db:"id"`
 	LevelID       uint64    `json:"level_id" db:"level_id"`
@@ -41,7 +39,6 @@ type LevelGeneralInfo struct {
 }
 
 // LevelPrize represents prizes awarded when reaching a level
-// Maps to Laravel: App\Models\Levels\LevelPrize (which references prizes table)
 type LevelPrize struct {
 	ID                       uint64    `json:"id" db:"id"`
 	LevelID                  uint64    `json:"level_id" db:"level_id"`
@@ -65,7 +62,6 @@ type LevelPrize struct {
 }
 
 // LevelGem represents gem information for a level
-// Maps to Laravel: App\Models\Levels\LevelGem
 type LevelGem struct {
 	ID          uint64    `json:"id" db:"id"`
 	LevelID     uint64    `json:"level_id" db:"level_id"`
@@ -78,7 +74,6 @@ type LevelGem struct {
 }
 
 // LevelGift represents gift information for a level
-// Maps to Laravel: App\Models\Levels\LevelGift
 type LevelGift struct {
 	ID      uint64 `json:"id" db:"id"`
 	LevelID uint64 `json:"level_id" db:"level_id"`
@@ -88,7 +83,6 @@ type LevelGift struct {
 }
 
 // LevelLicense represents license information for a level
-// Maps to Laravel: App\Models\Levels\LevelLicense
 type LevelLicense struct {
 	ID      uint64 `json:"id" db:"id"`
 	LevelID uint64 `json:"level_id" db:"level_id"`
@@ -98,7 +92,6 @@ type LevelLicense struct {
 }
 
 // LevelUser represents the pivot table for user-level relationship
-// Maps to Laravel: App\Models\Levels\LevelUser
 type LevelUser struct {
 	ID        uint64    `json:"id" db:"id"`
 	UserID    uint64    `json:"user_id" db:"user_id"`
@@ -108,7 +101,6 @@ type LevelUser struct {
 }
 
 // ReceivedLevelPrize represents prizes that users have received
-// Maps to Laravel: App\Models\Levels\RecievedLevelPrize
 type ReceivedLevelPrize struct {
 	ID           uint64    `json:"id" db:"id"`
 	UserID       uint64    `json:"user_id" db:"user_id"`

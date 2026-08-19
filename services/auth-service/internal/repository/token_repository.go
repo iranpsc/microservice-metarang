@@ -56,7 +56,6 @@ func (r *tokenRepository) Create(ctx context.Context, userID uint64, name string
 		return "", fmt.Errorf("failed to get token id: %w", err)
 	}
 
-	// Return token in Laravel Sanctum format: {id}|{plainToken}
 	fullToken := fmt.Sprintf("%d|%s", tokenID, plainToken)
 	return fullToken, nil
 }

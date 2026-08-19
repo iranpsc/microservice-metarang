@@ -64,7 +64,6 @@ func (s *PermissionService) UpdateChildPermission(
 }
 
 // CanControlPermissions checks if parent can control child's permissions
-// Implements UserPolicy::controlPermissions from Laravel
 func (s *PermissionService) CanControlPermissions(
 	ctx context.Context,
 	parentUserID, childUserID uint64,

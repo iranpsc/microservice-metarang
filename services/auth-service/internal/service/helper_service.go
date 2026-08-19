@@ -17,7 +17,6 @@ import (
 )
 
 // HelperService provides helper methods that integrate with other microservices
-// These methods implement the Laravel helper functions that require cross-service calls
 type HelperService interface {
 	// GetHourlyProfitTimePercentage calls Features service to get hourly profit percentage
 	GetHourlyProfitTimePercentage(ctx context.Context, userID uint64) (float64, error)
@@ -123,7 +122,6 @@ func NewHelperService(levelsAddr, featuresAddr, commercialAddr string) HelperSer
 	return hs
 }
 
-// GetHourlyProfitTimePercentage implements the Laravel hourlyProfitInfo helper
 // Calls the Features service to calculate time percentage for hourly profit
 func (s *helperService) GetHourlyProfitTimePercentage(ctx context.Context, userID uint64) (float64, error) {
 	if s.featureProfitClient == nil {
@@ -153,7 +151,6 @@ func forwardAuthInterceptor() grpc.UnaryClientInterceptor {
 	}
 }
 
-// GetScorePercentageToNextLevel implements the Laravel getScorePercentageToNextLevel helper
 // Calls the Levels service to calculate percentage of score needed for next level
 func (s *helperService) GetScorePercentageToNextLevel(ctx context.Context, userID uint64, currentScore int32) (float64, error) {
 	if s.levelsClient == nil {

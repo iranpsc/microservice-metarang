@@ -76,7 +76,6 @@ func (r *searchRepository) SearchUsers(ctx context.Context, searchTerm string) (
 	}
 
 	// Build the query
-	// Laravel logic: (ANY term matches name OR code) OR (has KYC where ANY term matches fname OR lname)
 	// This translates to: (term1 matches name OR code OR term2 matches name OR code OR ...)
 	//                      OR EXISTS (KYC where (term1 matches fname OR lname OR term2 matches fname OR lname OR ...))
 

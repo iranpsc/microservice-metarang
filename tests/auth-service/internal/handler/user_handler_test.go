@@ -164,11 +164,21 @@ func TestUserHandler_GetUserLevels(t *testing.T) {
 		mockService.getUserLevelsFunc = func(ctx context.Context, userID uint64) (*service.UserLevelsData, error) {
 			return &service.UserLevelsData{
 				LatestLevel: &service.LevelDetail{
-					ID:    1,
-					Name:  "Beginner",
-					Score: 100,
-					Slug:  "beginner",
-					Image: "https://admin.example.com/uploads/level1.png",
+					ID:         1,
+					Name:       "Beginner",
+					Score:      100,
+					Slug:       "beginner",
+					Image:      "https://admin.example.com/uploads/level1.png",
+					GemPngFile: "https://admin.example.com/uploads/gem1.png",
+				},
+				PreviousLevels: []*service.LevelDetail{
+					{
+						ID:         0,
+						Name:       "Starter",
+						Score:      0,
+						Slug:       "starter",
+						GemPngFile: "https://admin.example.com/uploads/gem0.png",
+					},
 				},
 				ScorePercentageToNextLevel: 42.5,
 			}, nil
@@ -199,6 +209,17 @@ func TestUserHandler_GetUserLevels(t *testing.T) {
 
 		if resp.Data.LatestLevel.ImageUrl != "https://admin.example.com/uploads/level1.png" {
 			t.Errorf("Expected level image URL, got %q", resp.Data.LatestLevel.ImageUrl)
+		}
+
+		if resp.Data.LatestLevel.Gem == nil || resp.Data.LatestLevel.Gem.PngFile != "https://admin.example.com/uploads/gem1.png" {
+			t.Errorf("Expected latest level gem png_file, got %+v", resp.Data.LatestLevel.Gem)
+		}
+
+		if len(resp.Data.PreviousLevels) != 1 {
+			t.Fatalf("Expected 1 previous level, got %d", len(resp.Data.PreviousLevels))
+		}
+		if resp.Data.PreviousLevels[0].Gem == nil || resp.Data.PreviousLevels[0].Gem.PngFile != "https://admin.example.com/uploads/gem0.png" {
+			t.Errorf("Expected previous level gem png_file, got %+v", resp.Data.PreviousLevels[0].Gem)
 		}
 
 		if resp.Data.ScorePercentageToNextLevel != 42.5 {
@@ -304,6 +325,104 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 		}
 		if st.Code() != codes.NotFound {
 			t.Errorf("Expected NotFound error code, got %v", st.Code())
+		}
+	})
+}
+
+func TestUserHandler_GetProfileLimitations(t *testing.T) {
+	followFalse := false
+	limitation := &models.ProfileLimitation{
+		ID:            5,
+		LimiterUserID: 2,
+		LimitedUserID: 1,
+		Options: models.ProfileLimitationOptions{
+			Follow:                false,
+			SendMessage:           true,
+			Share:                 true,
+			SendTicket:            true,
+			ViewProfileImages:     true,
+			ViewFeaturesLocations: true,
+		},
+	}
+
+	t.Run("authenticated user uses context caller", func(t *testing.T) {
+		var gotCaller, gotTarget uint64
+		mockPL := &mockProfileLimitationService{}
+		mockPL.getBetweenUsersFunc = func(ctx context.Context, callerUserID, targetUserID uint64) (*models.ProfileLimitation, error) {
+			gotCaller, gotTarget = callerUserID, targetUserID
+			return limitation, nil
+		}
+		h := handler.NewUserHandler(&mockUserService{}, mockPL, nil)
+
+		resp, err := h.GetProfileLimitations(authenticatedContext(1), &pb.GetProfileLimitationsRequest{
+			// Spoofed caller must be ignored for user-facing calls.
+			CallerUserId: 999,
+			TargetUserId: 2,
+		})
+		if err != nil {
+			t.Fatalf("GetProfileLimitations failed: %v", err)
+		}
+		if gotCaller != 1 || gotTarget != 2 {
+			t.Fatalf("expected caller=1 target=2, got caller=%d target=%d", gotCaller, gotTarget)
+		}
+		if resp.Data == nil || resp.Data.Options == nil || resp.Data.Options.Follow == nil || *resp.Data.Options.Follow != followFalse {
+			t.Fatalf("unexpected response: %+v", resp.Data)
+		}
+	})
+
+	t.Run("service token uses request caller_user_id", func(t *testing.T) {
+		t.Setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+		var gotCaller, gotTarget uint64
+		mockPL := &mockProfileLimitationService{}
+		mockPL.getBetweenUsersFunc = func(ctx context.Context, callerUserID, targetUserID uint64) (*models.ProfileLimitation, error) {
+			gotCaller, gotTarget = callerUserID, targetUserID
+			return limitation, nil
+		}
+		h := handler.NewUserHandler(&mockUserService{}, mockPL, nil)
+
+		// Mirrors social-service CanFollow: service token only, no user bearer.
+		resp, err := h.GetProfileLimitations(serviceTokenContext("test-secret"), &pb.GetProfileLimitationsRequest{
+			CallerUserId: 1,
+			TargetUserId: 2,
+		})
+		if err != nil {
+			t.Fatalf("GetProfileLimitations with service token failed: %v", err)
+		}
+		if gotCaller != 1 || gotTarget != 2 {
+			t.Fatalf("expected caller=1 target=2, got caller=%d target=%d", gotCaller, gotTarget)
+		}
+		if resp.Data == nil || resp.Data.LimiterUserId != 2 || resp.Data.LimitedUserId != 1 {
+			t.Fatalf("unexpected response: %+v", resp.Data)
+		}
+	})
+
+	t.Run("service token missing caller_user_id", func(t *testing.T) {
+		t.Setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+		h := handler.NewUserHandler(&mockUserService{}, &mockProfileLimitationService{}, nil)
+		_, err := h.GetProfileLimitations(serviceTokenContext("test-secret"), &pb.GetProfileLimitationsRequest{
+			TargetUserId: 2,
+		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		st, ok := status.FromError(err)
+		if !ok || st.Code() != codes.InvalidArgument {
+			t.Fatalf("expected InvalidArgument, got %v", err)
+		}
+	})
+
+	t.Run("unauthenticated without service token", func(t *testing.T) {
+		h := handler.NewUserHandler(&mockUserService{}, &mockProfileLimitationService{}, nil)
+		_, err := h.GetProfileLimitations(context.Background(), &pb.GetProfileLimitationsRequest{
+			CallerUserId: 1,
+			TargetUserId: 2,
+		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		st, ok := status.FromError(err)
+		if !ok || st.Code() != codes.Unauthenticated {
+			t.Fatalf("expected Unauthenticated, got %v", err)
 		}
 	})
 }

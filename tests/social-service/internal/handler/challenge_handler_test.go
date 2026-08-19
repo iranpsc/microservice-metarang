@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -56,7 +57,7 @@ func TestChallengeHandler_GetTimings_OK(t *testing.T) {
 			getTimings: func(ctx context.Context, uid uint64) (*models.TimingsData, error) {
 				return &models.TimingsData{
 					DisplayAdInterval: 1, DisplayQuestionInterval: 2, DisplayAnswerInterval: 3,
-					Participants: 4, CorrectAnswers: 5, WrongAnswers: 6,
+					Participants: 4, CorrectAnswers: 5, WrongAnswers: 6, Views: 7,
 				}, nil
 			},
 		})
@@ -64,7 +65,7 @@ func TestChallengeHandler_GetTimings_OK(t *testing.T) {
 	defer cleanup()
 	cli := pb.NewChallengeServiceClient(conn)
 	resp, err := cli.GetTimings(context.Background(), &pb.GetTimingsRequest{UserId: 42})
-	if err != nil || resp.Data.Participants != 4 {
+	if err != nil || resp.Data.Participants != 4 || resp.Data.Views != 7 {
 		t.Fatalf("err=%v resp=%+v", err, resp)
 	}
 }
@@ -96,6 +97,97 @@ func TestChallengeHandler_GetQuestion_NotFound(t *testing.T) {
 	st, ok := status.FromError(err)
 	if !ok || st.Code() != codes.NotFound {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestChallengeHandler_GetQuestion_OK(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterChallengeHandler(gs, &stubChallengeSvc{
+			getQuestion: func(ctx context.Context, uid uint64) (*models.QuestionResource, error) {
+				return &models.QuestionResource{
+					ID: 1, Title: "Q", Image: "i", Prize: 5, PrizeType: "coin",
+					Participants: 2, Views: 3, CreatorCode: "c",
+					Answers: []models.AnswerResource{{ID: 10, Title: "A", IsCorrect: true, VotePercentage: 50}},
+				}, nil
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewChallengeServiceClient(conn)
+	resp, err := cli.GetQuestion(context.Background(), &pb.GetQuestionRequest{UserId: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Data.Title != "Q" || len(resp.Data.Answers) != 1 || !resp.Data.Answers[0].IsCorrect {
+		t.Fatalf("unexpected: %+v", resp.Data)
+	}
+}
+
+func TestChallengeHandler_GetQuestion_MissingUserID(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterChallengeHandler(gs, &stubChallengeSvc{})
+	})
+	defer cleanup()
+	cli := pb.NewChallengeServiceClient(conn)
+	_, err := cli.GetQuestion(context.Background(), &pb.GetQuestionRequest{})
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.InvalidArgument {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestChallengeHandler_SubmitAnswer_OK(t *testing.T) {
+	conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+		handler.RegisterChallengeHandler(gs, &stubChallengeSvc{
+			submitAnswer: func(ctx context.Context, userID, questionID, answerID uint64) (*models.QuestionResource, error) {
+				return &models.QuestionResource{
+					ID: questionID, Title: "Q",
+					Answers: []models.AnswerResource{{ID: answerID, Title: "A", VotePercentage: 100}},
+				}, nil
+			},
+		})
+	})
+	defer cleanup()
+	cli := pb.NewChallengeServiceClient(conn)
+	resp, err := cli.SubmitAnswer(context.Background(), &pb.SubmitAnswerRequest{
+		UserId: 1, QuestionId: 2, AnswerId: 3,
+	})
+	if err != nil || resp.Data.Id != 2 || len(resp.Data.Answers) != 1 {
+		t.Fatalf("err=%v resp=%+v", err, resp)
+	}
+}
+
+func TestChallengeHandler_SubmitAnswer_ErrorMapping(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		code codes.Code
+	}{
+		{"question not found", service.ErrQuestionNotFound, codes.NotFound},
+		{"answer not found", service.ErrAnswerNotFound, codes.NotFound},
+		{"mismatch", service.ErrAnswerMismatch, codes.InvalidArgument},
+		{"no questions", service.ErrNoUnansweredQuestions, codes.NotFound},
+		{"internal", errors.New("db"), codes.Internal},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, cleanup := testutil.DialBufConn(func(gs *grpc.Server) {
+				handler.RegisterChallengeHandler(gs, &stubChallengeSvc{
+					submitAnswer: func(ctx context.Context, userID, questionID, answerID uint64) (*models.QuestionResource, error) {
+						return nil, tc.err
+					},
+				})
+			})
+			defer cleanup()
+			cli := pb.NewChallengeServiceClient(conn)
+			_, err := cli.SubmitAnswer(context.Background(), &pb.SubmitAnswerRequest{
+				UserId: 1, QuestionId: 2, AnswerId: 3,
+			})
+			st, ok := status.FromError(err)
+			if !ok || st.Code() != tc.code {
+				t.Fatalf("got %v", err)
+			}
+		})
 	}
 }
 
@@ -136,10 +228,11 @@ func TestChallengeHandler_GetAdvertisement_OK(t *testing.T) {
 		handler.RegisterChallengeHandler(gs, &stubChallengeSvc{
 			getAdvertisement: func(ctx context.Context) ([]models.Advertisement, error) {
 				return []models.Advertisement{{
-					Code:            "bn-1000",
-					Title:           "Matrix exit box",
-					URL:             "https://metarang.com/fa/citizen/bn-1000",
-					InvestmentAsset: "red",
+					Code:             "bn-1000",
+					Title:            "Matrix exit box",
+					URL:              "https://metarang.com/fa/citizen/bn-1000",
+					InvestmentAsset:  "red",
+					PrizePerQuestion: 1,
 				}}, nil
 			},
 		})
@@ -159,5 +252,8 @@ func TestChallengeHandler_GetAdvertisement_OK(t *testing.T) {
 	}
 	if resp.Advertisements[0].InvestmentAsset != "red" {
 		t.Fatalf("unexpected investment_asset: %s", resp.Advertisements[0].InvestmentAsset)
+	}
+	if resp.Advertisements[0].PrizePerQuestion != 1 {
+		t.Fatalf("unexpected prize_per_question: %d", resp.Advertisements[0].PrizePerQuestion)
 	}
 }

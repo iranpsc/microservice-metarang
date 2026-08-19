@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -11,19 +9,20 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
-	"github.com/redis/go-redis/v9/maintnotifications"
 	"google.golang.org/grpc"
 
+	"metarang/auth-service/internal/auth"
 	"metarang/auth-service/internal/handler"
+	"metarang/auth-service/internal/middleware"
 	"metarang/auth-service/internal/pubsub"
 	"metarang/auth-service/internal/repository"
 	"metarang/auth-service/internal/service"
 	pb "metarang/shared/pb/auth"
+	levelspb "metarang/shared/pb/levels"
 	notificationspb "metarang/shared/pb/notifications"
 	storagepb "metarang/shared/pb/storage"
+	sharedauth "metarang/shared/pkg/auth"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
 	"metarang/shared/pkg/sentry"
@@ -37,86 +36,33 @@ func main() {
 		}
 	}()
 
-	// Load environment variables from config.env
-	// Try multiple possible paths for config.env
-	configPaths := []string{
-		"config.env",
-		"./config.env",
-		"../config.env",
-		"../../config.env",
-		"services/auth-service/config.env",
-	}
-	var configLoaded bool
-	for _, configPath := range configPaths {
-		if err := godotenv.Load(configPath); err == nil {
-			configLoaded = true
-			break
-		}
-	}
-	if !configLoaded {
-		log.Printf("Warning: config.env not found, using environment variables only")
-	}
+	warnIfConfigMissing(loadEnvFiles())
 
 	if err := sentry.InitFromEnv("auth-service"); err != nil {
 		log.Printf("Warning: failed to initialize Sentry: %v", err)
 	}
 	defer sentry.Flush(2 * time.Second)
 
-	// Database connection with proper UTF-8 encoding for Persian/Farsi text
-	// Using utf8mb4 charset for proper Persian/Farsi support
-	// interpolateParams=true helps with proper handling of multi-byte characters in parameterized queries
-	// Note: collation is not a valid DSN parameter - it's automatically set based on charset
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&loc=Local&tls=false&interpolateParams=true",
-		getEnv("DB_USER", "root"),
-		getEnv("DB_PASSWORD", ""),
-		getEnv("DB_HOST", "localhost"),
-		getEnv("DB_PORT", "3306"),
-		getEnv("DB_DATABASE", "metarang_db"),
-	)
+	cfgRuntime := loadRuntimeConfig()
 
-	// Parse DSN to get config
-	cfg, err := mysql.ParseDSN(dsn)
+	mysqlCfg, err := buildMySQLConfig(buildDSN())
 	if err != nil {
 		log.Fatalf("Failed to parse DSN: %v", err)
 	}
 
-	// Ensure charset is explicitly set to utf8mb4 in connection parameters
-	// The collation will be automatically set to utf8mb4_unicode_ci by MySQL based on the charset
-	// Note: parseTime and interpolateParams are DSN-level settings, not connection parameters
-	if cfg.Params == nil {
-		cfg.Params = make(map[string]string)
-	}
-	cfg.Params["charset"] = "utf8mb4"
-	// interpolateParams is already in DSN, so it's handled automatically
-
-	// Create connector with proper charset configuration
-	connector, err := mysql.NewConnector(cfg)
+	db, err := openDatabase(mysqlCfg)
 	if err != nil {
 		log.Fatalf("Failed to create connector: %v", err)
 	}
-
-	// Open database using connector
-	db := sql.OpenDB(connector)
 	defer func() { _ = db.Close() }()
 
-	// Configure connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
-	db.SetConnMaxIdleTime(5 * time.Minute)
-
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
+	if err := pingDatabase(db); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
 	// Explicitly set charset to UTF-8 for proper Persian/Farsi text handling
-	// SET NAMES sets character_set_client, character_set_connection, and character_set_results
-	// This ensures all queries return UTF-8 encoded strings
-	// Note: This is executed on the test connection; the connector config ensures all new connections use utf8mb4
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if _, err := db.ExecContext(ctx, "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"); err != nil {
 		log.Printf("Warning: Failed to set charset to utf8mb4: %v", err)
 	} else {
@@ -125,33 +71,14 @@ func main() {
 
 	log.Println("Successfully connected to database")
 
-	// Initialize Redis connection for caching and pub/sub
-	redisURL := getEnv("REDIS_URL", "")
-	if redisURL == "" {
-		// Construct REDIS_URL from individual components if not set
-		redisHost := getEnv("REDIS_HOST", "localhost")
-		redisPort := getEnv("REDIS_PORT", "6379")
-		redisPassword := getEnv("REDIS_PASSWORD", "")
-		redisDB := getEnv("REDIS_DB", "0")
-		if redisPassword != "" {
-			redisURL = fmt.Sprintf("redis://:%s@%s:%s/%s", redisPassword, redisHost, redisPort, redisDB)
-		} else {
-			redisURL = fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB)
-		}
-	}
-
-	// Parse Redis URL for cache client
-	redisOpts, err := redis.ParseURL(redisURL)
+	redisURL := buildRedisURL()
+	redisOpts, err := newRedisOptions(redisURL)
 	if err != nil {
 		cancel()
 		log.Fatalf("Failed to parse Redis URL: %v", err)
 	}
-	redisOpts.MaintNotificationsConfig = &maintnotifications.Config{
-		Mode: maintnotifications.ModeDisabled,
-	}
 	redisClient := redis.NewClient(redisOpts)
 
-	// Test Redis connection
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	if err := redisClient.Ping(ctx).Err(); err != nil {
 		cancel()
@@ -160,15 +87,12 @@ func main() {
 	cancel()
 	log.Println("Successfully connected to Redis")
 
-	// Initialize Redis publisher for WebSocket broadcasting
 	redisPublisher, err := pubsub.NewRedisPublisher(redisURL)
 	if err != nil {
 		log.Fatalf("Failed to create Redis publisher: %v", err)
 	}
 
-	// Initialize repositories
-	adminPanelURL := getEnv("ADMIN_PANEL_URL", "")
-	userRepo := repository.NewUserRepository(db, adminPanelURL)
+	userRepo := repository.NewUserRepository(db, cfgRuntime.AdminPanelURL)
 	tokenRepo := repository.NewTokenRepository(db)
 	cacheRepo := repository.NewCacheRepository(redisClient)
 	accountSecurityRepo := repository.NewAccountSecurityRepository(db)
@@ -180,11 +104,9 @@ func main() {
 	settingsRepo := repository.NewSettingsRepository(db)
 	searchRepo := repository.NewSearchRepository(db)
 
-	// Initialize notifications clients (optional - service can work without them)
 	var smsClient notificationspb.SMSServiceClient
 	var notificationClient notificationspb.NotificationServiceClient
-	notificationsAddr := getEnv("NOTIFICATIONS_SERVICE_ADDR", "notifications-service:50058")
-	notificationsConn, err := grpcutil.NewClient(notificationsAddr)
+	notificationsConn, err := grpcutil.NewClient(cfgRuntime.NotificationsAddr)
 	if err != nil {
 		log.Printf("Warning: Failed to connect to notifications service: %v (continuing without notification support)", err)
 	} else {
@@ -194,7 +116,6 @@ func main() {
 		log.Println("Successfully connected to notifications service")
 	}
 
-	// Initialize observer service for activity tracking, login notifications, and WebSocket events
 	observerService := service.NewObserverServiceWithSettings(
 		userRepo,
 		settingsRepo,
@@ -203,21 +124,19 @@ func main() {
 		notificationClient,
 	)
 
-	// Initialize helper service for cross-service integrations
 	helperService := service.NewHelperService(
-		getEnv("LEVELS_SERVICE_ADDR", "levels-service:50054"),
-		getEnv("FEATURES_SERVICE_ADDR", "features-service:50053"),
-		getEnv("COMMERCIAL_SERVICE_ADDR", "commercial-service:50052"),
+		cfgRuntime.LevelsServiceAddr,
+		cfgRuntime.FeaturesServiceAddr,
+		cfgRuntime.CommercialServiceAddr,
 	)
 
-	// Initialize services
 	walletConnectionService := service.NewWalletConnectionService(
 		userRepo,
 		cacheRepo,
 		accountSecurityRepo,
 		activityRepo,
-		getEnv("APP_NAME", "Laravel"),
-		getEnv("APP_URL", "http://localhost:8000"),
+		cfgRuntime.AppName,
+		cfgRuntime.AppURL,
 	)
 	authService := service.NewAuthService(
 		userRepo,
@@ -228,69 +147,58 @@ func main() {
 		observerService,
 		helperService,
 		smsClient,
-		getEnv("OAUTH_SERVER_URL", ""),
-		getEnv("OAUTH_CLIENT_ID", ""),
-		getEnv("OAUTH_CLIENT_SECRET", ""),
-		getEnv("APP_URL", "http://localhost:8000"),
-		getEnv("FRONT_END_URL", "http://localhost:3000"),
-		service.IsProductionEnv(getEnv("APP_ENV", "local")),
+		cfgRuntime.OAuthServerURL,
+		cfgRuntime.OAuthClientID,
+		cfgRuntime.OAuthClientSecret,
+		cfgRuntime.AppURL,
+		cfgRuntime.FrontEndURL,
+		service.IsProductionEnv(cfgRuntime.AppEnv),
 	)
-	// Initialize user service with all dependencies for Users API
 	userService := service.NewUserServiceWithDependencies(
 		userRepo,
 		kycRepo,
 		settingsRepo,
 		profilePhotoRepo,
 	)
-	kycService := service.NewKYCService(kycRepo, userRepo)
 	citizenService := service.NewCitizenService(
 		citizenRepo,
 		userRepo,
 		helperService,
-		getEnv("APP_URL", "http://localhost:8000"),
+		cfgRuntime.AppURL,
 	)
 	personalInfoService := service.NewPersonalInfoService(personalInfoRepo)
 	profileLimitationRepo := repository.NewProfileLimitationRepository(db)
 	profileLimitationService := service.NewProfileLimitationService(profileLimitationRepo, userRepo)
 	settingsService := service.NewSettingsService(settingsRepo)
 
-	// Get API Gateway URL for profile photo URLs - ensure it's not empty
-	apiGatewayURL := getEnv("API_GATEWAY_URL", "")
-	if apiGatewayURL == "" {
-		apiGatewayURL = getEnv("APP_URL", "http://localhost:8000")
-	}
+	apiGatewayURL := resolveAPIGatewayURL()
 	log.Printf("Profile photo service using API Gateway URL: %s", apiGatewayURL)
 
-	// Initialize profile photo service (storage client can be added later when proto files are generated)
-	// For now, service works without storage client (files can be uploaded via HTTP endpoint)
-	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, nil, apiGatewayURL)
-
-	// Initialize storage service client for profile photo uploads
-	storageServiceAddr := getEnv("STORAGE_SERVICE_ADDR", "storage-service:50060")
 	var storageClient storagepb.FileStorageServiceClient
-	storageConn, err := grpcutil.NewClient(storageServiceAddr)
+	storageConn, err := grpcutil.NewClient(cfgRuntime.StorageServiceAddr)
 	if err != nil {
-		log.Printf("Warning: Failed to connect to storage service: %v (profile photo uploads will fail)", err)
+		log.Printf("Warning: Failed to connect to storage service: %v (file uploads will fail)", err)
 		storageClient = nil
 	} else {
 		defer func() { _ = storageConn.Close() }()
 		storageClient = storagepb.NewFileStorageServiceClient(storageConn)
-		log.Printf("Successfully connected to storage service at %s", storageServiceAddr)
+		log.Printf("Successfully connected to storage service at %s", cfgRuntime.StorageServiceAddr)
 	}
+	fileStorage := service.NewGRPCFileStorage(storageClient)
 
-	// Initialize user events service
+	kycService := service.NewKYCService(kycRepo, userRepo, fileStorage, apiGatewayURL)
+	profilePhotoService := service.NewProfilePhotoService(profilePhotoRepo, fileStorage, apiGatewayURL)
 	userEventsService := service.NewUserEventsService(activityRepo, userRepo)
-
-	// Initialize search service
 	searchService := service.NewSearchService(searchRepo)
 
-	// Create gRPC server with Prometheus metrics
 	serviceMetrics := metrics.NewMetrics("auth_service")
-	metrics.StartHTTPServer(getEnv("METRICS_PORT", "9090"))
+	metrics.StartHTTPServer(cfgRuntime.MetricsPort)
+	tokenValidator := auth.NewLocalTokenValidator(tokenRepo)
 	serverOpts, err := grpcutil.ServerOptions(
 		grpc.ChainUnaryInterceptor(
 			sentry.UnaryServerInterceptor(),
 			metrics.UnaryServerInterceptor(serviceMetrics),
+			sharedauth.UnaryServerInterceptor(tokenValidator),
 		),
 	)
 	if err != nil {
@@ -298,46 +206,74 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
-	// Create profile photo handler instance (needed by auth handler)
-	profilePhotoHandler := &handler.ProfilePhotoHandler{
-		ProfilePhotoService: profilePhotoService,
-		StorageClient:       storageClient,
-		APIGatewayURL:       apiGatewayURL,
-	}
+	profilePhotoHandler := handler.NewProfilePhotoHandler(profilePhotoService)
 
-	// Register handlers
-	projectLocale := getEnv("PROJECT_LOCALE", "EN")
+	projectLocale := cfgRuntime.ProjectLocale
 	handler.SetProjectLocale(projectLocale)
-	handler.RegisterAuthHandler(grpcServer, authService, tokenRepo, profilePhotoHandler, projectLocale)
-	handler.RegisterWalletConnectionHandler(grpcServer, walletConnectionService, projectLocale)
-	handler.RegisterUserHandler(grpcServer, userService, profileLimitationService, helperService)
-	handler.RegisterKYCHandler(grpcServer, kycService, storageClient, apiGatewayURL)
-	handler.RegisterCitizenHandler(grpcServer, citizenService)
-	handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
-	handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)
-	// Register profile photo handler (also register it separately for its own gRPC service)
+	authHandler := handler.RegisterAuthHandler(grpcServer, authService, tokenRepo, profilePhotoService, projectLocale)
+	walletHandler := handler.RegisterWalletConnectionHandler(grpcServer, walletConnectionService, projectLocale)
+	userHandler := handler.RegisterUserHandler(grpcServer, userService, profileLimitationService, helperService)
+	kycHandler := handler.RegisterKYCHandler(grpcServer, kycService, apiGatewayURL)
+	citizenHandler := handler.RegisterCitizenHandler(grpcServer, citizenService)
+	personalInfoHandler := handler.RegisterPersonalInfoHandler(grpcServer, personalInfoService)
+	profileLimitationHandler := handler.RegisterProfileLimitationHandler(grpcServer, profileLimitationService)
 	pb.RegisterProfilePhotoServiceServer(grpcServer, profilePhotoHandler)
-	handler.RegisterSettingsHandler(grpcServer, settingsService)
-	handler.RegisterUserEventsHandler(grpcServer, userEventsService, userRepo)
-	handler.RegisterSearchHandler(grpcServer, searchService)
+	settingsHandler := handler.RegisterSettingsHandler(grpcServer, settingsService)
+	userEventsHandler := handler.RegisterUserEventsHandler(grpcServer, userEventsService, userRepo)
+	searchHandler := handler.RegisterSearchHandler(grpcServer, searchService)
 
-	// Start gRPC server
-	port := getEnv("GRPC_PORT", "50051")
-	listener, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		log.Fatalf("Failed to listen on port %s: %v", port, err)
+	localClients := handler.NewLocalClients(
+		authHandler,
+		userHandler,
+		kycHandler,
+		citizenHandler,
+		personalInfoHandler,
+		profileLimitationHandler,
+		profilePhotoHandler,
+		settingsHandler,
+		userEventsHandler,
+		searchHandler,
+		walletHandler,
+	)
+
+	var levelClient levelspb.LevelServiceClient
+	if levelsConn, err := grpcutil.NewClient(cfgRuntime.LevelsServiceAddr); err != nil {
+		log.Printf("Warning: Failed to connect to levels service: %v (GetMe level enrichment disabled)", err)
+	} else {
+		defer func() { _ = levelsConn.Close() }()
+		levelClient = levelspb.NewLevelServiceClient(levelsConn)
+		log.Printf("Connected to levels service at %s", cfgRuntime.LevelsServiceAddr)
 	}
 
-	log.Printf("Auth service listening on port %s", port)
+	httpAuthHandler := handler.NewHTTPAuthHandler(localClients, levelClient, projectLocale)
+	httpWalletHandler := handler.NewHTTPWalletHandler(localClients.WalletConnection, projectLocale)
+	authMiddleware := middleware.AuthMiddleware(tokenValidator)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(tokenValidator)
+	guestMiddleware := middleware.GuestMiddleware(tokenValidator)
 
-	// Graceful shutdown
+	listener, err := net.Listen("tcp", grpcListenAddr(cfgRuntime.GRPCPort))
+	if err != nil {
+		log.Fatalf("Failed to listen on port %s: %v", cfgRuntime.GRPCPort, err)
+	}
+
+	log.Printf("Auth service listening on gRPC port %s", cfgRuntime.GRPCPort)
+
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal
+	go func() {
+		log.Printf("Auth service listening on HTTP port %s", cfgRuntime.HTTPPort)
+		if err := handler.StartHTTPServer(handler.HTTPServerHandlers{
+			Auth:   httpAuthHandler,
+			Wallet: httpWalletHandler,
+		}, cfgRuntime.HTTPPort, authMiddleware, optionalAuthMiddleware, guestMiddleware); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -345,11 +281,4 @@ func main() {
 	log.Println("Shutting down server...")
 	grpcServer.GracefulStop()
 	log.Println("Server stopped")
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

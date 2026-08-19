@@ -2,7 +2,7 @@ _format_version: "3.0"
 _transform: true
 
 services:
-  # Static uploaded files (profile photos, KYC, etc.) — not API calls
+  # Static uploaded files + public upload API — storage-service
   - name: storage-uploads
     url: http://storage-service:8059
     protocol: http
@@ -13,16 +13,126 @@ services:
     read_timeout: 60000
     retries: 3
 
-  - name: grpc-gateway
-    url: http://grpc-gateway:8080
+  # Calendar REST API — served directly by calendar-service (migrated off grpc-gateway)
+  - name: calendar-service
+    url: http://calendar-service:8060
     protocol: http
-    host: grpc-gateway
-    port: 8080
-    path: /
+    host: calendar-service
+    port: 8060
     connect_timeout: 60000
     write_timeout: 60000
     read_timeout: 60000
-    retries: 5
+    retries: 3
+
+  # Levels REST API — served directly by levels-service (migrated off grpc-gateway)
+  - name: levels-service
+    url: http://levels-service:8061
+    protocol: http
+    host: levels-service
+    port: 8061
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Features REST API — served directly by features-service (migrated off grpc-gateway)
+  - name: features-service
+    url: http://features-service:8062
+    protocol: http
+    host: features-service
+    port: 8062
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Notifications REST API — served directly by notifications-service (migrated off grpc-gateway)
+  - name: notifications-service
+    url: http://notifications-service:8063
+    protocol: http
+    host: notifications-service
+    port: 8063
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Social REST API — served directly by social-service (migrated off grpc-gateway)
+  - name: social-service
+    url: http://social-service:8064
+    protocol: http
+    host: social-service
+    port: 8064
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Financial REST API — served directly by financial-service (migrated off grpc-gateway)
+  - name: financial-service
+    url: http://financial-service:8065
+    protocol: http
+    host: financial-service
+    port: 8065
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Auth REST API — served directly by auth-service (migrated off grpc-gateway)
+  - name: auth-service
+    url: http://auth-service:8066
+    protocol: http
+    host: auth-service
+    port: 8066
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Commercial REST API — served directly by commercial-service (migrated off grpc-gateway)
+  - name: commercial-service
+    url: http://commercial-service:8067
+    protocol: http
+    host: commercial-service
+    port: 8067
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Dynasty REST API — served directly by dynasty-service (migrated off grpc-gateway)
+  - name: dynasty-service
+    url: http://dynasty-service:8068
+    protocol: http
+    host: dynasty-service
+    port: 8068
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Training REST API — served directly by training-service (migrated off grpc-gateway)
+  - name: training-service
+    url: http://training-service:8069
+    protocol: http
+    host: training-service
+    port: 8069
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+
+  # Support REST API — served directly by support-service (migrated off grpc-gateway)
+  - name: support-service
+    url: http://support-service:8070
+    protocol: http
+    host: support-service
+    port: 8070
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
 
   - name: swagger-ui
     url: http://swagger-ui:8080
@@ -35,7 +145,7 @@ services:
     retries: 3
 
 routes:
-  # Higher priority: serve files from storage-service, never grpc-gateway
+  # Static files from storage-service
   - name: uploads-static
     service: storage-uploads
     paths:
@@ -51,12 +161,100 @@ routes:
       - HEAD
       - OPTIONS
 
-  - name: api-routes
-    service: grpc-gateway
+  # Public file upload — storage-service only
+  - name: storage-upload
+    service: storage-uploads
     paths:
-      - /api
+      - /api/upload
     strip_path: false
     preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - POST
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 30
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Calendar API
+  - name: calendar-api
+    service: calendar-service
+    paths:
+      - /api/calendar
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Levels API — higher priority than catch-all /api → grpc-gateway
+  - name: levels-api
+    service: levels-service
+    paths:
+      - /api/levels
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Features API — higher priority than catch-all /api → grpc-gateway.
+  # Include OPTIONS so preflight always matches this route (PATCH must be allowed).
+  # Kong CORS (priority 2000) answers OPTIONS before rate-limiting (901).
+  - name: features-api
+    service: features-service
+    paths:
+      - /api/features
+      - /api/isic-codes
+      - /api/my-features
+      - /api/buy-requests
+      - /api/sell-requests
+      - /api/hourly-profits
+      - /api/maps
+      - ~/api/citizen/[^/]+/features
+      - ~/api/citizen/[^/]+/buildings
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
     protocols:
       - http
       - https
@@ -67,7 +265,266 @@ routes:
       - PATCH
       - DELETE
       - OPTIONS
-    regex_priority: 95
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Notifications API — higher priority than catch-all /api → grpc-gateway
+  - name: notifications-api
+    service: notifications-service
+    paths:
+      - /api/notifications
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Social API — higher priority than catch-all /api → grpc-gateway
+  - name: social-api
+    service: social-service
+    paths:
+      - /api/followers
+      - /api/following
+      - /api/follow
+      - /api/unfollow
+      - /api/remove
+      - /api/challenge
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Financial API — higher priority than catch-all /api → grpc-gateway
+  - name: financial-api
+    service: financial-service
+    paths:
+      - /api/order
+      - /api/store
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Commercial API — higher priority than catch-all /api → grpc-gateway
+  # and higher than auth-api for /api/citizen/*/wallet/history/*
+  - name: commercial-api
+    service: commercial-service
+    paths:
+      - /api/user/transactions
+      - ~/api/citizen/[^/]+/wallet/history
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Dynasty API — higher priority than catch-all /api → grpc-gateway
+  - name: dynasty-api
+    service: dynasty-service
+    paths:
+      - /api/dynasty
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - DELETE
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Training API — higher priority than catch-all /api → grpc-gateway
+  - name: training-api
+    service: training-service
+    paths:
+      - /api/tutorials
+      - /api/video-tutorials
+      - /api/comments
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Auth API
+  # /api/user/transactions* and /api/citizen/*/wallet/history* are routed by commercial-api (priority 98).
+  # /api/citizen/* features/buildings subpaths are routed by features-api (priority 98).
+  - name: auth-api
+    service: auth-service
+    paths:
+      - /api/auth
+      - /api/account
+      - /api/wallet
+      - /api/users
+      - /api/user/wallet
+      - /api/user/profile
+      - ~/api/user/[^/]+/level$
+      - ~/api/user$
+      - /api/search
+      - /api/kyc
+      - /api/bank-accounts
+      - /api/personal-info
+      - /api/profile-limitations
+      - /api/profilePhotos
+      - /api/profile-photos
+      - /api/settings
+      - /api/general-settings
+      - /api/privacy
+      - /api/events
+      - /api/citizen
+    strip_path: false
+    preserve_host: false
+    regex_priority: 97
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
+
+  # Support API — tickets, reports, notes
+  - name: support-api
+    service: support-service
+    paths:
+      - /api/tickets
+      - /api/reports
+      - /api/notes
+      - /api/support
+    strip_path: false
+    preserve_host: false
+    regex_priority: 98
+    protocols:
+      - http
+      - https
+    methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            ssl: false
+            ssl_verify: false
 
   # OpenAPI documentation (Swagger UI) — catch-all at /; lower priority than /api and /uploads
   - name: api-docs
@@ -92,22 +549,23 @@ plugins:
       latency_metrics: true
       bandwidth_metrics: true
       upstream_health_metrics: true
-  - name: rate-limiting
-    config:
-      minute: 60
-      policy: redis
-      redis:
-        host: redis
-        port: 6379
   - name: cors
     config:
+      # Exact origins + PCRE for local Vite/dev (localhost and 127.0.0.1, any port).
+      # credentials:true forbids Origin:* — Kong must echo a matching origin.
       origins:
         - https://world.metarang.com
         - https://metarang.com
+        - https://admin.metarang.com
+        - https://dev-reactjs.metarang.com
+        - https://dev-nextjs.metarang.com
         - http://localhost:5173
         - http://localhost:5175
+        - 'http://localhost:\d+'
+        - 'http://127\.0\.0\.1:\d+'
       methods:
         - GET
+        - HEAD
         - POST
         - PUT
         - PATCH
@@ -120,8 +578,19 @@ plugins:
         - Content-Type
         - Authorization
         - X-Requested-With
+        - Origin
+        - X-Request-Id
+        - X-CSRF-TOKEN
+        - X-XSRF-TOKEN
+        - X-Locale
+        - sentry-trace
+        - baggage
+        - traceparent
+        - tracestate
       exposed_headers:
         - X-Auth-Token
       credentials: true
-      max_age: 3600
+      # Keep short so browsers do not stick to a stale preflight that omitted PATCH.
+      max_age: 60
+      # Kong answers OPTIONS; do not proxy preflight to upstream (avoids ACAO:* clash).
       preflight_continue: false

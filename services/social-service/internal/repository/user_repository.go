@@ -15,9 +15,10 @@ type UserRepository interface {
 }
 
 type UserBasicInfo struct {
-	ID   uint64
-	Name string
-	Code string
+	ID           uint64
+	Name         string
+	Code         string
+	ProfilePhoto string // Latest profile photo URL; empty when none
 }
 
 type userRepository struct {
@@ -29,18 +30,29 @@ func NewUserRepository(db *sql.DB) UserRepository {
 }
 
 func (r *userRepository) GetUserBasicInfo(ctx context.Context, userID uint64) (*UserBasicInfo, error) {
+	// Profile photo lives on the shared images table (same source as auth-service
+	// user lists). Do not call auth-service ListProfilePhotos here: that RPC
+	// authenticates as the caller and ignores the listed user's id.
 	query := `
-		SELECT id, name, code
+		SELECT id, name, code,
+			(SELECT url FROM images
+			 WHERE imageable_type = 'App\\Models\\User' AND imageable_id = users.id
+			 ORDER BY created_at DESC
+			 LIMIT 1) AS profile_photo
 		FROM users
 		WHERE id = ?
 	`
 	info := &UserBasicInfo{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&info.ID, &info.Name, &info.Code)
+	var profilePhoto sql.NullString
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&info.ID, &info.Name, &info.Code, &profilePhoto)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user basic info: %w", err)
+	}
+	if profilePhoto.Valid {
+		info.ProfilePhoto = profilePhoto.String
 	}
 	return info, nil
 }

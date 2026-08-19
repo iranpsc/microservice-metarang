@@ -21,7 +21,6 @@ func NewUserVariableRepository(db *sql.DB) UserVariableRepository {
 }
 
 // GetReferralProfitLimit gets the referral_profit limit for a user
-// Laravel: $user->variables->referral_profit
 func (r *userVariableRepository) GetReferralProfitLimit(ctx context.Context, userID uint64) (float64, error) {
 	query := `
 		SELECT referral_profit
@@ -44,7 +43,6 @@ func (r *userVariableRepository) GetReferralProfitLimit(ctx context.Context, use
 }
 
 // GetWithdrawProfit gets the withdraw_profit (days) for a user
-// Laravel: $user->variables->withdraw_profit
 func (r *userVariableRepository) GetWithdrawProfit(ctx context.Context, userID uint64) (int, error) {
 	query := `
 		SELECT withdraw_profit
@@ -67,7 +65,6 @@ func (r *userVariableRepository) GetWithdrawProfit(ctx context.Context, userID u
 }
 
 // Create inserts default user_variables for a newly registered user.
-// Defaults match Laravel migration: referral_profit=15000000, data_storage=0, withdraw_profit=10.
 // Idempotent if a row already exists.
 func (r *userVariableRepository) Create(ctx context.Context, userID uint64) error {
 	var existingID uint64

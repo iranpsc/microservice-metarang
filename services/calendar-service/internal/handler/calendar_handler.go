@@ -22,9 +22,10 @@ type CalendarHandler struct {
 	service service.CalendarServiceInterface
 }
 
-func RegisterCalendarHandler(grpcServer *grpc.Server, svc service.CalendarServiceInterface) {
+func RegisterCalendarHandler(grpcServer *grpc.Server, svc service.CalendarServiceInterface) *CalendarHandler {
 	handler := &CalendarHandler{service: svc}
 	calendarpb.RegisterCalendarServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *CalendarHandler) GetEvents(ctx context.Context, req *calendarpb.GetEventsRequest) (*calendarpb.EventsResponse, error) {

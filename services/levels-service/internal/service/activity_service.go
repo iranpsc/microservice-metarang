@@ -65,7 +65,6 @@ func NewActivityService(
 }
 
 // LogActivity records user activity
-// Implements Laravel: UserObserver@logedIn
 func (s *ActivityService) LogActivity(ctx context.Context, req *pb.LogActivityRequest) (uint64, error) {
 	activityID, err := s.activityRepo.CreateActivity(ctx, req)
 	if err != nil {
@@ -100,7 +99,6 @@ func (s *ActivityService) GetUserActivities(ctx context.Context, userID uint64, 
 }
 
 // UpdateActivityScore recalculates user score
-// Implements Laravel: UserObserver@calculateScore
 func (s *ActivityService) UpdateActivityScore(ctx context.Context, userID uint64) (int32, bool, uint64, error) {
 	// Calculate the new score
 	newScore, err := s.userLogRepo.CalculateScore(ctx, userID)
@@ -114,7 +112,6 @@ func (s *ActivityService) UpdateActivityScore(ctx context.Context, userID uint64
 	}
 
 	// Check if user reached a new level
-	// Implements Laravel: Level::where('score', '<=', $user->score)->whereNotIn('id', $user->levels->pluck('id'))->with('prize')->first()
 	nextLevel, err := s.levelRepo.GetNextLevelForScore(ctx, userID, newScore)
 	levelUp := false
 	var newLevelID uint64
@@ -129,7 +126,6 @@ func (s *ActivityService) UpdateActivityScore(ctx context.Context, userID uint64
 			return newScore, false, 0, err
 		}
 
-		// Award prize automatically (matching Laravel behavior)
 		// TODO: Implement this by calling commercial service to update wallet
 		// For now, just record the prize as received
 		prize, err := s.levelRepo.GetLevelPrize(ctx, newLevelID)
@@ -157,10 +153,8 @@ func (s *ActivityService) UpdateActivityScore(ctx context.Context, userID uint64
 }
 
 // RecordTrade records trade for score calculation
-// Implements Laravel: UserObserver@traded
 func (s *ActivityService) RecordTrade(ctx context.Context, userID uint64, irrAmount, pscAmount string) error {
 	// Count significant trades (irr > 7000000 OR psc > equivalent)
-	// Implements Laravel: UserObserver@getSignificantTradeCount
 
 	// Parse amounts
 	irr, _ := strconv.ParseFloat(irrAmount, 64)
@@ -192,10 +186,8 @@ func (s *ActivityService) RecordTrade(ctx context.Context, userID uint64, irrAmo
 }
 
 // RecordDeposit records deposit for score calculation
-// Implements Laravel: UserObserver@deposit
 func (s *ActivityService) RecordDeposit(ctx context.Context, userID uint64, amount string) error {
 	// Increment deposit_amount by amount * 0.0001
-	// Laravel: $user->log->increment('deposit_amount', $amount * 0.0001)
 	if err := s.userLogRepo.IncrementDeposit(ctx, userID, amount); err != nil {
 		return err
 	}
@@ -205,17 +197,14 @@ func (s *ActivityService) RecordDeposit(ctx context.Context, userID uint64, amou
 }
 
 // RecordFollower records follower for score calculation
-// Implements Laravel: UserObserver@followed
 func (s *ActivityService) RecordFollower(ctx context.Context, userID uint64) error {
 	// Count total followers
-	// Laravel: $totalFollowers = $user->followers->count()
 	totalFollowers, err := s.userLogRepo.GetTotalFollowers(ctx, userID)
 	if err != nil {
 		return err
 	}
 
 	// Update followers_count (count * 0.1)
-	// Laravel: $user->log->update(['followers_count' => $totalFollowers * 0.1])
 	if err := s.userLogRepo.UpdateFollowersCount(ctx, userID, totalFollowers); err != nil {
 		return err
 	}
@@ -225,7 +214,6 @@ func (s *ActivityService) RecordFollower(ctx context.Context, userID uint64) err
 }
 
 // LogLogout records user logout and updates activity hours
-// Implements Laravel: UserObserver@logedOut
 func (s *ActivityService) LogLogout(ctx context.Context, userID uint64, ip string) error {
 	// Get latest activity
 	latestActivity, err := s.activityRepo.GetLatestActivity(ctx, userID)
@@ -244,7 +232,6 @@ func (s *ActivityService) LogLogout(ctx context.Context, userID uint64, ip strin
 	totalMinutes := int32(endTime.Sub(startTime).Minutes())
 
 	// Update activity with end time and total
-	// Laravel: $latestActivity->update(['end' => now(), 'total' => $latestActivity->start->diffInMinutes(now())])
 	if err := s.activityRepo.UpdateActivity(ctx, latestActivity.Id, endTime, totalMinutes); err != nil {
 		return err
 	}
@@ -254,17 +241,14 @@ func (s *ActivityService) LogLogout(ctx context.Context, userID uint64, ip strin
 }
 
 // HourReached recalculates activity hours score
-// Implements Laravel: UserObserver@hourReached
 func (s *ActivityService) HourReached(ctx context.Context, userID uint64) error {
 	// Get total active minutes
-	// Laravel: $totalActiveHours = $user->activities->sum('total')
 	totalMinutes, err := s.activityRepo.GetTotalActivityMinutes(ctx, userID)
 	if err != nil {
 		return err
 	}
 
 	// Update activity_hours (ceil(minutes / 60) * 0.1)
-	// Laravel: $user->log->update(['activity_hours' => ceil($totalActiveHours / 60) * 0.1])
 	if err := s.userLogRepo.UpdateActivityHours(ctx, userID, totalMinutes); err != nil {
 		return err
 	}
@@ -274,7 +258,6 @@ func (s *ActivityService) HourReached(ctx context.Context, userID uint64) error 
 }
 
 // recalculateAndUpdateScore is a helper to recalculate and update user score
-// Implements Laravel: $this->calculateScore($user)
 func (s *ActivityService) recalculateAndUpdateScore(ctx context.Context, userID uint64) error {
 	_, _, _, err := s.UpdateActivityScore(ctx, userID)
 	return err

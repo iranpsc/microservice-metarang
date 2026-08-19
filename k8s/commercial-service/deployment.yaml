@@ -34,6 +34,9 @@ spec:
         - containerPort: 50052
           name: grpc
           protocol: TCP
+        - containerPort: 8067
+          name: http
+          protocol: TCP
         - containerPort: 9090
           name: metrics
           protocol: TCP
@@ -62,6 +65,18 @@ spec:
               key: db.database
         - name: GRPC_PORT
           value: "50052"
+        - name: HTTP_PORT
+          value: "8067"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: AUTH_SERVICE_ADDR
+          value: "auth-service:50051"
+        - name: APP_URL
+          valueFrom:
+            configMapKeyRef:
+              name: metarang-config
+              key: app.url
+              optional: true
         - name: SENTRY_DSN
           valueFrom:
             secretKeyRef:
@@ -92,15 +107,17 @@ spec:
             memory: "1Gi"
             cpu: "1000m"
         livenessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50052"]
+          httpGet:
+            path: /health
+            port: 8067
           initialDelaySeconds: 60
           periodSeconds: 30
           timeoutSeconds: 3
           failureThreshold: 5
         readinessProbe:
-          exec:
-            command: ["/bin/sh", "-c", "nc -z localhost 50052"]
+          httpGet:
+            path: /health
+            port: 8067
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 3
@@ -121,6 +138,10 @@ spec:
     targetPort: 50052
     protocol: TCP
     name: grpc
+  - port: 8067
+    targetPort: 8067
+    protocol: TCP
+    name: http
   - port: 9090
     targetPort: 9090
     protocol: TCP
@@ -153,4 +174,3 @@ spec:
       target:
         type: Utilization
         averageUtilization: 80
-

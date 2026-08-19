@@ -273,7 +273,6 @@ func (r *CitizenFeaturesRepository) ListMapMarkers(
 	return markers, nil
 }
 
-// GetFeatureCenters batch-computes centroids (Laravel Feature::batchComputedCenters).
 func (r *CitizenFeaturesRepository) GetFeatureCenters(
 	ctx context.Context,
 	featureIDs []uint64,

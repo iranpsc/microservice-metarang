@@ -26,7 +26,7 @@ func newFeatureServiceForTest(t *testing.T, db *sql.DB) *service.FeatureService 
 	tr := repository.NewTradeRepository(db)
 	hpr := repository.NewHourlyProfitRepository(db)
 	pricing := service.NewFeaturePricingService(fr, pr, db, log)
-	return service.NewFeatureService(fr, pr, gr, ir, br, tr, hpr, pricing, db)
+	return service.NewFeatureService(fr, pr, gr, ir, br, tr, hpr, pricing, db, nil, "")
 }
 
 func TestFeatureService_GetFeature_Integration(t *testing.T) {

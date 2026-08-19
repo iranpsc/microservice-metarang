@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,17 +21,22 @@ type citizenBuildingsRepo interface {
 	CountUserCompletedBuildings(ctx context.Context, userID uint64, karbaris []string, now time.Time) (int, error)
 }
 
-// CitizenBuildingsService implements public citizen building queries.
-type CitizenBuildingsService struct {
-	repo citizenBuildingsRepo
-	now  func() time.Time
+type citizenBuildingsUserRepo interface {
+	GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error)
 }
 
-func NewCitizenBuildingsService(repo citizenBuildingsRepo, now func() time.Time) *CitizenBuildingsService {
+// CitizenBuildingsService implements public citizen building queries.
+type CitizenBuildingsService struct {
+	repo     citizenBuildingsRepo
+	userRepo citizenBuildingsUserRepo
+	now      func() time.Time
+}
+
+func NewCitizenBuildingsService(repo citizenBuildingsRepo, userRepo citizenBuildingsUserRepo, now func() time.Time) *CitizenBuildingsService {
 	if now == nil {
 		now = time.Now
 	}
-	return &CitizenBuildingsService{repo: repo, now: now}
+	return &CitizenBuildingsService{repo: repo, userRepo: userRepo, now: now}
 }
 
 // GetSummary returns per-karbari counts of completed buildings owned by the user.
@@ -60,52 +66,56 @@ func (s *CitizenBuildingsService) GetSummary(
 	return &models.CitizenBuildingSummaryResult{Items: items}, nil
 }
 
-// GetChart returns time-bucketed completed building counts.
+// GetChart returns time-bucketed completed building counts, one series per karbari.
 func (s *CitizenBuildingsService) GetChart(
 	ctx context.Context,
 	userID uint64,
 	period string,
 	allowedKarbaris []string,
-) (*models.CitizenBuildingChartData, string, error) {
+) (*models.CitizenBuildingChartResult, error) {
 	period = periodpkg.NormalizePeriod(period)
-	window, err := periodpkg.ResolvePeriod(period, s.now())
+	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
 	if err != nil {
-		return nil, period, err
+		return nil, fmt.Errorf("user registration date: %w", err)
 	}
-
-	labels := make([]string, len(window.Buckets))
-	completed := make([]int32, len(window.Buckets))
-	for i, bucket := range window.Buckets {
-		labels[i] = bucket.Label
+	window, err := periodpkg.ResolvePeriod(period, s.now(), registeredAt)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(allowedKarbaris) == 0 {
-		return &models.CitizenBuildingChartData{
-			Labels:    labels,
-			Completed: completed,
-		}, period, nil
+		return &models.CitizenBuildingChartResult{
+			Completed: []models.CitizenChartPoint{},
+			Period:    period,
+		}, nil
 	}
 
-	endDates, err := s.repo.ListCompletedEndDates(
-		ctx,
-		userID,
-		allowedKarbaris,
-		window.Start,
-		window.End,
-		s.now(),
-	)
-	if err != nil {
-		return nil, period, fmt.Errorf("list completed building end dates: %w", err)
+	completed := make([]models.CitizenChartPoint, 0, len(allowedKarbaris)*len(window.Buckets))
+	for _, karbari := range allowedKarbaris {
+		endDates, err := s.repo.ListCompletedEndDates(
+			ctx,
+			userID,
+			[]string{karbari},
+			window.Start,
+			window.End,
+			s.now(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list completed building end dates for %s: %w", karbari, err)
+		}
+		for _, bucket := range window.Buckets {
+			completed = append(completed, models.CitizenChartPoint{
+				Karbari: karbari,
+				Label:   bucket.Label,
+				Amount:  float64(countEndDatesInBucket(endDates, bucket)),
+			})
+		}
 	}
 
-	for i, bucket := range window.Buckets {
-		completed[i] = countEndDatesInBucket(endDates, bucket)
-	}
-
-	return &models.CitizenBuildingChartData{
-		Labels:    labels,
+	return &models.CitizenBuildingChartResult{
 		Completed: completed,
-	}, period, nil
+		Period:    period,
+	}, nil
 }
 
 // GetBuildings returns a paginated list of completed buildings (10 per page).
@@ -168,10 +178,17 @@ func (s *CitizenBuildingsService) GetBuildings(
 }
 
 func mapCitizenBuildingRow(row models.CitizenBuildingRow) models.CitizenBuildingListItem {
-	area := extractBuildingAttributeFloat(row.AttributesJSON, "area")
-	visitors := extractBuildingAttributeFloat(row.AttributesJSON, "visitors")
-	emptyUnits := extractBuildingAttributeFloat(row.AttributesJSON, "empty_units")
-	floors := extractBuildingAttributeFloat(row.AttributesJSON, "floors")
+	length := extractBuildingAttributeFloat(row.AttributesJSON, "length")
+	width := extractBuildingAttributeFloat(row.AttributesJSON, "width")
+	var area *float64
+	if length != nil && width != nil {
+		a := (*length) * (*width)
+		area = &a
+	}
+	// Visitors and empty units are placeholders until those features are implemented.
+	visitors := 0.0
+	emptyUnits := 0.0
+	density := extractBuildingAttributeFloat(row.AttributesJSON, "density")
 
 	var constructionEndDate *string
 	if !row.ConstructionEndDate.IsZero() {
@@ -180,14 +197,86 @@ func mapCitizenBuildingRow(row models.CitizenBuildingRow) models.CitizenBuilding
 	}
 
 	return models.CitizenBuildingListItem{
-		FeaturePropertiesID: strings.ToUpper(row.FeaturePropertiesID),
+		BuildingID:          row.SKU,
 		Karbari:             row.Karbari,
 		Area:                area,
-		Visitors:            visitors,
-		EmptyUnits:          emptyUnits,
-		Floors:              floors,
+		Visitors:            &visitors,
+		EmptyUnits:          &emptyUnits,
+		Density:             density,
 		ConstructionEndDate: constructionEndDate,
+		Images:              parseBuildingModelImages(row.ImagesJSON),
 	}
+}
+
+// parseBuildingModelImages parses building_models.images JSON synced from the 3dmeta API.
+// Supports [{"id":1,"url":"..."}] objects and plain URL string arrays.
+func parseBuildingModelImages(imagesJSON string) []models.CitizenBuildingImage {
+	if imagesJSON == "" {
+		return []models.CitizenBuildingImage{}
+	}
+
+	var raw []json.RawMessage
+	if err := json.Unmarshal([]byte(imagesJSON), &raw); err != nil {
+		return []models.CitizenBuildingImage{}
+	}
+
+	out := make([]models.CitizenBuildingImage, 0, len(raw))
+	for _, item := range raw {
+		var asString string
+		if err := json.Unmarshal(item, &asString); err == nil {
+			if asString != "" {
+				out = append(out, models.CitizenBuildingImage{URL: asString})
+			}
+			continue
+		}
+
+		var asObj map[string]interface{}
+		if err := json.Unmarshal(item, &asObj); err != nil {
+			continue
+		}
+		url := extractImageURL(asObj)
+		if url == "" {
+			continue
+		}
+		out = append(out, models.CitizenBuildingImage{
+			ID:  extractImageID(asObj),
+			URL: url,
+		})
+	}
+	return out
+}
+
+func extractImageURL(obj map[string]interface{}) string {
+	for _, key := range []string{"url", "path", "src"} {
+		if v, ok := obj[key]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func extractImageID(obj map[string]interface{}) uint64 {
+	v, ok := obj["id"]
+	if !ok || v == nil {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		if n >= 0 {
+			return uint64(n)
+		}
+	case json.Number:
+		if i, err := n.Int64(); err == nil && i >= 0 {
+			return uint64(i)
+		}
+	case string:
+		if i, err := strconv.ParseUint(strings.TrimSpace(n), 10, 64); err == nil {
+			return i
+		}
+	}
+	return 0
 }
 
 func extractBuildingAttributeFloat(attributesJSON, slug string) *float64 {
@@ -216,6 +305,10 @@ func extractBuildingAttributeFloat(attributesJSON, slug string) *float64 {
 			return &f
 		case json.Number:
 			if f, err := v.Float64(); err == nil {
+				return &f
+			}
+		case string:
+			if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
 				return &f
 			}
 		}

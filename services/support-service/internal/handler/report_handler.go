@@ -26,21 +26,22 @@ func NewReportHandler(reportService service.ReportService) *ReportHandler {
 	}
 }
 
-func RegisterReportHandler(grpcServer *grpc.Server, reportService service.ReportService) {
+func RegisterReportHandler(grpcServer *grpc.Server, reportService service.ReportService) *ReportHandler {
 	handler := NewReportHandler(reportService)
 	pb.RegisterReportServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *ReportHandler) CreateReport(ctx context.Context, req *pb.CreateReportRequest) (*pb.ReportResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("user_id", req.UserId, locale),
-		validateReportSubject(req.ReportableType, locale),
-		validateRequired("reason", req.Reason, locale),
-		validateMaxLen("reason", req.Reason, 130, locale),
-		validateRequired("description", req.Description, locale),
-		validateMaxLen("description", req.Description, 2000, locale),
-		validateRequired("url", req.Url, locale),
+		ValidateRequired("user_id", req.UserId, locale),
+		ValidateReportSubject(req.ReportableType, locale),
+		ValidateRequired("reason", req.Reason, locale),
+		ValidateMaxLen("reason", req.Reason, 130, locale),
+		ValidateRequired("description", req.Description, locale),
+		ValidateMaxLen("description", req.Description, 2000, locale),
+		ValidateRequired("url", req.Url, locale),
 	)
 	if len(req.ImagePaths) > 5 {
 		validationErrors = mergeValidationErrors(validationErrors, map[string]string{
@@ -61,7 +62,7 @@ func (h *ReportHandler) CreateReport(ctx context.Context, req *pb.CreateReportRe
 
 func (h *ReportHandler) GetReports(ctx context.Context, req *pb.GetReportsRequest) (*pb.ReportsResponse, error) {
 	locale := handlerLocale(ctx)
-	validationErrors := validateRequired("user_id", req.UserId, locale)
+	validationErrors := ValidateRequired("user_id", req.UserId, locale)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)
 	}
@@ -102,8 +103,8 @@ func (h *ReportHandler) GetReports(ctx context.Context, req *pb.GetReportsReques
 func (h *ReportHandler) GetReport(ctx context.Context, req *pb.GetReportRequest) (*pb.ReportResponse, error) {
 	locale := handlerLocale(ctx)
 	validationErrors := mergeValidationErrors(
-		validateRequired("report_id", req.ReportId, locale),
-		validateRequired("user_id", req.UserId, locale),
+		ValidateRequired("report_id", req.ReportId, locale),
+		ValidateRequired("user_id", req.UserId, locale),
 	)
 	if len(validationErrors) > 0 {
 		return nil, returnValidationError(validationErrors)

@@ -29,8 +29,10 @@ func NewWalletHistoryHandler(svc walletHistoryService) *WalletHistoryHandler {
 	return &WalletHistoryHandler{svc: svc}
 }
 
-func RegisterWalletHistoryHandler(grpcServer *grpc.Server, svc *service.WalletHistoryService) {
-	pb.RegisterWalletHistoryServiceServer(grpcServer, NewWalletHistoryHandler(svc))
+func RegisterWalletHistoryHandler(grpcServer *grpc.Server, svc *service.WalletHistoryService) *WalletHistoryHandler {
+	handler := NewWalletHistoryHandler(svc)
+	pb.RegisterWalletHistoryServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *WalletHistoryHandler) GetWalletHistorySummary(

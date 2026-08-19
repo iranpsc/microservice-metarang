@@ -54,17 +54,16 @@ func (h *CitizenBuildingsHandler) GetCitizenBuildingChart(
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
 	}
 
-	chart, period, err := h.service.GetChart(ctx, req.UserId, req.Period, req.AllowedKarbaris)
+	result, err := h.service.GetChart(ctx, req.UserId, req.Period, req.AllowedKarbaris)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get building chart: %v", err)
 	}
 
 	return &pb.GetCitizenBuildingChartResponse{
 		Data: &pb.CitizenBuildingChartData{
-			Labels:    chart.Labels,
-			Completed: chart.Completed,
+			Completed: toProtoCitizenChartPoints(result.Completed),
 		},
-		Period: period,
+		Period: result.Period,
 	}, nil
 }
 
@@ -131,8 +130,8 @@ func (h *CitizenBuildingsHandler) ListCitizenBuildings(
 
 func mapCitizenBuildingItem(item models.CitizenBuildingListItem) *pb.CitizenBuildingItem {
 	out := &pb.CitizenBuildingItem{
-		FeaturePropertiesId: item.FeaturePropertiesID,
-		Karbari:             item.Karbari,
+		BuildingId: item.BuildingID,
+		Karbari:    item.Karbari,
 	}
 	if item.Area != nil {
 		out.Area = item.Area
@@ -143,11 +142,16 @@ func mapCitizenBuildingItem(item models.CitizenBuildingListItem) *pb.CitizenBuil
 	if item.EmptyUnits != nil {
 		out.EmptyUnits = item.EmptyUnits
 	}
-	if item.Floors != nil {
-		out.Floors = item.Floors
+	if item.Density != nil {
+		out.Density = item.Density
 	}
 	if item.ConstructionEndDate != nil {
 		out.ConstructionEndDate = item.ConstructionEndDate
 	}
+	images := make([]*pb.Image, 0, len(item.Images))
+	for _, img := range item.Images {
+		images = append(images, &pb.Image{Id: img.ID, Url: img.URL})
+	}
+	out.Images = images
 	return out
 }

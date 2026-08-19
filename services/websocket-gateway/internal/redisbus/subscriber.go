@@ -1,3 +1,4 @@
+// Package redisbus subscribes to Redis channels and forwards events to the hub.
 package redisbus
 
 import (

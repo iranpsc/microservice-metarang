@@ -1,3 +1,4 @@
+// Package hub manages WebSocket connections and event broadcasting.
 package hub
 
 import (

@@ -15,10 +15,13 @@ import (
 	"metarang/features-service/internal/events"
 	"metarang/features-service/internal/handler"
 	"metarang/features-service/internal/metrics"
+	"metarang/features-service/internal/middleware"
 	"metarang/features-service/internal/repository"
 	"metarang/features-service/internal/service"
 	"metarang/features-service/pkg/threed_client"
+	authpb "metarang/shared/pb/auth"
 	pb "metarang/shared/pb/features"
+	storagepb "metarang/shared/pb/storage"
 	"metarang/shared/pkg/auth"
 	"metarang/shared/pkg/db"
 	grpcutil "metarang/shared/pkg/grpc"
@@ -41,16 +44,9 @@ func main() {
 	}
 	defer sentry.Flush(2 * time.Second)
 
-	// Load configuration from environment
-	// Construct DSN from individual environment variables
-	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
-		getEnv("DB_USER", "metarang_user"),
-		getEnv("DB_PASSWORD", "metarang_password"),
-		getEnv("DB_HOST", "mysql"),
-		getEnv("DB_PORT", "3306"),
-		getEnv("DB_DATABASE", "metarang_db"),
-	)
+	dbDSN := buildMySQLDSN()
 	port := getEnv("GRPC_PORT", "50053")
+	httpPort := getEnv("HTTP_PORT", "8062")
 	metricsPort := getEnv("METRICS_PORT", "9090")
 	threeDMetaURL := getEnv("THREE_D_META_URL", "http://3d-meta-api")
 
@@ -111,15 +107,11 @@ func main() {
 		defer func() { _ = commercialClient.Close() }()
 
 		// Configure timeout and retries from environment
-		if timeoutStr := getEnv("COMMERCIAL_SERVICE_TIMEOUT", "3s"); timeoutStr != "" {
-			if timeout, err := time.ParseDuration(timeoutStr); err == nil {
-				commercialClient.SetTimeout(timeout)
-			}
+		if timeout, ok := parsePositiveDuration(getEnv("COMMERCIAL_SERVICE_TIMEOUT", "3s")); ok {
+			commercialClient.SetTimeout(timeout)
 		}
-		if retriesStr := getEnv("COMMERCIAL_SERVICE_RETRIES", "3"); retriesStr != "" {
-			if retries, err := strconv.Atoi(retriesStr); err == nil && retries > 0 {
-				commercialClient.SetMaxRetries(retries)
-			}
+		if retries, ok := parsePositiveInt(getEnv("COMMERCIAL_SERVICE_RETRIES", "3")); ok {
+			commercialClient.SetMaxRetries(retries)
 		}
 	}
 
@@ -158,6 +150,19 @@ func main() {
 		log,
 	)
 
+	storageServiceAddr := getEnv("STORAGE_SERVICE_ADDR", "storage-service:50060")
+	var fileStorage service.FileStorage
+	storageConn, err := grpcutil.NewClient(storageServiceAddr)
+	if err != nil {
+		log.Warn("Failed to connect to storage service - feature image uploads disabled", "error", err)
+	} else {
+		defer func() { _ = storageConn.Close() }()
+		fileStorage = service.NewGRPCFileStorage(storagepb.NewFileStorageServiceClient(storageConn))
+		log.Info("Connected to storage service", "addr", storageServiceAddr)
+	}
+
+	appURL := getEnv("APP_URL", "http://localhost:8000")
+
 	// Initialize services
 	featureService := service.NewFeatureService(
 		featureRepo,
@@ -169,6 +174,8 @@ func main() {
 		hourlyProfitRepo,
 		pricingService,
 		database,
+		fileStorage,
+		appURL,
 	)
 
 	// Initialize marketplace service with all dependencies
@@ -230,9 +237,10 @@ func main() {
 	isicCodeService := service.NewIsicCodeService(isicCodeRepo)
 
 	citizenFeaturesRepo := repository.NewCitizenFeaturesRepository(database)
-	citizenFeaturesService := service.NewCitizenFeaturesService(citizenFeaturesRepo)
+	userRepo := repository.NewUserRepository(database)
+	citizenFeaturesService := service.NewCitizenFeaturesService(citizenFeaturesRepo, userRepo)
 
-	citizenBuildingsService := service.NewCitizenBuildingsService(buildingRepo, nil)
+	citizenBuildingsService := service.NewCitizenBuildingsService(buildingRepo, userRepo, nil)
 
 	// Initialize gRPC handlers
 	handler.SetProjectLocale(getEnv("PROJECT_LOCALE", "EN"))
@@ -258,8 +266,12 @@ func main() {
 
 	// Create token validator using auth service
 	var tokenValidator auth.TokenValidator
+	var authClient authpb.AuthServiceClient
+	var citizenClient authpb.CitizenServiceClient
 	if authConn != nil {
 		tokenValidator = auth.NewAuthServiceTokenValidator(authConn)
+		authClient = authpb.NewAuthServiceClient(authConn)
+		citizenClient = authpb.NewCitizenServiceClient(authConn)
 	}
 
 	// Create gRPC server with interceptors
@@ -310,12 +322,29 @@ func main() {
 	}
 
 	// Start gRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	lis, err := net.Listen("tcp", grpcListenAddr(port))
 	if err != nil {
 		log.Fatal("Failed to listen", "error", err, "port", port)
 	}
 
 	log.Info("Features Service started", "port", port, "metrics_port", metricsPort)
+
+	httpHandlers := handler.HTTPServerHandlers{
+		Features: handler.NewHTTPFeaturesHandler(featureHandler, marketplaceHandler, buildingHandler, authClient),
+		Profit:   handler.NewHTTPProfitHandler(profitHandler),
+		Maps:     handler.NewHTTPMapsHandler(mapHandler),
+		Isic:     handler.NewHTTPIsicCodesHandler(isicCodeHandler),
+	}
+	httpHandlers.CitizenFeatures = handler.NewHTTPCitizenFeaturesHandler(citizenFeaturesHandler, citizenClient)
+	httpHandlers.CitizenBuildings = handler.NewHTTPCitizenBuildingsHandler(citizenBuildingsHandler, httpHandlers.CitizenFeatures)
+	authMiddleware := middleware.AuthMiddleware(authClient)
+	optionalAuthMiddleware := middleware.OptionalAuthMiddleware(authClient)
+	go func() {
+		log.Info("Features HTTP server started", "port", httpPort)
+		if err := handler.StartHTTPServer(httpHandlers, httpPort, authMiddleware, optionalAuthMiddleware); err != nil {
+			log.Fatal("Failed to serve HTTP", "error", err)
+		}
+	}()
 
 	go func() {
 		sigChan := make(chan os.Signal, 1)
@@ -340,4 +369,40 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func buildMySQLDSN() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+		getEnv("DB_USER", "metarang_user"),
+		getEnv("DB_PASSWORD", "metarang_password"),
+		getEnv("DB_HOST", "mysql"),
+		getEnv("DB_PORT", "3306"),
+		getEnv("DB_DATABASE", "metarang_db"),
+	)
+}
+
+func grpcListenAddr(port string) string {
+	if port == "" {
+		port = "50053"
+	}
+	return ":" + port
+}
+
+func parsePositiveDuration(s string) (time.Duration, bool) {
+	if s == "" {
+		return 0, false
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, false
+	}
+	return d, true
+}
+
+func parsePositiveInt(s string) (int, bool) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
 }

@@ -10,7 +10,6 @@ import (
 )
 
 // UserLogRepository handles user_logs table operations
-// Implements Laravel's UserLog model with score calculation
 type UserLogRepository struct {
 	db *sql.DB
 }
@@ -32,7 +31,6 @@ func NewUserLogRepository(db *sql.DB) *UserLogRepository {
 }
 
 // GetUserScore retrieves user's current score
-// Implements Laravel: $user->score
 func (r *UserLogRepository) GetUserScore(ctx context.Context, userID uint64) (int32, error) {
 	query := "SELECT score FROM users WHERE id = ?"
 	var score sql.NullString
@@ -54,7 +52,6 @@ func (r *UserLogRepository) GetUserScore(ctx context.Context, userID uint64) (in
 }
 
 // GetUserLog retrieves user's activity log
-// Implements Laravel: $user->log
 func (r *UserLogRepository) GetUserLog(ctx context.Context, userID uint64) (*pb.UserLog, error) {
 	query := `
 		SELECT id, user_id,
@@ -87,7 +84,6 @@ func (r *UserLogRepository) GetUserLog(ctx context.Context, userID uint64) (*pb.
 }
 
 // UpdateScore updates both user_logs.score and users.score
-// Implements Laravel: $log->update(['score' => $sum]); $user->update(['score' => $sum])
 func (r *UserLogRepository) UpdateScore(ctx context.Context, userID uint64, score int32) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -111,7 +107,6 @@ func (r *UserLogRepository) UpdateScore(ctx context.Context, userID uint64, scor
 }
 
 // UpdateTransactionsCount updates the transactions count in user log
-// Implements Laravel: $user->log->update(['transactions_count' => $trades * 2])
 func (r *UserLogRepository) UpdateTransactionsCount(ctx context.Context, userID uint64, count string) error {
 	query := "UPDATE user_logs SET transactions_count = ?, updated_at = NOW() WHERE user_id = ?"
 	_, err := r.db.ExecContext(ctx, query, count, userID)
@@ -119,7 +114,6 @@ func (r *UserLogRepository) UpdateTransactionsCount(ctx context.Context, userID 
 }
 
 // IncrementDeposit increments deposit amount
-// Implements Laravel: $user->log->increment('deposit_amount', $amount * 0.0001)
 func (r *UserLogRepository) IncrementDeposit(ctx context.Context, userID uint64, amount string) error {
 	// Parse amount and calculate increment (amount * 0.0001)
 	amountFloat, err := strconv.ParseFloat(amount, 64)
@@ -135,7 +129,6 @@ func (r *UserLogRepository) IncrementDeposit(ctx context.Context, userID uint64,
 }
 
 // UpdateFollowersCount updates followers count
-// Implements Laravel: $user->log->update(['followers_count' => $totalFollowers * 0.1])
 func (r *UserLogRepository) UpdateFollowersCount(ctx context.Context, userID uint64, totalFollowers int32) error {
 	count := float64(totalFollowers) * 0.1
 	query := "UPDATE user_logs SET followers_count = ?, updated_at = NOW() WHERE user_id = ?"
@@ -144,7 +137,6 @@ func (r *UserLogRepository) UpdateFollowersCount(ctx context.Context, userID uin
 }
 
 // UpdateActivityHours updates activity hours
-// Implements Laravel: $user->log->update(['activity_hours' => ceil($totalActiveHours / 60) * 0.1])
 func (r *UserLogRepository) UpdateActivityHours(ctx context.Context, userID uint64, totalMinutes int32) error {
 	hours := float64(totalMinutes) / 60.0
 	ceiledHours := float64(int32(hours) + 1) // ceil function
@@ -156,7 +148,6 @@ func (r *UserLogRepository) UpdateActivityHours(ctx context.Context, userID uint
 }
 
 // GetTotalFollowers counts user's followers
-// Implements Laravel: $user->followers->count()
 func (r *UserLogRepository) GetTotalFollowers(ctx context.Context, userID uint64) (int32, error) {
 	query := "SELECT COUNT(*) FROM followers WHERE followed_id = ?"
 	var count int32
@@ -165,7 +156,6 @@ func (r *UserLogRepository) GetTotalFollowers(ctx context.Context, userID uint64
 }
 
 // CalculateScore sums all score components
-// Implements Laravel: array_sum([$log->transactions_count, $log->followers_count, $log->deposit_amount, $log->activity_hours])
 func (r *UserLogRepository) CalculateScore(ctx context.Context, userID uint64) (int32, error) {
 	log, err := r.GetUserLog(ctx, userID)
 	if err != nil {

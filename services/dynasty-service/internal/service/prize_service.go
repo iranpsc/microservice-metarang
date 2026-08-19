@@ -57,7 +57,6 @@ func (s *PrizeService) GetPrize(ctx context.Context, prizeID uint64) (*models.Dy
 }
 
 // ClaimPrize redeems a received_dynasty_prize row: wallet credit (PSC rate), satisfaction,
-// user_variables multipliers, then deletes the receipt (Laravel DynastyPrizeController@store).
 func (s *PrizeService) ClaimPrize(ctx context.Context, receivedPrizeID, userID uint64) error {
 	if s.wallet == nil {
 		return fmt.Errorf("wallet client not configured")

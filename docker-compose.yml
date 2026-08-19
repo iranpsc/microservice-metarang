@@ -9,23 +9,43 @@ x-internal-auth: &internal-auth
 
 x-grpc-tls: &grpc-tls
   GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
-  GRPC_TLS_CERT_FILE: ${GRPC_TLS_CERT_FILE:-/certs/server.crt}
-  GRPC_TLS_KEY_FILE: ${GRPC_TLS_KEY_FILE:-/certs/server.key}
-  GRPC_TLS_CA_FILE: ${GRPC_TLS_CA_FILE:-/certs/ca.crt}
-  GRPC_TLS_CLIENT_CERT_FILE: ${GRPC_TLS_CLIENT_CERT_FILE:-/certs/client.crt}
-  GRPC_TLS_CLIENT_KEY_FILE: ${GRPC_TLS_CLIENT_KEY_FILE:-/certs/client.key}
+  GRPC_TLS_CERT_FILE: ${GRPC_TLS_CERT_FILE:-/certs/grpc/server.crt}
+  GRPC_TLS_KEY_FILE: ${GRPC_TLS_KEY_FILE:-/certs/grpc/server.key}
+  GRPC_TLS_CA_FILE: ${GRPC_TLS_CA_FILE:-/certs/grpc/ca.crt}
+  GRPC_TLS_CLIENT_CERT_FILE: ${GRPC_TLS_CLIENT_CERT_FILE:-/certs/grpc/client.crt}
+  GRPC_TLS_CLIENT_KEY_FILE: ${GRPC_TLS_CLIENT_KEY_FILE:-/certs/grpc/client.key}
 
-# Host certs from scripts/generate-grpc-certs.sh → container /certs
-x-grpc-certs-mount: &grpc-certs-mount ./certs/grpc:/certs:ro
+# Container path /certs/grpc (populated by grpc-certs-init into the grpc_certs volume)
+x-grpc-certs-mount: &grpc-certs-mount grpc_certs:/certs:ro
+
+x-grpc-certs-depends: &grpc-certs-depends
+  grpc-certs-init:
+    condition: service_completed_successfully
 
 services:
   # ============================================================================
   # Infrastructure Services
   # ============================================================================
+
+  # Populates the grpc_certs volume from ./certs/grpc on the host, or generates
+  # new certificates when GRPC_TLS_ENABLED=true and none are present.
+  grpc-certs-init:
+    image: docker.arvancloud.ir/alpine:3.21
+    container_name: metarang-grpc-certs-init
+    environment:
+      GRPC_TLS_ENABLED: ${GRPC_TLS_ENABLED:-false}
+    volumes:
+      - grpc_certs:/certs
+      - ${GRPC_CERTS_HOST_DIR:-./certs}:/host-certs:ro
+      - ./scripts/docker/generate-grpc-certs.sh:/generate-grpc-certs.sh:ro
+    entrypoint: ["/bin/sh", "-c", "tr -d '\\r' < /generate-grpc-certs.sh > /tmp/generate-grpc-certs.sh && exec /bin/sh /tmp/generate-grpc-certs.sh"]
+    restart: "no"
+    networks:
+      - metarang-network
   
   # MySQL Database (shared)
   mysql:
-    image: mysql:8.0.43
+    image: docker.arvancloud.ir/mysql:8.0.43
     container_name: metarang-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root_password
@@ -51,7 +71,7 @@ services:
 
   # Redis (for pub/sub and caching)
   redis:
-    image: redis:7.4-alpine
+    image: docker.arvancloud.ir/redis:7.4-alpine
     container_name: metarang-redis
     ports:
       - "6379:6379"
@@ -79,6 +99,7 @@ services:
       - ./services/auth-service/config.env
     environment:
       GRPC_PORT: 50051
+      HTTP_PORT: 8066
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -93,12 +114,11 @@ services:
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
-      notifications-service:
-        condition: service_started
       commercial-service:
         condition: service_healthy
     volumes:
@@ -107,75 +127,15 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50051"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8066/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 15s
     develop:
       watch:
         - action: rebuild
           path: ./services/auth-service
-          ignore:
-            - "**/_test.go"
-            - "**/tmp"
-            - "**/.git"
-        - action: rebuild
-          path: ./shared
-
-  # gRPC Gateway Service - REST to gRPC Translation
-  grpc-gateway:
-    build:
-      context: .
-      dockerfile: ./services/grpc-gateway/Dockerfile
-    container_name: metarang-grpc-gateway
-    # No host port mapping — API is exposed via Kong on :8000
-    env_file:
-      - ./services/grpc-gateway/config.env
-    environment:
-      HTTP_PORT: 8080
-      AUTH_SERVICE_ADDR: auth-service:50051
-      CALENDAR_SERVICE_ADDR: calendar-service:50059
-      DYNASTY_SERVICE_ADDR: dynasty-service:50055
-      FEATURES_SERVICE_ADDR: features-service:50053
-      FINANCIAL_SERVICE_ADDR: financial-service:50062
-      COMMERCIAL_SERVICE_ADDR: commercial-service:50052
-      LEVELS_SERVICE_ADDR: levels-service:50054
-      TRAINING_SERVICE_ADDR: training-service:50057
-      SUPPORT_SERVICE_ADDR: support-service:50056
-      SOCIAL_SERVICE_ADDR: social-service:50061
-      NOTIFICATION_SERVICE_ADDR: notifications-service:50058
-      STORAGE_SERVICE_ADDR: storage-service:8059
-      <<: [*sentry-environment, *internal-auth, *grpc-tls]
-    depends_on:
-      auth-service:
-        condition: service_started
-      commercial-service:
-        condition: service_started
-      financial-service:
-        condition: service_started
-      training-service:
-        condition: service_started
-      storage-service:
-        condition: service_started
-      levels-service:
-        condition: service_started
-      social-service:
-        condition: service_started
-    volumes:
-      - *grpc-certs-mount
-    networks:
-      - metarang-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    develop:
-      watch:
-        - action: rebuild
-          path: ./services/grpc-gateway
           ignore:
             - "**/_test.go"
             - "**/tmp"
@@ -189,11 +149,13 @@ services:
       context: .
       dockerfile: ./services/commercial-service/Dockerfile
     container_name: metarang-commercial-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/commercial-service/config.env
     environment:
       GRPC_PORT: 50052
+      HTTP_PORT: 8067
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -202,10 +164,11 @@ services:
       AUTH_SERVICE_ADDR: auth-service:50051
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50052"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8067/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -232,11 +195,14 @@ services:
       context: .
       dockerfile: ./services/features-service/Dockerfile
     container_name: metarang-features-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/features-service/config.env
     environment:
       GRPC_PORT: 50053
+      HTTP_PORT: 8062
+      AUTH_SERVICE_ADDR: auth-service:50051
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -245,19 +211,29 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
+      STORAGE_SERVICE_ADDR: storage-service:50060
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
       commercial-service:
         condition: service_started
+      auth-service:
+        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
       - metarang-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8062/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
     develop:
       watch:
         - action: rebuild
@@ -275,11 +251,13 @@ services:
       context: .
       dockerfile: ./services/levels-service/Dockerfile
     container_name: metarang-levels-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/levels-service/config.env
     environment:
       GRPC_PORT: 50054
+      HTTP_PORT: 8061
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -287,6 +265,7 @@ services:
       DB_PASSWORD: metarang_password
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     volumes:
@@ -294,6 +273,12 @@ services:
     networks:
       - metarang-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8061/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     develop:
       watch:
         - action: rebuild
@@ -305,17 +290,19 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Dynasty Service - Family & Dynasty Management
+  # Dynasty Service - Family & Dynasty Management (gRPC internal + HTTP for Kong /api/dynasty)
   dynasty-service:
     build:
       context: .
       dockerfile: ./services/dynasty-service/Dockerfile
     container_name: metarang-dynasty-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; Kong reaches HTTP on metarang-network
     env_file:
       - ./services/dynasty-service/config.env
     environment:
       GRPC_PORT: 50055
+      HTTP_PORT: 8068
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -325,10 +312,26 @@ services:
       NOTIFICATION_SERVICE_ADDR: notifications-service:50058
       AUTH_SERVICE_ADDR: auth-service:50051
       FEATURES_SERVICE_ADDR: features-service:50053
+      LEVELS_SERVICE_ADDR: levels-service:50054
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8068/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
+      auth-service:
+        condition: service_started
+      levels-service:
+        condition: service_started
+      notifications-service:
+        condition: service_started
+      commercial-service:
+        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
@@ -345,17 +348,20 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Calendar Service - Events Management
+  # Calendar Service - Events Management (gRPC internal + HTTP for Kong /api/calendar)
   calendar-service:
     build:
       context: .
       dockerfile: ./services/calendar-service/Dockerfile
     container_name: metarang-calendar-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/calendar-service/config.env
     environment:
       GRPC_PORT: 50059
+      HTTP_PORT: 8060
+      AUTH_SERVICE_ADDR: auth-service:50051
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -363,13 +369,22 @@ services:
       DB_PASSWORD: metarang_password
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
+      auth-service:
+        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
       - metarang-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8060/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
     develop:
       watch:
         - action: rebuild
@@ -381,28 +396,37 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Support Service - Tickets & Reports
+  # Support Service - Tickets & Reports (gRPC internal + HTTP for Kong)
   support-service:
     build:
       context: .
       dockerfile: ./services/support-service/Dockerfile
     container_name: metarang-support-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/support-service/config.env
     environment:
       GRPC_PORT: 50056
+      HTTP_PORT: 8070
+      APP_URL: http://localhost:8000
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
       DB_USER: metarang_user
       DB_PASSWORD: metarang_password
+      AUTH_SERVICE_ADDR: auth-service:50051
       NOTIFICATION_SERVICE_ADDR: notifications-service:50058
+      STORAGE_SERVICE_ADDR: storage-service:8059
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       notifications-service:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      storage-service:
         condition: service_started
     volumes:
       - *grpc-certs-mount
@@ -410,10 +434,11 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50056"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8070/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 10s
     develop:
       watch:
         - action: rebuild
@@ -425,27 +450,30 @@ services:
         - action: rebuild
           path: ./shared
 
-  # Social Service - Challenge quiz & user follow graph
+  # Social Service - Challenge quiz & user follow graph (gRPC internal + HTTP for Kong)
   social-service:
     build:
       context: .
       dockerfile: ./services/social-service/Dockerfile
     container_name: metarang-social-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/social-service/config.env
     environment:
       GRPC_PORT: 50061
+      HTTP_PORT: 8064
+      AUTH_SERVICE_ADDR: auth-service:50051
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
       DB_USER: metarang_user
       DB_PASSWORD: metarang_password
-      AUTH_SERVICE_ADDR: auth-service:50051
       COMMERCIAL_SERVICE_ADDR: commercial-service:50052
       LEVELS_SERVICE_ADDR: levels-service:50054
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       auth-service:
@@ -460,10 +488,11 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50061"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8064/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 15s
     develop:
       watch:
         - action: rebuild
@@ -481,11 +510,13 @@ services:
       context: .
       dockerfile: ./services/training-service/Dockerfile
     container_name: metarang-training-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC is internal-only; HTTP is for Kong /api/tutorials, /api/video-tutorials, /api/comments
     env_file:
       - ./services/training-service/config.env
     environment:
       GRPC_PORT: 50057
+      HTTP_PORT: 8069
+      APP_URL: ${APP_URL:-http://localhost:8000}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -494,6 +525,7 @@ services:
       AUTH_SERVICE_ADDR: auth-service:50051
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       auth-service:
@@ -504,10 +536,11 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50057"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8069/health"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 10s
     develop:
       watch:
         - action: rebuild
@@ -525,11 +558,13 @@ services:
       context: .
       dockerfile: ./services/notifications-service/Dockerfile
     container_name: metarang-notifications-service
-    # gRPC is internal-only; reachable on metarang-network, not exposed on the host
+    # gRPC/HTTP are internal-only; public API is via Kong on :8000
     env_file:
       - ./services/notifications-service/config.env
     environment:
       GRPC_PORT: 50058
+      HTTP_PORT: 8063
+      AUTH_SERVICE_ADDR: auth-service:50051
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -542,17 +577,20 @@ services:
       REDIS_DB: 0
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      auth-service:
+        condition: service_started
     volumes:
       - *grpc-certs-mount
     networks:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50058"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8063/health"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -578,6 +616,7 @@ services:
       - ./services/financial-service/config.env
     environment:
       GRPC_PORT: 50062
+      HTTP_PORT: 8065
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: metarang_db
@@ -588,6 +627,7 @@ services:
       NOTIFICATIONS_SERVICE_ADDR: notifications-service:50058
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     volumes:
@@ -596,7 +636,7 @@ services:
       - metarang-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "50062"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8065/health"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -620,7 +660,7 @@ services:
     ports:
       - "8059:8059"    # HTTP REST API port (uploads); gRPC stays internal-only
     volumes:
-      - ./services/storage-service/uploads:/app/uploads
+      - ${UPLOADS_PATH:-./services/storage-service/uploads}:/app/uploads
       - *grpc-certs-mount
     env_file:
       - ./services/storage-service/config.env
@@ -636,6 +676,7 @@ services:
       TEMP_DIR: /tmp/storage-chunks
       <<: [*sentry-environment, *internal-auth, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       mysql:
         condition: service_healthy
     networks:
@@ -673,6 +714,7 @@ services:
       AUTH_SERVICE_ADDR: auth-service:50051
       <<: [*sentry-environment, *grpc-tls]
     depends_on:
+      <<: *grpc-certs-depends
       redis:
         condition: service_healthy
       auth-service:
@@ -718,7 +760,7 @@ services:
 
   # Swagger UI - OpenAPI documentation browser
   swagger-ui:
-    image: swaggerapi/swagger-ui:v5.18.2
+    image: docker.arvancloud.ir/swaggerapi/swagger-ui:v5.18.2
     container_name: metarang-swagger-ui
     environment:
       APP_URL: ${APP_URL:-http://localhost:8000}
@@ -738,9 +780,9 @@ services:
       retries: 3
       start_period: 10s
 
-  # Kong API Gateway - HTTP to gRPC Translation
+  # Kong API Gateway
   kong:
-    image: kong:3.9.3
+    image: docker.arvancloud.ir/kong:3.9.3
     container_name: metarang-kong
     environment:
       KONG_DATABASE: "off"
@@ -758,22 +800,20 @@ services:
       - ./kong/kong.yml:/kong/kong.yml:ro
       - ./shared/proto:/kong/protos:ro
     depends_on:
-      grpc-gateway:
-        condition: service_healthy
       auth-service:
         condition: service_started
       commercial-service:
         condition: service_started
       features-service:
-        condition: service_started
+        condition: service_healthy
       levels-service:
-        condition: service_started
+        condition: service_healthy
       dynasty-service:
         condition: service_started
       calendar-service:
         condition: service_started
       support-service:
-        condition: service_started
+        condition: service_healthy
       training-service:
         condition: service_started
       notifications-service:
@@ -799,7 +839,7 @@ services:
 
   # Prometheus - Metrics Collection
   prometheus:
-    image: prom/prometheus:v2.53.5
+    image: docker.arvancloud.ir/prom/prometheus:v2.53.5
     container_name: metarang-prometheus
     ports:
       - "9090:9090"
@@ -824,7 +864,7 @@ services:
 
   # Grafana - Visualization & Dashboards
   grafana:
-    image: grafana/grafana:11.6.16
+    image: docker.arvancloud.ir/grafana/grafana:11.6.16
     container_name: metarang-grafana
     ports:
       - "3001:3001"
@@ -853,7 +893,7 @@ services:
 
   # Node Exporter - Host-level infrastructure metrics (CPU, Memory, Disk, Network)
   node-exporter:
-    image: prom/node-exporter:v1.11.1
+    image: docker.arvancloud.ir/prom/node-exporter:v1.11.1
     container_name: metarang-node-exporter
     command:
       - '--path.procfs=/host/proc'
@@ -883,6 +923,8 @@ services:
 
 volumes:
   mysql_data:
+    driver: local
+  grpc_certs:
     driver: local
   prometheus_data:
     driver: local

@@ -25,7 +25,7 @@ COPY ./services/calendar-service/go.mod ./services/calendar-service/go.sum* /wor
 COPY ./services/calendar-service/ /workspace/metarang/calendar-service/
 
 WORKDIR /workspace
-RUN echo 'go 1.25.12' > go.work && \
+RUN echo 'go 1.25.13' > go.work && \
     printf '\nuse (\n\t./metarang/calendar-service\n\t./metarang/shared\n)\n' >> go.work
 
 WORKDIR /workspace/metarang/calendar-service
@@ -37,7 +37,7 @@ RUN go build -trimpath -ldflags="-s -w" -o /app/calendar-service ./cmd/server
 
 FROM docker.arvancloud.ir/alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata netcat-openbsd && \
+RUN apk add --no-cache ca-certificates tzdata wget && \
     addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
 
@@ -47,9 +47,9 @@ COPY --from=builder --chown=appuser:appuser /app/calendar-service .
 
 USER appuser
 
-EXPOSE 50058
+EXPOSE 50059 8060
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD nc -z localhost 50058 || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8060/health || exit 1
 
 ENTRYPOINT ["/app/calendar-service"]

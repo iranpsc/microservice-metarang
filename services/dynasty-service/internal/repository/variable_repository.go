@@ -6,7 +6,6 @@ import (
 	"fmt"
 )
 
-// VariableRepository reads global exchange/asset rates from the `variables` table (Laravel Variable model).
 type VariableRepository struct {
 	db *sql.DB
 }
@@ -16,7 +15,6 @@ func NewVariableRepository(db *sql.DB) *VariableRepository {
 }
 
 // GetPriceByAsset returns the price column for an asset slug (e.g. "psc").
-// Laravel: Variable::getRate('psc') uses variables.price where asset = 'psc'.
 func (r *VariableRepository) GetPriceByAsset(ctx context.Context, asset string) (float64, error) {
 	const q = `SELECT price FROM variables WHERE asset = ? LIMIT 1`
 	var price int64

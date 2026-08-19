@@ -58,7 +58,7 @@ func NewWalletConnectionService(
 	appName, appURL string,
 ) WalletConnectionService {
 	if strings.TrimSpace(appName) == "" {
-		appName = "Laravel"
+		appName = "Metarang"
 	}
 	return &walletConnectionService{
 		userRepo:            userRepo,

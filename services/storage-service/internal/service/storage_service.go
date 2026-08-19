@@ -99,7 +99,6 @@ func localUploadPathCandidates(uploadBaseDir, filePath string) []string {
 		out = append(out, p)
 	}
 	add(filepath.Join(uploadBaseDir, filePath))
-	// Laravel chunk uploads use storage/app/upload/...; microservice uses uploads/...
 	if strings.HasPrefix(filePath, "upload/") && !strings.HasPrefix(filePath, "uploads/") {
 		add(filepath.Join(uploadBaseDir, "uploads", strings.TrimPrefix(filePath, "upload/")))
 	}

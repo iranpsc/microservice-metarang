@@ -58,6 +58,13 @@ func UnaryServerInterceptor(validator TokenValidator) grpc.UnaryServerIntercepto
 			return handler(ctx, req)
 		}
 
+		// Trusted inter-service callers may use the shared service token instead of a user bearer.
+		// When a bearer is also present (e.g. gateway), attach user context for ownership checks.
+		if HasValidServiceToken(ctx) {
+			ctx = contextWithOptionalAuth(ctx, validator)
+			return handler(ctx, req)
+		}
+
 		// Extract token from metadata
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
@@ -120,6 +127,17 @@ func StreamServerInterceptor(validator TokenValidator) grpc.StreamServerIntercep
 			return handler(srv, wrappedStream)
 		}
 
+		// Trusted inter-service callers may use the shared service token instead of a user bearer.
+		// When a bearer is also present (e.g. gateway), attach user context for ownership checks.
+		if HasValidServiceToken(ctx) {
+			ctx = contextWithOptionalAuth(ctx, validator)
+			wrappedStream := &wrappedServerStream{
+				ServerStream: stream,
+				ctx:          ctx,
+			}
+			return handler(srv, wrappedStream)
+		}
+
 		// Extract token from metadata
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
@@ -165,7 +183,6 @@ func extractToken(authHeader string) string {
 }
 
 // shouldUseOptionalAuth checks if authentication is optional for a method.
-// Matches Laravel routes that work without auth but enrich the response when a bearer token is present.
 func shouldUseOptionalAuth(fullMethod string) bool {
 	optionalMethods := []string{
 		"/features.FeatureService/ListFeatures",
@@ -174,6 +191,10 @@ func shouldUseOptionalAuth(fullMethod string) bool {
 		"/features.MapsService/GetMap",
 		"/features.MapsService/GetMapBorder",
 		"/financial.StoreService/GetStorePackages",
+		// Auth: public profile enrichment + GetUser (handler enforces self-or-service)
+		"/auth.UserService/GetUser",
+		"/auth.UserService/GetUserProfile",
+		"/auth.KYCService/GetKYC",
 	}
 
 	for _, method := range optionalMethods {
@@ -222,6 +243,21 @@ func shouldSkipAuth(fullMethod string) bool {
 		"/auth.AuthService/Redirect",
 		"/auth.AuthService/Callback",
 		"/auth.AuthService/ValidateToken", // Other services call this to validate tokens
+		// Auth service public directory / citizen / search
+		"/auth.UserService/ListUsers",
+		"/auth.UserService/GetUserLevels",
+		"/auth.UserService/GetUserWallet",
+		"/auth.UserService/GetUserLevel",
+		"/auth.UserService/GetUserFeaturesCount",
+		"/auth.CitizenService/GetCitizenProfile",
+		"/auth.CitizenService/GetCitizenReferrals",
+		"/auth.CitizenService/GetCitizenReferralChart",
+		"/auth.CitizenService/GetCitizenUserInfo",
+		"/auth.CitizenService/GetCitizenLevel",
+		"/auth.SearchService/SearchUsers",
+		"/auth.SearchService/SearchFeatures",
+		"/auth.SearchService/SearchIsicCodes",
+		"/auth.ProfilePhotoService/GetProfilePhoto",
 		// Commercial service public endpoints
 		"/commercial.WalletService/GetWallet", // Public endpoint - anyone can view any user's wallet
 		"/commercial.WalletHistoryService/GetWalletHistorySummary",

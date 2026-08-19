@@ -64,17 +64,17 @@ func (h *CitizenFeaturesHandler) GetCitizenFeatureChart(
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
 	}
 
-	chart, err := h.service.GetChart(ctx, req.UserId, req.Period, req.AllowedKarbaris, h.now())
+	result, err := h.service.GetChart(ctx, req.UserId, req.Period, req.AllowedKarbaris, h.now())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get feature chart: %v", err)
 	}
 
 	return &pb.GetCitizenFeatureChartResponse{
 		Data: &pb.CitizenFeatureChartData{
-			Labels: chart.Labels,
-			Bought: chart.Bought,
-			Sold:   chart.Sold,
+			Bought: toProtoCitizenChartPoints(result.Bought),
+			Sold:   toProtoCitizenChartPoints(result.Sold),
 		},
+		Period: result.Period,
 	}, nil
 }
 

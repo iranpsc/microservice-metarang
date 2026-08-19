@@ -54,6 +54,7 @@ type QuestionResource struct {
 	Title        string
 	Image        string
 	Prize        int32
+	PrizeType    string
 	Participants uint64
 	Views        uint64
 	CreatorCode  string
@@ -71,15 +72,16 @@ type AnswerResource struct {
 
 // Advertisement represents a challenge advertisement.
 type Advertisement struct {
-	Code            string
-	Title           string
-	Description     string
-	InvestmentValue string
-	EndsAt          string
-	VideoURL        string
-	ImageURL        string
-	URL             string
-	InvestmentAsset string
+	Code             string
+	Title            string
+	Description      string
+	InvestmentValue  string
+	EndsAt           string
+	VideoURL         string
+	ImageURL         string
+	URL              string
+	InvestmentAsset  string
+	PrizePerQuestion int32
 }
 
 // TimingsData represents challenge timing configuration and statistics
@@ -90,4 +92,5 @@ type TimingsData struct {
 	Participants            int32
 	CorrectAnswers          int32
 	WrongAnswers            int32
+	Views                   int32
 }

@@ -35,14 +35,18 @@ func NewRedisBroadcaster(redisAddr, redisPassword, channel string) (*RedisBroadc
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
+	return NewRedisBroadcasterFromClient(rdb, channel), nil
+}
+
+// NewRedisBroadcasterFromClient wraps an existing Redis client without Ping.
+func NewRedisBroadcasterFromClient(rdb *redis.Client, channel string) *RedisBroadcaster {
 	return &RedisBroadcaster{
 		redisClient: rdb,
 		channel:     channel,
-	}, nil
+	}
 }
 
 // BroadcastFeatureStatusChanged broadcasts a feature status change event
-// Matches Laravel's FeatureStatusChanged event structure
 func (b *RedisBroadcaster) BroadcastFeatureStatusChanged(ctx context.Context, featureID uint64, rgb string) error {
 	payload := map[string]interface{}{
 		"id":  featureID,

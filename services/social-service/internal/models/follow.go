@@ -23,8 +23,7 @@ type FollowResource struct {
 	Can          FollowPermissions
 }
 
-// FollowPermissions mirrors Laravel FollowResource "can" — actions the
-// authenticated (viewer) user may take on the listed user.
+// FollowPermissions describes actions the authenticated (viewer) user may take on the listed user.
 type FollowPermissions struct {
 	Follow         bool
 	Unfollow       bool

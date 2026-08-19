@@ -23,7 +23,7 @@ This project adheres to a Code of Conduct. By participating, you are expected to
 
 ## Key Principles
 
-- **100% API Compatibility**: All services MUST maintain 100% API compatibility with the original Laravel monolith – JSON fields, status codes, validation formats, Jalali dates, and URL structures.
+- **100% API Compatibility**: All services MUST maintain 100% API compatibility with the existing platform API – JSON fields, status codes, validation formats, Jalali dates, and URL structures.
 - **Security First**: Never hardcode secrets. Use `config.env` files only.
 - **Test Coverage**: Every change must be covered by unit, integration, and golden tests.
 - **Layered Architecture**: Strictly follow `handler → service → repository` pattern.
@@ -38,7 +38,6 @@ This project adheres to a Code of Conduct. By participating, you are expected to
 | Go | 1.21+ | `go version` |
 | Protocol Buffers | latest | `protoc --version` |
 | Docker & Docker Compose | latest | `docker --version` |
-| Node.js | 18+ | `node --version` |
 | Make | latest | `make --version` |
 
 ### Setup Development Environment
@@ -91,7 +90,6 @@ metarang-microservices/
 │   ├── calendar-service/
 │   ├── storage-service/
 │   ├── financial-service/
-│   ├── grpc-gateway/
 │   └── websocket-gateway/
 ├── shared/
 │   ├── proto/                    # .proto definitions
@@ -131,13 +129,12 @@ commercial-service	50052	-
 features-service	50053	-
 levels-service	50054	-
 dynasty-service	50055	-
-support-service	50056	-
+support-service	50056	8070
 training-service	50057	-
 notifications-service	50058	-
-calendar-service	50059	-
+calendar-service	50059	8060
 storage-service	50060	8059
 financial-service	50062	-
-grpc-gateway	-	8080
 websocket-gateway	-	3002
 Kong Gateway	-	8000
 

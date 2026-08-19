@@ -23,7 +23,6 @@ func NewActivityHandler(service *service.ActivityService) *ActivityHandler {
 }
 
 // LogActivity records user activity (login, logout, etc.)
-// Implements logic from Laravel's UserObserver
 func (h *ActivityHandler) LogActivity(ctx context.Context, req *pb.LogActivityRequest) (*pb.LogActivityResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
@@ -61,7 +60,6 @@ func (h *ActivityHandler) GetUserActivities(ctx context.Context, req *pb.GetUser
 }
 
 // UpdateActivityScore recalculates and updates user score
-// Implements Laravel's UserObserver@calculateScore
 func (h *ActivityHandler) UpdateActivityScore(ctx context.Context, req *pb.UpdateActivityScoreRequest) (*pb.UpdateActivityScoreResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
@@ -81,7 +79,6 @@ func (h *ActivityHandler) UpdateActivityScore(ctx context.Context, req *pb.Updat
 }
 
 // RecordTrade records a trade transaction for score calculation
-// Implements Laravel's UserObserver@traded
 func (h *ActivityHandler) RecordTrade(ctx context.Context, req *pb.RecordTradeRequest) (*pb.RecordTradeResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
@@ -98,7 +95,6 @@ func (h *ActivityHandler) RecordTrade(ctx context.Context, req *pb.RecordTradeRe
 }
 
 // RecordDeposit records a deposit for score calculation
-// Implements Laravel's UserObserver@deposit
 func (h *ActivityHandler) RecordDeposit(ctx context.Context, req *pb.RecordDepositRequest) (*pb.RecordDepositResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
@@ -115,7 +111,6 @@ func (h *ActivityHandler) RecordDeposit(ctx context.Context, req *pb.RecordDepos
 }
 
 // RecordFollower records a new follower for score calculation
-// Implements Laravel's UserObserver@followed
 func (h *ActivityHandler) RecordFollower(ctx context.Context, req *pb.RecordFollowerRequest) (*pb.RecordFollowerResponse, error) {
 	if req.UserId == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")

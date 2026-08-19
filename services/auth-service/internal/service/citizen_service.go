@@ -18,6 +18,7 @@ const (
 type CitizenService interface {
 	GetCitizenProfile(ctx context.Context, code string) (*models.CitizenProfile, error)
 	GetCitizenUserInfo(ctx context.Context, code string) (*models.CitizenUserInfo, error)
+	GetCitizenLevel(ctx context.Context, code string) (*models.CitizenLevel, error)
 	GetCitizenReferrals(ctx context.Context, code string, search string, page int32) ([]*models.CitizenReferral, *models.PaginationMeta, error)
 	GetCitizenReferralChart(ctx context.Context, code string, rangeType string) (*models.ReferralChartData, error)
 	ScorePercentageToNextLevel(ctx context.Context, userID uint64, score int32) float64
@@ -56,6 +57,36 @@ func (s *citizenService) GetCitizenUserInfo(ctx context.Context, code string) (*
 		return nil, fmt.Errorf("failed to get citizen user info: %w", err)
 	}
 	return info, nil
+}
+
+// GetCitizenLevel looks up a user by code and fetches their current level from levels-service.
+func (s *citizenService) GetCitizenLevel(ctx context.Context, code string) (*models.CitizenLevel, error) {
+	user, err := s.userRepo.FindByCode(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, nil
+	}
+
+	if s.helperSvc == nil {
+		return &models.CitizenLevel{}, nil
+	}
+
+	level, err := s.helperSvc.GetUserLevel(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user level: %w", err)
+	}
+	if level == nil {
+		return &models.CitizenLevel{}, nil
+	}
+
+	return &models.CitizenLevel{
+		ID:    level.ID,
+		Name:  level.Title,
+		Slug:  level.Slug,
+		Score: level.Score,
+	}, nil
 }
 
 // GetCitizenProfile retrieves a citizen's public profile (privacy applied in handler).
@@ -154,7 +185,6 @@ func (s *citizenService) GetCitizenReferralChart(ctx context.Context, code strin
 	return chartData, nil
 }
 
-// ScorePercentageToNextLevel returns Laravel getScorePercentageToNextLevel for a citizen.
 func (s *citizenService) ScorePercentageToNextLevel(ctx context.Context, userID uint64, score int32) float64 {
 	if s.helperSvc == nil {
 		return 0
@@ -166,7 +196,6 @@ func (s *citizenService) ScorePercentageToNextLevel(ctx context.Context, userID 
 	return pct
 }
 
-// AbsoluteURL prepends APP_URL to a relative path (Laravel url() helper).
 func (s *citizenService) AbsoluteURL(path string) string {
 	if path == "" {
 		return ""
@@ -181,12 +210,10 @@ func (s *citizenService) AbsoluteURL(path string) string {
 	return s.appURL + "/" + path
 }
 
-// PassionIconURL returns the Laravel favorites icon URL for an enabled passion.
 func (s *citizenService) PassionIconURL(passion string) string {
 	return s.AbsoluteURL("uploads/favorites/" + passion + ".png")
 }
 
-// NationalityFlagURL returns the Laravel nationality flag URL.
 func (s *citizenService) NationalityFlagURL() string {
 	return s.AbsoluteURL("uploads/flags/iran.svg")
 }
@@ -201,7 +228,6 @@ func (s *citizenService) CitizenAvatar() string {
 	return citizenAvatarURL
 }
 
-// checkPrivacy mirrors Laravel PersonalInfo::checkFilter — default hidden.
 func (s *citizenService) checkPrivacy(privacy map[string]bool, field string) bool {
 	if privacy == nil {
 		return false
@@ -209,7 +235,6 @@ func (s *citizenService) checkPrivacy(privacy map[string]bool, field string) boo
 	return privacy[field]
 }
 
-// FormatRegisteredAt formats email_verified_at as Jalali Y/m/d (Laravel PersonalInfo).
 func FormatRegisteredAt(t time.Time) string {
 	if t.IsZero() {
 		return ""

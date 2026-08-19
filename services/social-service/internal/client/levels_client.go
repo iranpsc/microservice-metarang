@@ -14,7 +14,6 @@ import (
 // LevelsClient wraps gRPC clients for Levels Service
 type LevelsClient interface {
 	// RecordFollower asks levels-service to update the user's followers_count
-	// log and recalculate their score (Laravel UserObserver::followed).
 	RecordFollower(ctx context.Context, userID uint64) error
 	Close() error
 }
@@ -35,6 +34,13 @@ func NewLevelsClient(address string) (LevelsClient, error) {
 		activityClient: pb.NewActivityServiceClient(conn),
 		conn:           conn,
 	}, nil
+}
+
+// NewLevelsClientFromGRPC builds a LevelsClient from an existing gRPC stub (used in tests).
+func NewLevelsClientFromGRPC(activityClient pb.ActivityServiceClient) LevelsClient {
+	return &levelsClient{
+		activityClient: activityClient,
+	}
 }
 
 // Close closes the gRPC connection

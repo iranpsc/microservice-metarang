@@ -15,8 +15,8 @@ func returnValidationError(fields map[string]string) error {
 	return status.Errorf(codes.InvalidArgument, "%s", encodedError)
 }
 
-// validateRequired validates that a field is not empty/zero
-func validateRequired(fieldName string, value interface{}, locale string) map[string]string {
+// ValidateRequired validates that a field is not empty/zero.
+func ValidateRequired(fieldName string, value interface{}, locale string) map[string]string {
 	validationErrors := make(map[string]string)
 	t := helpers.GetLocaleTranslations(locale)
 

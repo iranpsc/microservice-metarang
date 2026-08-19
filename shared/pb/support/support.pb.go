@@ -316,7 +316,7 @@ type GetTicketsRequest struct {
 	UserId        uint64                    `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Pagination    *common.PaginationRequest `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	StatusFilter  int32                     `protobuf:"varint,3,opt,name=status_filter,json=statusFilter,proto3" json:"status_filter,omitempty"` // optional, 0=all
-	Received      bool                      `protobuf:"varint,4,opt,name=received,proto3" json:"received,omitempty"`                             // true = tickets where user is receiver (Laravel ?recieved=true)
+	Received      bool                      `protobuf:"varint,4,opt,name=received,proto3" json:"received,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -719,7 +719,7 @@ func (x *TicketResponseItem) GetCreatedAt() string {
 type CreateReportRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	UserId         uint64                 `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	ReportableType string                 `protobuf:"bytes,2,opt,name=reportable_type,json=reportableType,proto3" json:"reportable_type,omitempty"` // maps to Laravel subject when using gateway
+	ReportableType string                 `protobuf:"bytes,2,opt,name=reportable_type,json=reportableType,proto3" json:"reportable_type,omitempty"`
 	ReportableId   uint64                 `protobuf:"varint,3,opt,name=reportable_id,json=reportableId,proto3" json:"reportable_id,omitempty"`
 	Reason         string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
 	Description    string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
@@ -863,7 +863,7 @@ func (x *GetReportsRequest) GetPagination() *common.PaginationRequest {
 type GetReportRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReportId      uint64                 `protobuf:"varint,1,opt,name=report_id,json=reportId,proto3" json:"report_id,omitempty"`
-	UserId        uint64                 `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // for ownership check (Laravel parity)
+	UserId        uint64                 `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1196,7 +1196,7 @@ func (x *GetUserEventsRequest) GetPagination() *common.PaginationRequest {
 type GetUserEventRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EventId       uint64                 `protobuf:"varint,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	UserId        uint64                 `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // scope to owner (Laravel parity)
+	UserId        uint64                 `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1431,8 +1431,8 @@ type UserEventResponse struct {
 	CreatedAt     string                 `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Jalali formatted
 	Ip            string                 `protobuf:"bytes,7,opt,name=ip,proto3" json:"ip,omitempty"`
 	Device        string                 `protobuf:"bytes,8,opt,name=device,proto3" json:"device,omitempty"`
-	StatusOk      bool                   `protobuf:"varint,9,opt,name=status_ok,json=statusOk,proto3" json:"status_ok,omitempty"` // Laravel UserEventResource maps to موفق / ناموفق
-	Report        *UserEventReportDetail `protobuf:"bytes,10,opt,name=report,proto3" json:"report,omitempty"`                     // set on GetUserEvent (show)
+	StatusOk      bool                   `protobuf:"varint,9,opt,name=status_ok,json=statusOk,proto3" json:"status_ok,omitempty"`
+	Report        *UserEventReportDetail `protobuf:"bytes,10,opt,name=report,proto3" json:"report,omitempty"` // set on GetUserEvent (show)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1735,7 +1735,7 @@ func (x *UserEventReportResponse) GetCreatedAt() string {
 
 type SendEventReportResponseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	EventId       uint64                 `protobuf:"varint,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"` // user_events.id (Laravel route /report/response/{userEvent})
+	EventId       uint64                 `protobuf:"varint,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
 	ResponderId   uint64                 `protobuf:"varint,2,opt,name=responder_id,json=responderId,proto3" json:"responder_id,omitempty"`
 	Response      string                 `protobuf:"bytes,3,opt,name=response,proto3" json:"response,omitempty"`
 	ResponderName string                 `protobuf:"bytes,4,opt,name=responder_name,json=responderName,proto3" json:"responder_name,omitempty"`
@@ -1935,7 +1935,7 @@ type CreateNoteRequest struct {
 	UserId        uint64                 `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
 	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	Attachments   []string               `protobuf:"bytes,4,rep,name=attachments,proto3" json:"attachments,omitempty"` // URLs (Laravel notes.attachments JSON)
+	Attachments   []string               `protobuf:"bytes,4,rep,name=attachments,proto3" json:"attachments,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

@@ -36,4 +36,18 @@ func TestGetLocaleFromContext(t *testing.T) {
 			t.Fatalf("got %q", got)
 		}
 	})
+	t.Run("empty metadata values default to en", func(t *testing.T) {
+		md := metadata.MD{}
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		if got := handler.GetLocaleFromContext(ctx); got != "en" {
+			t.Fatalf("got %q", got)
+		}
+	})
+	t.Run("Accept-Language header key", func(t *testing.T) {
+		md := metadata.Pairs("Accept-Language", "fa")
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		if got := handler.GetLocaleFromContext(ctx); got != "fa" {
+			t.Fatalf("got %q", got)
+		}
+	})
 }

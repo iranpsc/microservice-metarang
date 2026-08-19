@@ -22,9 +22,9 @@ type mockFeaturePort struct {
 	updateFeature   func(ctx context.Context, featureID uint64, properties *pb.FeatureProperties) (*pb.Feature, error)
 	addImages       func(ctx context.Context, featureID uint64, imageURLs []string) (*pb.Feature, error)
 	getMyFeatures   func(ctx context.Context, userID uint64) ([]*pb.Feature, error)
-	listMyFeatures  func(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error)
+	listMyFeatures  func(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error)
 	getMyFeature    func(ctx context.Context, userID, featureID uint64) (*pb.Feature, error)
-	addMyImages     func(ctx context.Context, userID, featureID uint64, imageURLs []string) (*pb.Feature, error)
+	addMyImages     func(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error)
 	removeMyImage   func(ctx context.Context, userID, featureID, imageID uint64) error
 	updateMyFeature func(ctx context.Context, userID, featureID uint64, minimumPricePercentage int32) error
 }
@@ -64,9 +64,9 @@ func (m *mockFeaturePort) GetMyFeatures(ctx context.Context, userID uint64) ([]*
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockFeaturePort) ListMyFeatures(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error) {
+func (m *mockFeaturePort) ListMyFeatures(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error) {
 	if m.listMyFeatures != nil {
-		return m.listMyFeatures(ctx, userID, page)
+		return m.listMyFeatures(ctx, userID, page, search, filter)
 	}
 	return nil, errors.New("not implemented")
 }
@@ -78,9 +78,9 @@ func (m *mockFeaturePort) GetMyFeature(ctx context.Context, userID, featureID ui
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockFeaturePort) AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageURLs []string) (*pb.Feature, error) {
+func (m *mockFeaturePort) AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error) {
 	if m.addMyImages != nil {
-		return m.addMyImages(ctx, userID, featureID, imageURLs)
+		return m.addMyImages(ctx, userID, featureID, imageData, filenames, contentTypes)
 	}
 	return nil, errors.New("not implemented")
 }

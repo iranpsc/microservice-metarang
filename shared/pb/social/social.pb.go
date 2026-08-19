@@ -610,6 +610,7 @@ type TimingsData struct {
 	Participants            int32                  `protobuf:"varint,4,opt,name=participants,proto3" json:"participants,omitempty"`
 	CorrectAnswers          int32                  `protobuf:"varint,5,opt,name=correct_answers,json=correctAnswers,proto3" json:"correct_answers,omitempty"`
 	WrongAnswers            int32                  `protobuf:"varint,6,opt,name=wrong_answers,json=wrongAnswers,proto3" json:"wrong_answers,omitempty"`
+	Views                   int32                  `protobuf:"varint,7,opt,name=views,proto3" json:"views,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -682,6 +683,13 @@ func (x *TimingsData) GetCorrectAnswers() int32 {
 func (x *TimingsData) GetWrongAnswers() int32 {
 	if x != nil {
 		return x.WrongAnswers
+	}
+	return 0
+}
+
+func (x *TimingsData) GetViews() int32 {
+	if x != nil {
+		return x.Views
 	}
 	return 0
 }
@@ -884,6 +892,7 @@ type QuestionResource struct {
 	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
 	Image         string                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`
 	Prize         int32                  `protobuf:"varint,4,opt,name=prize,proto3" json:"prize,omitempty"`
+	PrizeType     string                 `protobuf:"bytes,9,opt,name=prize_type,json=prizeType,proto3" json:"prize_type,omitempty"`
 	Participants  int32                  `protobuf:"varint,5,opt,name=participants,proto3" json:"participants,omitempty"`
 	Views         int32                  `protobuf:"varint,6,opt,name=views,proto3" json:"views,omitempty"`
 	CreatorCode   string                 `protobuf:"bytes,7,opt,name=creator_code,json=creatorCode,proto3" json:"creator_code,omitempty"`
@@ -948,6 +957,13 @@ func (x *QuestionResource) GetPrize() int32 {
 		return x.Prize
 	}
 	return 0
+}
+
+func (x *QuestionResource) GetPrizeType() string {
+	if x != nil {
+		return x.PrizeType
+	}
+	return ""
 }
 
 func (x *QuestionResource) GetParticipants() int32 {
@@ -1091,18 +1107,19 @@ func (*GetAdvertisementRequest) Descriptor() ([]byte, []int) {
 }
 
 type AdvertisementResource struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Code            string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
-	Title           string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Description     string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	InvestmentValue string                 `protobuf:"bytes,4,opt,name=investment_value,json=investmentValue,proto3" json:"investment_value,omitempty"`
-	EndsAt          string                 `protobuf:"bytes,5,opt,name=ends_at,json=endsAt,proto3" json:"ends_at,omitempty"`
-	VideoUrl        string                 `protobuf:"bytes,6,opt,name=video_url,json=videoUrl,proto3" json:"video_url,omitempty"`
-	ImageUrl        string                 `protobuf:"bytes,7,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
-	Url             string                 `protobuf:"bytes,8,opt,name=url,proto3" json:"url,omitempty"`
-	InvestmentAsset string                 `protobuf:"bytes,9,opt,name=investment_asset,json=investmentAsset,proto3" json:"investment_asset,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Code             string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	Title            string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Description      string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	InvestmentValue  string                 `protobuf:"bytes,4,opt,name=investment_value,json=investmentValue,proto3" json:"investment_value,omitempty"`
+	EndsAt           string                 `protobuf:"bytes,5,opt,name=ends_at,json=endsAt,proto3" json:"ends_at,omitempty"`
+	VideoUrl         string                 `protobuf:"bytes,6,opt,name=video_url,json=videoUrl,proto3" json:"video_url,omitempty"`
+	ImageUrl         string                 `protobuf:"bytes,7,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
+	Url              string                 `protobuf:"bytes,8,opt,name=url,proto3" json:"url,omitempty"`
+	InvestmentAsset  string                 `protobuf:"bytes,9,opt,name=investment_asset,json=investmentAsset,proto3" json:"investment_asset,omitempty"`
+	PrizePerQuestion int32                  `protobuf:"varint,10,opt,name=prize_per_question,json=prizePerQuestion,proto3" json:"prize_per_question,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AdvertisementResource) Reset() {
@@ -1198,6 +1215,13 @@ func (x *AdvertisementResource) GetInvestmentAsset() string {
 	return ""
 }
 
+func (x *AdvertisementResource) GetPrizePerQuestion() int32 {
+	if x != nil {
+		return x.PrizePerQuestion
+	}
+	return 0
+}
+
 type GetAdvertisementResponse struct {
 	state          protoimpl.MessageState   `protogen:"open.v1"`
 	Advertisements []*AdvertisementResource `protobuf:"bytes,1,rep,name=advertisements,proto3" json:"advertisements,omitempty"`
@@ -1280,14 +1304,15 @@ const file_social_proto_rawDesc = "" +
 	"\x11GetTimingsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\"=\n" +
 	"\x12GetTimingsResponse\x12'\n" +
-	"\x04data\x18\x01 \x01(\v2\x13.social.TimingsDataR\x04data\"\xa3\x02\n" +
+	"\x04data\x18\x01 \x01(\v2\x13.social.TimingsDataR\x04data\"\xb9\x02\n" +
 	"\vTimingsData\x12.\n" +
 	"\x13display_ad_interval\x18\x01 \x01(\x05R\x11displayAdInterval\x12:\n" +
 	"\x19display_question_interval\x18\x02 \x01(\x05R\x17displayQuestionInterval\x126\n" +
 	"\x17display_answer_interval\x18\x03 \x01(\x05R\x15displayAnswerInterval\x12\"\n" +
 	"\fparticipants\x18\x04 \x01(\x05R\fparticipants\x12'\n" +
 	"\x0fcorrect_answers\x18\x05 \x01(\x05R\x0ecorrectAnswers\x12#\n" +
-	"\rwrong_answers\x18\x06 \x01(\x05R\fwrongAnswers\"-\n" +
+	"\rwrong_answers\x18\x06 \x01(\x05R\fwrongAnswers\x12\x14\n" +
+	"\x05views\x18\a \x01(\x05R\x05views\"-\n" +
 	"\x12GetQuestionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x04R\x06userId\"C\n" +
 	"\x13GetQuestionResponse\x12,\n" +
@@ -1298,12 +1323,14 @@ const file_social_proto_rawDesc = "" +
 	"questionId\x12\x1b\n" +
 	"\tanswer_id\x18\x03 \x01(\x04R\banswerId\"D\n" +
 	"\x14SubmitAnswerResponse\x12,\n" +
-	"\x04data\x18\x01 \x01(\v2\x18.social.QuestionResourceR\x04data\"\xf3\x01\n" +
+	"\x04data\x18\x01 \x01(\v2\x18.social.QuestionResourceR\x04data\"\x92\x02\n" +
 	"\x10QuestionResource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x14\n" +
 	"\x05image\x18\x03 \x01(\tR\x05image\x12\x14\n" +
-	"\x05prize\x18\x04 \x01(\x05R\x05prize\x12\"\n" +
+	"\x05prize\x18\x04 \x01(\x05R\x05prize\x12\x1d\n" +
+	"\n" +
+	"prize_type\x18\t \x01(\tR\tprizeType\x12\"\n" +
 	"\fparticipants\x18\x05 \x01(\x05R\fparticipants\x12\x14\n" +
 	"\x05views\x18\x06 \x01(\x05R\x05views\x12!\n" +
 	"\fcreator_code\x18\a \x01(\tR\vcreatorCode\x120\n" +
@@ -1315,7 +1342,7 @@ const file_social_proto_rawDesc = "" +
 	"\n" +
 	"is_correct\x18\x04 \x01(\bR\tisCorrect\x12'\n" +
 	"\x0fvote_percentage\x18\x05 \x01(\x05R\x0evotePercentage\"\x19\n" +
-	"\x17GetAdvertisementRequest\"\x9e\x02\n" +
+	"\x17GetAdvertisementRequest\"\xcc\x02\n" +
 	"\x15AdvertisementResource\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -1325,7 +1352,9 @@ const file_social_proto_rawDesc = "" +
 	"\tvideo_url\x18\x06 \x01(\tR\bvideoUrl\x12\x1b\n" +
 	"\timage_url\x18\a \x01(\tR\bimageUrl\x12\x10\n" +
 	"\x03url\x18\b \x01(\tR\x03url\x12)\n" +
-	"\x10investment_asset\x18\t \x01(\tR\x0finvestmentAsset\"a\n" +
+	"\x10investment_asset\x18\t \x01(\tR\x0finvestmentAsset\x12,\n" +
+	"\x12prize_per_question\x18\n" +
+	" \x01(\x05R\x10prizePerQuestion\"a\n" +
 	"\x18GetAdvertisementResponse\x12E\n" +
 	"\x0eadvertisements\x18\x01 \x03(\v2\x1d.social.AdvertisementResourceR\x0eadvertisements2\xd4\x02\n" +
 	"\rFollowService\x12I\n" +

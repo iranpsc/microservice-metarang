@@ -153,7 +153,6 @@ func (s *searchService) SearchFeatures(ctx context.Context, searchTerm string) (
 }
 
 // MapKarbariToTitle maps karbari code to Persian title
-// This implements Laravel's getApplicationTitle() method
 func MapKarbariToTitle(karbari string) string {
 	// Map single-letter codes to Persian titles
 	switch strings.ToLower(karbari) {

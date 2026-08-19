@@ -22,9 +22,6 @@ func TestWalletHistoryService_GetSummary_PrivacyRestricted(t *testing.T) {
 		service.NewIncomeCalculator(repo),
 		service.NewSpendingCalculator(repo),
 	)
-	svcNow := time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local)
-	// inject now via GetSummary using NormalizePeriod which uses s.now - we need to set now.
-	// WalletHistoryService.now is unexported; exercise with real now is fine.
 
 	result, err := svc.GetSummary(context.Background(), 1, "daily", []string{"psc", "irr"}, map[string]int32{
 		"psc_transactions": 1,
@@ -36,7 +33,26 @@ func TestWalletHistoryService_GetSummary_PrivacyRestricted(t *testing.T) {
 	assert.False(t, result.Cards[0].PrivacyRestricted)
 	assert.Equal(t, "irr", result.Cards[1].Asset)
 	assert.True(t, result.Cards[1].PrivacyRestricted)
-	_ = svcNow
+}
+
+func TestWalletHistoryService_GetSummary_CurrentBalanceIndependentOfPeriod(t *testing.T) {
+	repo := &mockWalletHistoryRepo{
+		deposits: 10,
+		balance:  &models.WalletBalance{PSC: 250, IRR: 500},
+	}
+	svc := service.NewWalletHistoryService(
+		repo,
+		service.NewIncomeCalculator(repo),
+		service.NewSpendingCalculator(repo),
+	)
+
+	for _, period := range []string{"daily", "weekly", "monthly", "yearly"} {
+		result, err := svc.GetSummary(context.Background(), 1, period, []string{"psc", "irr"}, nil)
+		require.NoError(t, err)
+		require.Len(t, result.Cards, 2)
+		assert.Equal(t, 250.0, result.Cards[0].CurrentBalance, "psc balance for period %s", period)
+		assert.Equal(t, 500.0, result.Cards[1].CurrentBalance, "irr balance for period %s", period)
+	}
 }
 
 func TestWalletHistoryService_GetSummary_Growth(t *testing.T) {
@@ -77,7 +93,7 @@ func TestWalletHistoryService_GetChart_OmitsRestricted(t *testing.T) {
 	_, hasIRR := result.Charts["irr"]
 	assert.True(t, hasPSC)
 	assert.False(t, hasIRR)
-	assert.Len(t, result.Charts["psc"].Income, 7)
+	assert.Len(t, result.Charts["psc"].Income, 4)
 }
 
 func TestWalletHistoryService_GetSummary_GrowthWhenPreviousZero(t *testing.T) {

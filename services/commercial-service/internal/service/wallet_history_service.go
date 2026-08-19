@@ -50,11 +50,17 @@ func (s *WalletHistoryService) GetSummary(
 	assets []string,
 	privacy map[string]int32,
 ) (*WalletHistorySummaryResult, error) {
-	window, err := periodpkg.ResolvePeriod(periodStr, s.now())
+	registeredAt, err := s.repo.GetUserCreatedAt(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user registration date: %w", err)
+	}
+
+	now := s.now()
+	window, err := periodpkg.ResolvePeriod(periodStr, now, registeredAt)
 	if err != nil {
 		return nil, err
 	}
-	previous, err := periodpkg.ResolvePrevious(periodStr, s.now())
+	previous, err := periodpkg.ResolvePrevious(periodStr, now, registeredAt)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +125,12 @@ func (s *WalletHistoryService) GetChart(
 	assets []string,
 	privacy map[string]int32,
 ) (*WalletHistoryChartResult, error) {
-	window, err := periodpkg.ResolvePeriod(periodStr, s.now())
+	registeredAt, err := s.repo.GetUserCreatedAt(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user registration date: %w", err)
+	}
+
+	window, err := periodpkg.ResolvePeriod(periodStr, s.now(), registeredAt)
 	if err != nil {
 		return nil, err
 	}

@@ -24,6 +24,9 @@ func TestChallengeService_GetTimings(t *testing.T) {
 	repo.GetTotalParticipantsCountFunc = func(ctx context.Context) (int32, error) {
 		return 100, nil
 	}
+	repo.GetTotalViewsCountFunc = func(ctx context.Context) (int32, error) {
+		return 250, nil
+	}
 	repo.GetUserAnswerCountFunc = func(ctx context.Context, userID uint64, isCorrect bool) (int32, error) {
 		if isCorrect {
 			return 3, nil
@@ -39,6 +42,7 @@ func TestChallengeService_GetTimings(t *testing.T) {
 	require.Equal(t, int32(100), out.Participants)
 	require.Equal(t, int32(3), out.CorrectAnswers)
 	require.Equal(t, int32(7), out.WrongAnswers)
+	require.Equal(t, int32(250), out.Views)
 }
 
 func TestChallengeService_GetQuestion_NoQuestions(t *testing.T) {
@@ -68,6 +72,7 @@ func TestChallengeService_GetQuestion_OK(t *testing.T) {
 	q, err := svc.GetQuestion(context.Background(), 1)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), q.ID)
+	require.Equal(t, "psc", q.PrizeType)
 	require.Len(t, q.Answers, 1)
 	require.False(t, q.Answers[0].IsCorrect) // stripped for GET question
 }
@@ -213,10 +218,12 @@ func TestChallengeService_GetAdvertisement_EN(t *testing.T) {
 	require.Equal(t, "http://localhost:8000/uploads/challenge/advertisement/bn-1000/bn-1000.jpg", first.ImageURL)
 	require.Equal(t, "https://metarang.com/fa/citizens/bn-1000", first.URL)
 	require.Equal(t, "red", first.InvestmentAsset)
+	require.Equal(t, int32(1), first.PrizePerQuestion)
 
 	for _, ad := range ads {
 		require.Equal(t, "https://metarang.com/fa/citizens/"+ad.Code, ad.URL)
 		require.Equal(t, "red", ad.InvestmentAsset)
+		require.Equal(t, int32(1), ad.PrizePerQuestion)
 	}
 }
 

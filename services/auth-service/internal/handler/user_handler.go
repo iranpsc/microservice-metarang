@@ -13,6 +13,7 @@ import (
 
 	"metarang/auth-service/internal/service"
 	pb "metarang/shared/pb/auth"
+	sharedauth "metarang/shared/pkg/auth"
 )
 
 type userHandler struct {
@@ -22,11 +23,17 @@ type userHandler struct {
 	helperService            service.HelperService
 }
 
-func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService, profileLimitationService service.ProfileLimitationService, helperService service.HelperService) {
-	pb.RegisterUserServiceServer(grpcServer, NewUserHandler(userService, profileLimitationService, helperService))
+func RegisterUserHandler(grpcServer *grpc.Server, userService service.UserService, profileLimitationService service.ProfileLimitationService, helperService service.HelperService) pb.UserServiceServer {
+	h := NewUserHandler(userService, profileLimitationService, helperService)
+	pb.RegisterUserServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.User, error) {
+	if err := authorizeSelfOrService(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+
 	user, err := h.userService.GetUser(ctx, req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "user not found: %v", err)
@@ -62,27 +69,16 @@ func (h *userHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 		response.PhoneVerifiedAt = timestamppb.New(user.PhoneVerifiedAt.Time)
 	}
 
-	if user.AccessToken.Valid {
-		response.AccessToken = user.AccessToken.String
-	}
-
-	if user.RefreshToken.Valid {
-		response.RefreshToken = user.RefreshToken.String
-	}
-
-	if user.TokenType.Valid {
-		response.TokenType = user.TokenType.String
-	}
-
-	if user.ExpiresIn.Valid {
-		response.ExpiresIn = user.ExpiresIn.Int64
-	}
-
 	return response, nil
 }
 
 func (h *userHandler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.User, error) {
-	user, err := h.userService.UpdateProfile(ctx, req.UserId, req.Name, req.Email, req.Phone)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := h.userService.UpdateProfile(ctx, userID, req.Name, req.Email, req.Phone)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update profile: %v", err)
 	}
@@ -183,7 +179,12 @@ func (h *userHandler) GetUserLevel(ctx context.Context, req *pb.GetUserLevelRequ
 }
 
 func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProfileLimitationsRequest) (*pb.GetProfileLimitationsResponse, error) {
-	limitation, err := h.profileLimitationService.GetBetweenUsers(ctx, req.CallerUserId, req.TargetUserId)
+	callerUserID, err := resolveProfileLimitationCaller(ctx, req.GetCallerUserId())
+	if err != nil {
+		return nil, err
+	}
+
+	limitation, err := h.profileLimitationService.GetBetweenUsers(ctx, callerUserID, req.TargetUserId)
 	if err != nil {
 		if errors.Is(err, service.ErrUserNotFound) {
 			return nil, status.Errorf(codes.NotFound, "%s", err.Error())
@@ -197,8 +198,21 @@ func (h *userHandler) GetProfileLimitations(ctx context.Context, req *pb.GetProf
 	}
 
 	return &pb.GetProfileLimitationsResponse{
-		Data: convertProfileLimitationToProto(limitation, req.CallerUserId),
+		Data: convertProfileLimitationToProto(limitation, callerUserID),
 	}, nil
+}
+
+// resolveProfileLimitationCaller returns the authenticated user for user-facing calls.
+// Trusted inter-service callers (valid service token) may supply caller_user_id explicitly
+// so social-service can check both pair and self profile limitations without a user bearer.
+func resolveProfileLimitationCaller(ctx context.Context, requestedCallerID uint64) (uint64, error) {
+	if sharedauth.HasValidServiceToken(ctx) {
+		if requestedCallerID == 0 {
+			return 0, status.Error(codes.InvalidArgument, "caller_user_id is required")
+		}
+		return requestedCallerID, nil
+	}
+	return authenticatedUserID(ctx)
 }
 
 // ListUsers handles GET /api/users
@@ -242,7 +256,6 @@ func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 		response.Data = append(response.Data, item)
 	}
 
-	// Laravel simplePaginate: signal next page when this page is full.
 	currentPage := int32(page)
 	hasMore := int32(len(users)) >= limit
 
@@ -253,7 +266,7 @@ func (h *userHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 		response.Meta.NextPageUrl = fmt.Sprintf("?page=%d", currentPage+1)
 	}
 
-	_ = totalCount // total count is not exposed in Laravel simplePaginate meta
+	_ = totalCount
 
 	return response, nil
 }
@@ -283,6 +296,7 @@ func (h *userHandler) GetUserLevels(ctx context.Context, req *pb.GetUserLevelsRe
 			Score:    levelsData.LatestLevel.Score,
 			Slug:     levelsData.LatestLevel.Slug,
 			ImageUrl: levelsData.LatestLevel.Image,
+			Gem:      levelGemProto(levelsData.LatestLevel.GemPngFile),
 		}
 	}
 
@@ -294,6 +308,7 @@ func (h *userHandler) GetUserLevels(ctx context.Context, req *pb.GetUserLevelsRe
 			Score:    prevLevel.Score,
 			Slug:     prevLevel.Slug,
 			ImageUrl: prevLevel.Image,
+			Gem:      levelGemProto(prevLevel.GemPngFile),
 		}
 		response.Data.PreviousLevels = append(response.Data.PreviousLevels, level)
 	}
@@ -301,11 +316,18 @@ func (h *userHandler) GetUserLevels(ctx context.Context, req *pb.GetUserLevelsRe
 	return response, nil
 }
 
+func levelGemProto(pngFile string) *pb.LevelGem {
+	if pngFile == "" {
+		return nil
+	}
+	return &pb.LevelGem{PngFile: pngFile}
+}
+
 // GetUserProfile handles GET /api/users/{user}/profile
 func (h *userHandler) GetUserProfile(ctx context.Context, req *pb.GetUserProfileRequest) (*pb.GetUserProfileResponse, error) {
 	var viewerUserID *uint64
-	if req.ViewerUserId > 0 {
-		viewerUserID = &req.ViewerUserId
+	if userCtx, err := sharedauth.GetUserFromContext(ctx); err == nil && userCtx != nil && userCtx.UserID > 0 {
+		viewerUserID = &userCtx.UserID
 	}
 
 	profileData, err := h.userService.GetUserProfile(ctx, req.UserId, viewerUserID)

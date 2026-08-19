@@ -1,6 +1,6 @@
 # Metarang Microservices
 
-Microservices implementation for the Metarang platform migration from Laravel monolith to Golang/gRPC.
+Microservices implementation for the Metarang platform using Golang/gRPC.
 
 ## Architecture
 
@@ -13,15 +13,14 @@ Microservices implementation for the Metarang platform migration from Laravel mo
 | features-service | 50053 | Features (Lands), Marketplace |
 | levels-service | 50054 | User Progression, Activities |
 | dynasty-service | 50055 | Dynasty, Family Members |
-| support-service | 50056 | Tickets, Reports |
+| support-service | 50056 (gRPC), 8070 (HTTP) | Tickets, Reports, Notes |
 | training-service | 50057 | Video Tutorials, Comments |
 | notifications-service | 50058 | Multi-channel Notifications |
-| calendar-service | 50059 | Events Management |
+| calendar-service | 50059 (gRPC), 8060 (HTTP) | Events Management |
 | storage-service | 50060 (gRPC), 8059 (HTTP) | File Upload & Management |
 | financial-service | 50062 | Payment Processing |
-| grpc-gateway | 8080 | REST to gRPC Translation |
 | websocket-gateway | 3002 | Real-time Communication |
-| Kong API Gateway | 8000 | HTTP/REST → gRPC |
+| Kong API Gateway | 8000 | HTTP/REST edge gateway |
 | MySQL | 3306 | Shared Database |
 | Redis | 6379 | Caching, Pub/Sub |
 
@@ -35,7 +34,6 @@ Microservices implementation for the Metarang platform migration from Laravel mo
 - **Go** 1.21+ (`go version`)
 - **Protocol Buffers** (`protoc --version`)
 - **Docker & Docker Compose** (`docker --version`)
-- **Node.js** 18+ (for WebSocket gateway)
 - **Make** (`make --version`)
 
 External APIs needed: OAuth server, Kavenegar (SMS), Parsian (payments), FTP (storage).
@@ -62,8 +60,8 @@ cp services/auth-service/config.env.sample services/auth-service/config.env
 # services/notifications-service/config.env
 # services/financial-service/config.env
 # services/storage-service/config.env
-# services/grpc-gateway/config.env
-# websocket-gateway/config.env
+# services/support-service/config.env
+# services/websocket-gateway/config.env
 # etc.
 ```
 
@@ -133,7 +131,7 @@ make kong-reload      # Reload Kong
 ```bash
 cd services/auth-service && go run cmd/server/main.go
 cd services/commercial-service && go run cmd/server/main.go
-cd websocket-gateway && npm install && npm start
+cd services/websocket-gateway && go run ./cmd/server
 # etc.
 ```
 
@@ -160,8 +158,7 @@ metarang-microservices/
 
 ```bash
 make test-unit        # Unit tests
-make test-integration # Integration tests
-make test-golden      # Golden JSON (Laravel compatibility)
+make test-services    # Dedicated service test modules
 make test-database    # Database tests
 make test-all         # Full suite
 ```
@@ -174,7 +171,7 @@ Shared schema in `scripts/schema.sql`. Notes: `transactions.id` is VARCHAR; `fea
 
 ## API Compatibility
 
-**CRITICAL**: All services MUST maintain 100% API compatibility with the Laravel monolith (JSON fields, status codes, validation format, Jalali dates, URLs). Golden tests enforce this.
+**CRITICAL**: All services MUST maintain 100% API compatibility with the existing platform API (JSON fields, status codes, validation format, Jalali dates, URLs).
 
 ## Troubleshooting
 
@@ -200,7 +197,7 @@ See `docs/DEPLOYMENT.md` and `docs/TROUBLESHOOTING.md` for production details.
 - **`.cursor/rules/`** – Rules for LLM assistants
 - **`docs/`** – Architecture, deployment, troubleshooting
 
-Key principles: 100% Laravel API compatibility, layered architecture (handler/service/repository), dependency injection, proper error handling.
+Key principles: 100% API compatibility, layered architecture (handler/service/repository), dependency injection, proper error handling.
 
 ## License
 

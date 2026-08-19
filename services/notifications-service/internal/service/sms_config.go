@@ -13,7 +13,6 @@ var placeholderSMSAPIKeys = map[string]struct{}{
 }
 
 // ResolveSMSAPIKey returns the Kavenegar API key.
-// SMS_API_KEY is preferred (matches laravel-api / docker env_file). KAVENEGAR_API_KEY is legacy fallback only.
 func ResolveSMSAPIKey() string {
 	smsKey := strings.TrimSpace(os.Getenv("SMS_API_KEY"))
 	if smsKey != "" {

@@ -96,11 +96,13 @@ func serviceAuthClientInterceptor() grpc.UnaryClientInterceptor {
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
+		secret := auth.ServiceSecretFromEnv()
 		if auth.RequiresServiceAuth(method) {
-			secret := auth.ServiceSecretFromEnv()
 			if secret == "" {
 				return fmt.Errorf("INTERNAL_SERVICE_SECRET is required for %s", method)
 			}
+		}
+		if secret != "" {
 			ctx = metadata.AppendToOutgoingContext(ctx, auth.ServiceTokenMetadataKey, secret)
 		}
 		return invoker(ctx, method, req, reply, cc, opts...)

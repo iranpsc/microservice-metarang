@@ -15,7 +15,6 @@ import (
 )
 
 // ObserverService handles user events, activity tracking, and score calculation
-// This mimics Laravel's UserObserver functionality
 type ObserverService interface {
 	// Login event handler
 	OnUserLogin(ctx context.Context, user *models.User, ip, userAgent string) error
@@ -70,7 +69,6 @@ func NewObserverServiceWithSettings(
 }
 
 // OnUserLogin handles the login event
-// Implements the Laravel UserObserver::logedIn method
 func (s *observerService) OnUserLogin(ctx context.Context, user *models.User, ip, userAgent string) error {
 	// 1. Create user event
 	event := &models.UserEvent{
@@ -89,7 +87,6 @@ func (s *observerService) OnUserLogin(ctx context.Context, user *models.User, ip
 		return fmt.Errorf("failed to update last seen: %w", err)
 	}
 
-	// 3. Send login notification (Laravel LogedInNotification)
 	if err := s.sendLoggedInNotification(ctx, user, ip); err != nil {
 		// Log error but don't fail the login
 		fmt.Printf("failed to send login notification: %v\n", err)
@@ -105,7 +102,6 @@ func (s *observerService) OnUserLogin(ctx context.Context, user *models.User, ip
 		return fmt.Errorf("failed to create activity: %w", err)
 	}
 
-	// 5. Broadcast WebSocket online status (Laravel UserStatusChanged)
 	if s.publisher != nil {
 		if err := s.publisher.PublishUserStatusChanged(ctx, user.ID, true); err != nil {
 			// Log error but don't fail the login
@@ -116,7 +112,6 @@ func (s *observerService) OnUserLogin(ctx context.Context, user *models.User, ip
 	return nil
 }
 
-// sendLoggedInNotification mirrors Laravel LogedInNotification channel selection.
 func (s *observerService) sendLoggedInNotification(ctx context.Context, user *models.User, ip string) error {
 	if s.notificationClient == nil {
 		return nil
@@ -154,7 +149,6 @@ func (s *observerService) loginNotificationChannels(ctx context.Context, user *m
 	}
 
 	sendEmail = settings.Notifications["login_verification_email"]
-	// Laravel only sends SMS when phone is verified
 	hasVerifiedPhone := user.Phone.Valid && strings.TrimSpace(user.Phone.String) != "" && user.PhoneVerifiedAt.Valid
 	sendSMS = hasVerifiedPhone && settings.Notifications["login_verification_sms"]
 	return sendSMS, sendEmail
@@ -174,7 +168,6 @@ func (s *observerService) getUserSettings(ctx context.Context, userID uint64) (*
 }
 
 // OnUserLogout handles the logout event
-// Implements the Laravel UserObserver::logedOut method
 func (s *observerService) OnUserLogout(ctx context.Context, user *models.User, ip, userAgent string) error {
 	// 1. Get latest activity
 	latestActivity, err := s.activityRepo.GetLatestActivity(ctx, user.ID)
@@ -231,9 +224,7 @@ func (s *observerService) OnUserLogout(ctx context.Context, user *models.User, i
 }
 
 // OnUserCreated handles the user creation event
-// Implements the Laravel UserObserver::created method
 //
-// NOTE: In microservices architecture, the following Laravel user creation tasks
 // are distributed across services and must be coordinated:
 //
 // 1. Email verification (handled in Auth service - see below)
@@ -249,7 +240,6 @@ func (s *observerService) OnUserLogout(ctx context.Context, user *models.User, i
 // - Call this OnUserCreated method
 // - Return success to client
 func (s *observerService) OnUserCreated(ctx context.Context, user *models.User) error {
-	// 1. Mark email as verified (Laravel does this immediately on creation)
 	if err := s.userRepo.MarkEmailAsVerified(ctx, user.ID); err != nil {
 		return fmt.Errorf("failed to mark email as verified: %w", err)
 	}
@@ -308,7 +298,6 @@ func (s *observerService) OnUserCreated(ctx context.Context, user *models.User) 
 }
 
 // OnHourReached calculates activity hours and updates user score
-// Implements the Laravel UserObserver::hourReached method
 func (s *observerService) OnHourReached(ctx context.Context, user *models.User) error {
 	// 1. Get total active minutes
 	totalActiveMinutes, err := s.activityRepo.GetTotalActivityMinutes(ctx, user.ID)
@@ -338,7 +327,6 @@ func (s *observerService) OnHourReached(ctx context.Context, user *models.User) 
 }
 
 // CalculateScore calculates and updates user score based on all metrics
-// Implements the Laravel UserObserver::calculateScore method
 func (s *observerService) CalculateScore(ctx context.Context, user *models.User) error {
 	// 1. Get user log
 	log, err := s.activityRepo.GetUserLog(ctx, user.ID)

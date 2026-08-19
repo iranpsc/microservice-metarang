@@ -24,8 +24,10 @@ type userEventsHandler struct {
 
 func RegisterUserEventsHandler(grpcServer *grpc.Server, userEventsService service.UserEventsService, userRepo interface {
 	FindByID(ctx context.Context, id uint64) (*models.User, error)
-}) {
-	pb.RegisterUserEventsServiceServer(grpcServer, NewUserEventsHandler(userEventsService, userRepo))
+}) pb.UserEventsServiceServer {
+	h := NewUserEventsHandler(userEventsService, userRepo)
+	pb.RegisterUserEventsServiceServer(grpcServer, h)
+	return h
 }
 
 // NewUserEventsHandler creates a new user events handler
@@ -40,12 +42,17 @@ func NewUserEventsHandler(userEventsService service.UserEventsService, userRepo 
 
 // ListUserEvents handles GET /api/events
 func (h *userEventsHandler) ListUserEvents(ctx context.Context, req *pb.ListUserEventsRequest) (*pb.ListUserEventsResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	page := req.Page
 	if page < 1 {
 		page = 1
 	}
 
-	events, nextPageURL, prevPageURL, err := h.service.ListUserEvents(ctx, req.UserId, page)
+	events, nextPageURL, prevPageURL, err := h.service.ListUserEvents(ctx, userID, page)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list user events: %v", err)
 	}
@@ -72,7 +79,12 @@ func (h *userEventsHandler) ListUserEvents(ctx context.Context, req *pb.ListUser
 
 // GetUserEvent handles GET /api/events/{userEvent}
 func (h *userEventsHandler) GetUserEvent(ctx context.Context, req *pb.GetUserEventRequest) (*pb.GetUserEventResponse, error) {
-	event, report, responses, err := h.service.GetUserEvent(ctx, req.UserId, req.EventId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	event, report, responses, err := h.service.GetUserEvent(ctx, userID, req.EventId)
 	if err != nil {
 		if err == service.ErrUserEventNotFound {
 			return nil, status.Errorf(codes.NotFound, "user event not found")
@@ -93,6 +105,11 @@ func (h *userEventsHandler) GetUserEvent(ctx context.Context, req *pb.GetUserEve
 
 // ReportUserEvent handles POST /api/events/report/{userEvent}
 func (h *userEventsHandler) ReportUserEvent(ctx context.Context, req *pb.ReportUserEventRequest) (*pb.UserEventReportResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate event_description
 	if req.EventDescription == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "event_description is required")
@@ -106,7 +123,7 @@ func (h *userEventsHandler) ReportUserEvent(ctx context.Context, req *pb.ReportU
 		suspeciousCitizen = &req.SuspeciousCitizen
 	}
 
-	report, err := h.service.ReportUserEvent(ctx, req.UserId, req.EventId, suspeciousCitizen, req.EventDescription)
+	report, err := h.service.ReportUserEvent(ctx, userID, req.EventId, suspeciousCitizen, req.EventDescription)
 	if err != nil {
 		switch err {
 		case service.ErrUserEventNotFound:
@@ -132,6 +149,11 @@ func (h *userEventsHandler) ReportUserEvent(ctx context.Context, req *pb.ReportU
 
 // SendReportResponse handles POST /api/events/report/response/{userEvent}
 func (h *userEventsHandler) SendReportResponse(ctx context.Context, req *pb.SendReportResponseRequest) (*pb.UserEventReportResponseResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate response
 	if req.Response == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "response is required")
@@ -141,7 +163,7 @@ func (h *userEventsHandler) SendReportResponse(ctx context.Context, req *pb.Send
 	}
 
 	// Get user name for responser_name
-	user, err := h.userRepo.FindByID(ctx, req.UserId)
+	user, err := h.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get user: %v", err)
 	}
@@ -149,7 +171,7 @@ func (h *userEventsHandler) SendReportResponse(ctx context.Context, req *pb.Send
 		return nil, status.Errorf(codes.NotFound, "user not found")
 	}
 
-	reportResponse, err := h.service.SendReportResponse(ctx, req.UserId, req.EventId, user.Name, req.Response)
+	reportResponse, err := h.service.SendReportResponse(ctx, userID, req.EventId, user.Name, req.Response)
 	if err != nil {
 		switch err {
 		case service.ErrUserEventNotFound:
@@ -172,7 +194,12 @@ func (h *userEventsHandler) SendReportResponse(ctx context.Context, req *pb.Send
 
 // CloseEventReport handles POST /api/events/report/close/{userEvent}
 func (h *userEventsHandler) CloseEventReport(ctx context.Context, req *pb.CloseEventReportRequest) (*emptypb.Empty, error) {
-	err := h.service.CloseEventReport(ctx, req.UserId, req.EventId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = h.service.CloseEventReport(ctx, userID, req.EventId)
 	if err != nil {
 		switch err {
 		case service.ErrUserEventNotFound:

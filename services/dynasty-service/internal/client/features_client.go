@@ -30,6 +30,14 @@ func NewFeaturesClient(address string) (*FeaturesClient, error) {
 	}, nil
 }
 
+// NewFeaturesClientFromGRPC builds a FeaturesClient from an existing gRPC stub (used in tests).
+func NewFeaturesClientFromGRPC(featureClient pb.FeatureServiceClient, conn *grpc.ClientConn) *FeaturesClient {
+	return &FeaturesClient{
+		featureClient: featureClient,
+		conn:          conn,
+	}
+}
+
 // Close closes the gRPC connection
 func (c *FeaturesClient) Close() error {
 	if c.conn != nil {

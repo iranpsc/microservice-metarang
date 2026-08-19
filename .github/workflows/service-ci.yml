@@ -121,23 +121,163 @@ jobs:
       - name: Setup test database
         uses: ./.github/actions/setup-test-db
 
-      - name: Run unit tests
+      - name: Initialize test report
         run: |
-          cd services/${{ inputs.service_name }}
-          go test ./internal/... -v -race -coverprofile=coverage.out -covermode=atomic
-          if [ -f "../../tests/${{ inputs.service_name }}/go.mod" ]; then
-            cd "../../tests/${{ inputs.service_name }}"
-            GOWORK=off go test ./... -v -race
+          {
+            echo "# Test Results: ${{ inputs.service_name }}"
+            echo ""
+            echo "Package-level checklist with failed tests expanded."
+            echo ""
+            echo "## Detailed Results"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run unit tests
+        id: unit_tests
+        env:
+          # Unit suites stay in the summary table only; details are for tests/<service>.
+          CHECKLIST_WRITE_SUMMARY: "false"
+        run: |
+          # ./... covers internal/, cmd/, and in-module tests/ (e.g. levels-service/tests).
+          # Most services keep the bulk of tests in tests/<service>/ (next step).
+          bash .github/scripts/go-test-checklist.sh \
+            "Unit Tests (services/${{ inputs.service_name }}/...)" \
+            "services/${{ inputs.service_name }}" \
+            -- ./... -race -cover -coverprofile=coverage-unit.out -covermode=atomic
+
+      # Keep later suites running after a failure so the checklist is complete.
+      # Prefer if: always() over continue-on-error so failed steps stay red.
+      # Do not gate with hashFiles(): in reusable workflows it can evaluate empty and
+      # silently skip the external test modules where most tests actually live.
+      - name: Run integration tests
+        id: integration_tests
+        if: always() && !cancelled()
+        env:
+          GOWORK: off
+          SERVICE_NAME: ${{ inputs.service_name }}
+        run: |
+          TEST_MOD="tests/${SERVICE_NAME}/go.mod"
+
+          if [ ! -f "$TEST_MOD" ]; then
+            orphan_count="$(find "tests/${SERVICE_NAME}" -name '*_test.go' 2>/dev/null | wc -l | tr -d ' ')"
+            {
+              echo ""
+              echo "### Integration Tests (tests/${SERVICE_NAME}/...)"
+              echo ""
+              if [ "${orphan_count:-0}" -gt 0 ]; then
+                echo "- [ ] ⚠️ Found ${orphan_count} \`*_test.go\` file(s) but no \`go.mod\` — cannot run as a module"
+                echo "::warning::tests/${SERVICE_NAME} has test files without go.mod; add a go.mod to run them in CI"
+              else
+                echo "- [x] Skipped — no \`tests/${SERVICE_NAME}/go.mod\`"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
+          echo "status=ran" >> "$GITHUB_OUTPUT"
+          # Scope coverpkg to the service module only. A broad pattern like
+          # metarang/<service>/... also matches tests/<service> packages such as
+          # metarang/<service>/tests/internal/testutil and breaks coverage collection.
+          COVERPKG="$(cd "services/${SERVICE_NAME}" && go list ./... | paste -sd, -)"
+          bash .github/scripts/go-test-checklist.sh \
+            "Integration Tests (tests/${SERVICE_NAME}/...)" \
+            "tests/${SERVICE_NAME}" \
+            -- ./... -race -cover -coverprofile=coverage-integration.out -covermode=atomic \
+               -coverpkg="${COVERPKG}"
+
+      - name: Install govulncheck
+        if: always() && !cancelled()
+        run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
+
       - name: Run govulncheck
+        id: govulncheck
+        if: always() && !cancelled()
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
-          cd services/${{ inputs.service_name }}
-          govulncheck ./...
+          bash .github/scripts/govulncheck-checklist.sh \
+            "Security Scan (govulncheck)" \
+            "services/${{ inputs.service_name }}"
+
+      - name: Report coverage
+        id: coverage
+        if: always() && !cancelled()
+        run: |
+          SERVICE="${{ inputs.service_name }}"
+          MERGED="services/${SERVICE}/coverage.out"
+          UNIT="services/${SERVICE}/coverage-unit.out"
+          INTEGRATION="tests/${SERVICE}/coverage-integration.out"
+
+          bash .github/scripts/go-coverage-summary.sh \
+            "Code Coverage (${SERVICE})" \
+            "$MERGED" \
+            "$UNIT" \
+            "$INTEGRATION"
+
+          if [ -f "$MERGED" ] && [ -s "$MERGED" ]; then
+            total="$(go tool cover -func="$MERGED" | tail -1 | grep -oE '[0-9]+\.[0-9]+%' | tail -1 || true)"
+            echo "total=${total:-unknown}" >> "$GITHUB_OUTPUT"
+          else
+            echo "total=unknown" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Finalize test checklist
+        if: always() && !cancelled()
+        run: |
+          unit_outcome="${{ steps.unit_tests.outcome }}"
+          integration_outcome="${{ steps.integration_tests.outcome }}"
+          integration_status_flag="${{ steps.integration_tests.outputs.status }}"
+          vuln_outcome="${{ steps.govulncheck.outcome }}"
+          coverage_total="${{ steps.coverage.outputs.total }}"
+
+          case "$unit_outcome" in
+            success) unit_status="✅ Passed" ;;
+            skipped) unit_status="⏭️ Skipped" ;;
+            *) unit_status="❌ Failed" ;;
+          esac
+
+          if [ "$integration_status_flag" = "skipped" ]; then
+            integration_status="⏭️ Not configured"
+          elif [ "$integration_outcome" = "success" ]; then
+            integration_status="✅ Passed"
+          elif [ -z "$integration_outcome" ] || [ "$integration_outcome" = "skipped" ]; then
+            integration_status="⏭️ Not configured"
+          else
+            integration_status="❌ Failed"
+          fi
+
+          case "$vuln_outcome" in
+            success) vuln_status="✅ Passed" ;;
+            skipped|"") vuln_status="⏭️ Skipped" ;;
+            *) vuln_status="❌ Failed" ;;
+          esac
+
+          {
+            echo ""
+            echo "## Summary"
+            echo ""
+            echo "| Test suite | Status |"
+            echo "|------------|--------|"
+            echo "| Unit tests | ${unit_status} |"
+            echo "| Integration tests | ${integration_status} |"
+            echo "| govulncheck | ${vuln_status} |"
+            echo "| Statement coverage | ${coverage_total} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          [ "$unit_outcome" = "success" ] || failed=1
+          if [ "$integration_status_flag" = "ran" ] && [ "$integration_outcome" != "success" ]; then
+            failed=1
+          fi
+          if [ "$integration_status_flag" != "skipped" ] && [ "$integration_status_flag" != "ran" ]; then
+            # Step failed before writing status (e.g. checklist script failed).
+            if [ "$integration_outcome" != "success" ] && [ "$integration_outcome" != "skipped" ] && [ -n "$integration_outcome" ]; then
+              failed=1
+            fi
+          fi
+          [ "$vuln_outcome" = "success" ] || [ "$vuln_outcome" = "skipped" ] || [ -z "$vuln_outcome" ] || failed=1
+          exit "$failed"
 
       - name: Upload coverage to Codecov
-        if: always()
+        if: always() && !cancelled() && steps.coverage.outputs.total != 'unknown'
         uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073 # v5.5.5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

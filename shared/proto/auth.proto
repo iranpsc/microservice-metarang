@@ -57,6 +57,7 @@ service CitizenService {
   rpc GetCitizenReferralChart(GetCitizenReferralChartRequest) returns (CitizenReferralChartResponse);
   // Lightweight identity + privacy for public citizen feature assets
   rpc GetCitizenUserInfo(GetCitizenUserInfoRequest) returns (GetCitizenUserInfoResponse);
+  rpc GetCitizenLevel(GetCitizenLevelRequest) returns (GetCitizenLevelResponse);
 }
 
 // PersonalInfo Service - handles personal information endpoints
@@ -153,6 +154,10 @@ message Notification {
   google.protobuf.Timestamp read_at = 5;
 }
 
+message LevelGem {
+  string png_file = 1; // Level gem PNG file URL (admin panel prepended)
+}
+
 message Level {
   uint64 id = 1;
   string title = 2;
@@ -160,6 +165,7 @@ message Level {
   int32 score = 4;
   string slug = 5;        // Level slug (e.g., "beginner")
   string image_url = 6;   // Level image URL (admin panel prepended)
+  LevelGem gem = 7;
 }
 
 // ============== Request/Response Messages ==============
@@ -207,8 +213,6 @@ message UserResponse {
   Level level = 7;
   string image = 8;
   int32 unread_notifications_count = 9;
-  // CRITICAL: Preserve Laravel typo for API compatibility!
-  // Laravel has "socre" not "score"
   double socre_percentage_to_next_level = 10;
   reserved 11;
   reserved "unasnwered_questions_count";
@@ -406,7 +410,7 @@ message CitizenCustoms {
   string prediction = 6;
   string memory = 7;
   string about = 8;
-  map<string, string> passions = 9; // passion_key -> icon_url (Laravel: /uploads/favorites/{key}.png)
+  map<string, string> passions = 9;
 }
 
 message CitizenLevel {
@@ -464,7 +468,7 @@ message ReferralChartData {
 }
 
 message ChartDataPoint {
-  string label = 1; // Jalali date/time label
+  string label = 1; // Jalali date: Y/m for yearly/monthly, Y/m/d for daily/weekly
   int32 count = 2;
   int64 total_amount = 3; // bigint in database
 }
@@ -476,6 +480,19 @@ message GetCitizenUserInfoRequest {
 message GetCitizenUserInfoResponse {
   uint64 user_id = 1;
   map<string, int32> privacy = 2; // privacy_key -> 0|1
+}
+
+message GetCitizenLevelRequest {
+  string code = 1; // Case-insensitive citizen code
+}
+
+message GetCitizenLevelResponse {
+  CitizenLevelSummary level = 1;
+}
+
+message CitizenLevelSummary {
+  string slug = 1;
+  string score = 2;
 }
 
 // ============== PersonalInfo Service Messages ==============
@@ -636,6 +653,7 @@ message GetGeneralSettingsResponse {
 }
 
 message NotificationSettingsData {
+  uint64 id = 11;
   bool announcements_sms = 1;
   bool announcements_email = 2;
   bool reports_sms = 3;
@@ -775,7 +793,6 @@ message UserListItem {
   string profile_photo = 6;     // Latest profile photo URL
 }
 
-// UserLevelInfo - level information for user list (Laravel UserResource)
 message UserLevelInfo {
   Level current = 1;            // Latest level (orderByDesc levels.id)
   repeated Level previous = 2;  // All achieved levels from level_user pivot

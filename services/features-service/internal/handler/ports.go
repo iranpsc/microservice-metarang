@@ -15,9 +15,9 @@ type FeatureServicePort interface {
 	UpdateFeature(ctx context.Context, featureID uint64, properties *pb.FeatureProperties) (*pb.Feature, error)
 	AddFeatureImages(ctx context.Context, featureID uint64, imageURLs []string) (*pb.Feature, error)
 	GetMyFeatures(ctx context.Context, userID uint64) ([]*pb.Feature, error)
-	ListMyFeatures(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error)
+	ListMyFeatures(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error)
 	GetMyFeature(ctx context.Context, userID, featureID uint64) (*pb.Feature, error)
-	AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageURLs []string) (*pb.Feature, error)
+	AddMyFeatureImages(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error)
 	RemoveMyFeatureImage(ctx context.Context, userID, featureID, imageID uint64) error
 	UpdateMyFeature(ctx context.Context, userID, featureID uint64, minimumPricePercentage int32) error
 }
@@ -79,13 +79,13 @@ type IsicCodeServicePort interface {
 // CitizenBuildingsServicePort is implemented by *service.CitizenBuildingsService.
 type CitizenBuildingsServicePort interface {
 	GetSummary(ctx context.Context, userID uint64, allowedKarbaris []string) (*models.CitizenBuildingSummaryResult, error)
-	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartData, string, error)
+	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string) (*models.CitizenBuildingChartResult, error)
 	GetBuildings(ctx context.Context, userID uint64, allowedKarbaris []string, page int) (*models.CitizenBuildingsPage, error)
 }
 
 // CitizenFeaturesServicePort is implemented by *service.CitizenFeaturesService.
 type CitizenFeaturesServicePort interface {
 	GetSummary(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureSummaryResult, error)
-	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartData, error)
+	GetChart(ctx context.Context, userID uint64, period string, allowedKarbaris []string, reference time.Time) (*models.CitizenFeatureChartResult, error)
 	GetFeatures(ctx context.Context, userID uint64, allowedKarbaris []string, search string, page, perPage int) (*models.CitizenFeaturesPage, error)
 }

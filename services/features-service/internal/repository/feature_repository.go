@@ -48,8 +48,8 @@ func (r *FeatureRepository) FindByID(ctx context.Context, id uint64) (*models.Fe
 	return feature, properties, nil
 }
 
-// BboxBoundsFromPoints matches Laravel FeatureRepository@all:
-// x between points[0].x and points[1].x, y between points[0].y and points[2].y
+// BboxBoundsFromPoints returns min/max x and y from four corner points:
+// x between points[0].x and points[1].x, y between points[0].y and points[2].y.
 func BboxBoundsFromPoints(points []string) (minX, maxX, minY, maxY string, err error) {
 	if len(points) < 4 {
 		return "", "", "", "", fmt.Errorf("expected at least 4 points, got %d", len(points))
@@ -79,15 +79,14 @@ func BboxBoundsFromPoints(points []string) (minX, maxX, minY, maxY string, err e
 	return x0, x1, y0, y2, nil
 }
 
-// FindByBoundingBox implements Laravel's FeatureRepository@all logic
-// Points format: four "x,y" strings (bbox corners)
+// FindByBoundingBox loads features within a bounding box.
+// Points format: four "x,y" strings (bbox corners).
 func (r *FeatureRepository) FindByBoundingBox(ctx context.Context, points []string, loadBuildings bool) ([]*models.Feature, error) {
 	minX, maxX, minY, maxY, err := BboxBoundsFromPoints(points)
 	if err != nil {
 		return nil, err
 	}
 
-	// Query coordinates table for geometries within bounds (Laravel FeatureRepository@all)
 	query := `
 		SELECT DISTINCT c.geometry_id
 		FROM coordinates c
@@ -120,7 +119,6 @@ func (r *FeatureRepository) FindByBoundingBox(ctx context.Context, points []stri
 		idStrs[i] = fmt.Sprintf("%d", id)
 	}
 
-	// Load features with properties (Laravel: Feature::whereIn('id', $geometryIds))
 	featureQuery := `
 		SELECT f.id, f.owner_id, f.map_id, f.type, f.created_at, f.updated_at,
 		       fp.id as prop_id, fp.feature_id, fp.karbari, fp.rgb, fp.owner, fp.label, fp.address,
@@ -308,20 +306,42 @@ func (r *FeatureRepository) HasPendingBuyRequests(ctx context.Context, featureID
 	return hasPending, err
 }
 
+// BuildMyFeaturesWhere returns the WHERE clause and args for listing a user's features.
+// search matches feature_properties.id or address; filter matches karbari exactly.
+func BuildMyFeaturesWhere(ownerID uint64, search, filter string) (string, []interface{}) {
+	search = strings.TrimSpace(search)
+	filter = strings.TrimSpace(filter)
+
+	where := `f.owner_id = ?`
+	args := []interface{}{ownerID}
+	if search != "" {
+		where += ` AND (fp.id LIKE ? OR fp.address LIKE ?)`
+		like := "%" + search + "%"
+		args = append(args, like, like)
+	}
+	if filter != "" {
+		where += ` AND fp.karbari = ?`
+		args = append(args, filter)
+	}
+	return where, args
+}
+
 // FindByOwnerPaginated retrieves features owned by a user with pagination (5 per page)
 // Returns features with their properties eager-loaded
+// search filters by feature_properties.id or address; filter matches karbari
 // NOTE: features table does NOT have geometry_id column - geometries table has feature_id instead
-func (r *FeatureRepository) FindByOwnerPaginated(ctx context.Context, ownerID uint64, page int) ([]*models.Feature, []*models.FeatureProperties, error) {
+func (r *FeatureRepository) FindByOwnerPaginated(ctx context.Context, ownerID uint64, page int, search, filter string) ([]*models.Feature, []*models.FeatureProperties, error) {
 	if page < 1 {
 		page = 1
 	}
 	perPage := 5
 	offset := (page - 1) * perPage
 
-	// Query does NOT select f.geometry_id because features table doesn't have that column
-	query := `SELECT f.id, f.owner_id, f.map_id, f.type, f.created_at, f.updated_at, fp.id as prop_id, fp.feature_id, fp.karbari, fp.rgb, fp.owner, fp.label, fp.address, fp.area, fp.density, fp.stability, fp.price_psc, fp.price_irr, fp.minimum_price_percentage, fp.created_at as prop_created_at, fp.updated_at as prop_updated_at FROM features f LEFT JOIN feature_properties fp ON f.id = fp.feature_id WHERE f.owner_id = ? ORDER BY f.id ASC LIMIT ? OFFSET ?`
+	where, args := BuildMyFeaturesWhere(ownerID, search, filter)
+	query := `SELECT f.id, f.owner_id, f.map_id, f.type, f.created_at, f.updated_at, fp.id as prop_id, fp.feature_id, fp.karbari, fp.rgb, fp.owner, fp.label, fp.address, fp.area, fp.density, fp.stability, fp.price_psc, fp.price_irr, fp.minimum_price_percentage, fp.created_at as prop_created_at, fp.updated_at as prop_updated_at FROM features f LEFT JOIN feature_properties fp ON f.id = fp.feature_id WHERE ` + where + ` ORDER BY f.id ASC LIMIT ? OFFSET ?`
 
-	rows, err := r.db.QueryContext(ctx, query, ownerID, perPage, offset)
+	listArgs := append(append([]interface{}{}, args...), perPage, offset)
+	rows, err := r.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
 		return nil, nil, err
 	}

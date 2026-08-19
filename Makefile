@@ -1,4 +1,4 @@
-.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-integration test-golden test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up
+.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up kong-validate kong-reload
 
 # Proto generation
 PROTO_DIR=shared/proto
@@ -46,13 +46,13 @@ help:
 	@echo "  deploy-all       - Deploy all services to Kubernetes"
 	@echo ""
 	@echo "Testing:"
-	@echo "  test             - Run integration tests"
+	@echo "  test             - Run all test suites (alias for test-all)"
 	@echo "  test-unit        - Run unit tests inside each service module"
 	@echo "  test-services    - Run dedicated service test modules (tests/*-service/)"
-	@echo "  test-all         - Run all test suites (unit, services, integration, golden, database)"
+	@echo "  test-all         - Run all test suites (unit, services, database)"
 	@echo "  test-coverage-features  - features-service handler coverage ≥70%"
-	@echo "  test-coverage-financial - financial-service handler coverage ≥70%"
-	@echo "  test-coverage-social    - social-service handler+service coverage ≥70%"
+	@echo "  test-coverage-financial - financial-service internal coverage ≥70%"
+	@echo "  test-coverage-social    - social-service internal coverage ≥70%"
 	@echo ""
 	@echo "Local uploads:"
 	@echo "  link-uploads           - Symlink ./uploads -> $(UPLOADS_SRC)"
@@ -68,6 +68,8 @@ help:
 	@echo "  build            - Build all services"
 	@echo "  clean            - Stop services and remove volumes"
 	@echo "  clean-runtime    - Full local cleanup (containers, volumes, images, build cache)"
+	@echo "  kong-validate    - Validate kong/kong.yml inside the Kong container"
+	@echo "  kong-reload      - Restart Kong (required after kong/kong.yml changes in DB-less mode)"
 	@echo ""
 	@echo "Docker Compose Watch:"
 	@echo "  dev-up           - Start with watch mode (auto-rebuild/restart)"
@@ -133,14 +135,14 @@ test-unit:
 	done
 	@echo "✅ All unit tests passed"
 
-# Dedicated service test modules under tests/ (excludes integration, golden, database)
-SERVICE_TEST_MODULES=auth-service calendar-service commercial-service dynasty-service features-service financial-service grpc-gateway social-service storage-service support-service
+# Dedicated service test modules under tests/ (excludes database)
+SERVICE_TEST_MODULES=auth-service calendar-service commercial-service dynasty-service features-service financial-service notifications-service social-service storage-service support-service
 
 test-services:
 	@echo "🧪 Running dedicated service test modules..."
 ifeq ($(OS),Windows_NT)
 	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
-		@('auth-service','calendar-service','commercial-service','dynasty-service','features-service','financial-service','grpc-gateway','social-service','storage-service','support-service') | ForEach-Object { \
+		@('auth-service','calendar-service','commercial-service','dynasty-service','features-service','financial-service','notifications-service','social-service','storage-service','support-service') | ForEach-Object { \
 			Write-Host ('Testing ' + $$_ + '...'); \
 			Set-Location ('tests/' + $$_); \
 			$$env:GOWORK='off'; \
@@ -157,42 +159,95 @@ else
 endif
 	@echo "✅ All service test modules passed"
 
+COVERAGE_MIN ?= 70
+
 # Features-service handler coverage gate (≥70%, no MySQL required; uses GOWORK=off for local replace)
 test-coverage-features:
-	@echo "🧪 features-service handler coverage (min 70%)..."
+	@echo "🧪 features-service handler coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/features-service'; \
+		$$env:GOWORK='off'; \
+		go test ./internal/handler/... -coverprofile=coverage.out -covermode=atomic; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('handler statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
 	cd tests/features-service && GOWORK=off go test ./internal/handler/... -race -coverprofile=coverage.out -covermode=atomic
 	@pct=$$(cd tests/features-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
 	echo "handler statements coverage: $${pct}%"; \
-	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
 	@echo "✅ features-service handler coverage OK"
 
 # Financial-service handler coverage gate (≥70%)
 test-coverage-financial:
-	@echo "🧪 financial-service handler coverage (min 70%)..."
-	cd tests/financial-service && GOWORK=off go test ./internal/handler/... -race -coverprofile=coverage.out -covermode=atomic
+	@echo "🧪 financial-service internal coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/financial-service'; \
+		$$env:GOWORK='off'; \
+		go test ./internal/... -coverprofile=coverage.out -covermode=atomic -coverpkg='metarang/financial-service/internal/handler,metarang/financial-service/internal/middleware,metarang/financial-service/internal/repository,metarang/financial-service/internal/service,metarang/financial-service/internal/grpcclients,metarang/financial-service/internal/config,metarang/financial-service/internal/sadad,metarang/financial-service/cmd/server'; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('financial-service internal statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
+	cd tests/financial-service && GOWORK=off go test ./internal/... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=metarang/financial-service/internal/handler,metarang/financial-service/internal/middleware,metarang/financial-service/internal/repository,metarang/financial-service/internal/service,metarang/financial-service/internal/grpcclients,metarang/financial-service/internal/config,metarang/financial-service/internal/sadad,metarang/financial-service/cmd/server
 	@pct=$$(cd tests/financial-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
-	echo "financial-service handler statements coverage: $${pct}%"; \
-	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
-	@echo "✅ financial-service handler coverage OK"
+	echo "financial-service internal statements coverage: $${pct}%"; \
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
+	@echo "✅ financial-service coverage OK"
 
-# Social-service handler + service coverage gate (≥70%, combined packages)
+# Social-service internal coverage gate (≥70%: handler, middleware, repository, service, lang)
 test-coverage-social:
-	@echo "🧪 social-service handler+service coverage (min 70%)..."
-	cd tests/social-service && GOWORK=off go test ./internal/handler/... ./internal/service/... -race -coverprofile=coverage.out -covermode=atomic
+	@echo "🧪 social-service internal coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/social-service'; \
+		$$env:GOWORK='off'; \
+		go test ./... -coverprofile=coverage.out -covermode=atomic -coverpkg='metarang/social-service/internal/handler,metarang/social-service/internal/middleware,metarang/social-service/internal/repository,metarang/social-service/internal/service,metarang/social-service/internal/lang'; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('social-service internal statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
+	cd tests/social-service && GOWORK=off go test ./... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=metarang/social-service/internal/handler,metarang/social-service/internal/middleware,metarang/social-service/internal/repository,metarang/social-service/internal/service,metarang/social-service/internal/lang
 	@pct=$$(cd tests/social-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
-	echo "social-service handler+service statements coverage: $${pct}%"; \
-	awk -v p="$$pct" 'BEGIN{if (p+0 < 70.0) exit 1}'
+	echo "social-service internal statements coverage: $${pct}%"; \
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
 	@echo "✅ social-service coverage OK"
 
-# Integration tests
-test-integration:
-	@echo "🧪 Running integration tests..."
-	cd tests/integration && go test -v ./...
-
-# Golden JSON tests
-test-golden:
-	@echo "🧪 Running golden JSON comparison tests..."
-	cd tests/golden && go test -v ./...
+# Notifications-service internal coverage gate (≥70%)
+test-coverage-notifications:
+	@echo "🧪 notifications-service internal coverage (min $(COVERAGE_MIN)%)..."
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
+		Set-Location 'tests/notifications-service'; \
+		$$env:GOWORK='off'; \
+		go test ./... -coverprofile=coverage.out -covermode=atomic -coverpkg='metarang/notifications-service/internal/handler,metarang/notifications-service/internal/middleware,metarang/notifications-service/internal/repository,metarang/notifications-service/internal/service'; \
+		if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
+		$$line = go tool cover -func coverage.out | Select-String 'total:'; \
+		if ($$line -notmatch '(\d+\.\d+)%') { Write-Error 'could not parse coverage total'; exit 1 }; \
+		$$pct = [double]$$matches[1]; \
+		Write-Host ('notifications-service internal statements coverage: ' + $$pct + '%'); \
+		if ($$pct -lt $(COVERAGE_MIN)) { exit 1 }"
+else
+	cd tests/notifications-service && GOWORK=off go test ./... -race -coverprofile=coverage.out -covermode=atomic -coverpkg=metarang/notifications-service/internal/handler,metarang/notifications-service/internal/middleware,metarang/notifications-service/internal/repository,metarang/notifications-service/internal/service
+	@pct=$$(cd tests/notifications-service && GOWORK=off go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1); \
+	echo "notifications-service internal statements coverage: $${pct}%"; \
+	awk -v p="$$pct" 'BEGIN{if (p+0 < $(COVERAGE_MIN).0) exit 1}'
+endif
+	@echo "✅ notifications-service coverage OK"
 
 # Database tests
 test-database:
@@ -200,11 +255,10 @@ test-database:
 	cd tests/database && go test -v ./...
 
 # Run all tests
-test-all: test-unit test-services test-integration test-golden test-database
+test-all: test-unit test-services test-database
 	@echo "✅ All test suites passed"
 
-# Legacy test target (kept for backward compatibility)
-test: test-integration
+test: test-all
 
 # =============================================================================
 # Local uploads symlink
@@ -212,32 +266,37 @@ test: test-integration
 
 .PHONY: link-uploads
 
+# Default values
+UPLOADS_PATH ?= $(CURDIR)/services/storage-service/uploads
+UPLOADS_LINK ?= $(CURDIR)/uploads
+
 link-uploads:
-	@echo "Creating symlink: $(UPLOADS_LINK) -> $(UPLOADS_SRC)"
+	@echo "Creating symlink: $(UPLOADS_LINK) -> $(UPLOADS_PATH)"
 ifeq ($(OS),Windows_NT)
 	@powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; \
-		if (-not (Test-Path -LiteralPath '$(UPLOADS_SRC)')) { New-Item -ItemType Directory -Force -Path '$(UPLOADS_SRC)' | Out-Null }; \
-		$$target = (Resolve-Path -LiteralPath '$(UPLOADS_SRC)').Path; \
+		if (-not (Test-Path -LiteralPath '$(UPLOADS_PATH)')) { New-Item -ItemType Directory -Force -Path '$(UPLOADS_PATH)' | Out-Null }; \
+		$$target = (Resolve-Path -LiteralPath '$(UPLOADS_PATH)').Path; \
 		if (Test-Path -LiteralPath '$(UPLOADS_LINK)') { \
 			$$item = Get-Item -LiteralPath '$(UPLOADS_LINK)' -Force; \
 			if ($$item.Attributes -band [IO.FileAttributes]::ReparsePoint) { \
-				Write-Host 'Link already exists: $(UPLOADS_LINK) -> $(UPLOADS_SRC)'; exit 0 \
+				Remove-Item -LiteralPath '$(UPLOADS_LINK)' -Force; \
+			} else { \
+				Write-Error '$(UPLOADS_LINK) already exists and is not a symlink/junction'; exit 1 \
 			}; \
-			Write-Error '$(UPLOADS_LINK) already exists and is not a link to $(UPLOADS_SRC)'; exit 1 \
 		}; \
 		try { \
 			New-Item -ItemType SymbolicLink -Path '$(UPLOADS_LINK)' -Target $$target | Out-Null; \
-			Write-Host 'Created symlink: $(UPLOADS_LINK) -> $(UPLOADS_SRC)' \
+			Write-Host 'Created symlink: $(UPLOADS_LINK) -> $(UPLOADS_PATH)' \
 		} catch { \
 			Write-Host 'Symbolic link unavailable (enable Developer Mode or run as admin); creating directory junction...'; \
 			$$null = cmd /c mklink /J \"$(UPLOADS_LINK)\" \"$$target\"; \
 			if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }; \
-			Write-Host 'Created junction: $(UPLOADS_LINK) -> $(UPLOADS_SRC)' \
+			Write-Host 'Created junction: $(UPLOADS_LINK) -> $(UPLOADS_PATH)' \
 		}"
 else
-	@mkdir -p $(UPLOADS_SRC)
-	@ln -sfn $(UPLOADS_SRC) $(UPLOADS_LINK)
-	@echo "Created symlink: $(UPLOADS_LINK) -> $(UPLOADS_SRC)"
+	@mkdir -p "$(UPLOADS_PATH)"
+	@ln -sfn "$(UPLOADS_PATH)" "$(UPLOADS_LINK)"
+	@echo "Created symlink: $(UPLOADS_LINK) -> $(UPLOADS_PATH)"
 endif
 
 .PHONY: init-storage-uploads
@@ -254,7 +313,16 @@ endif
 # Docker Compose Management
 # =============================================================================
 
-.PHONY: up down restart logs ps build clean import-schema import-database dev-up dev-down dev-build dev-logs dev-restart dev-ps
+.PHONY: up down restart logs ps build clean import-schema import-database dev-up dev-down dev-build dev-logs dev-restart dev-ps kong-validate kong-reload
+
+kong-validate:
+	@echo "🔍 Validating Kong declarative config..."
+	$(DOCKER_COMPOSE) exec -T kong kong config parse /kong/kong.yml
+
+# DB-less Kong loads kong.yml only at startup — restart after route changes.
+kong-reload:
+	@echo "🔄 Restarting Kong to apply kong/kong.yml..."
+	$(DOCKER_COMPOSE) restart kong
 
 up: init-storage-uploads
 	@echo "🚀 Starting all microservices..."
@@ -442,7 +510,7 @@ endif
 
 dev-up: init-storage-uploads
 	@echo "🚀 Starting development environment with Docker Compose Watch..."
-	@echo "ℹ️  File changes will automatically trigger rebuilds (Go) or restarts (Node.js)"
+	@echo "ℹ️  File changes will automatically trigger rebuilds (Go services)"
 	@echo ""
 	$(DOCKER_COMPOSE) up --watch
 	@echo "✅ Development services started with watch mode!"

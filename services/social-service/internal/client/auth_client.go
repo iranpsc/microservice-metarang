@@ -15,16 +15,12 @@ import (
 // AuthClient checks auth-service authorization data needed by social-service.
 type AuthClient interface {
 	CanFollow(ctx context.Context, callerUserID, targetUserID uint64) (bool, error)
-	// GetLatestProfilePhotoURL returns the newest profile photo URL for a user.
-	// Empty string means the user has no profile photo.
-	GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error)
 	Close() error
 }
 
 type authClient struct {
-	userClient         pb.UserServiceClient
-	profilePhotoClient pb.ProfilePhotoServiceClient
-	conn               *grpc.ClientConn
+	userClient pb.UserServiceClient
+	conn       *grpc.ClientConn
 }
 
 // NewAuthClient creates a new Auth Service client.
@@ -35,10 +31,16 @@ func NewAuthClient(address string) (AuthClient, error) {
 	}
 
 	return &authClient{
-		userClient:         pb.NewUserServiceClient(conn),
-		profilePhotoClient: pb.NewProfilePhotoServiceClient(conn),
-		conn:               conn,
+		userClient: pb.NewUserServiceClient(conn),
+		conn:       conn,
 	}, nil
+}
+
+// NewAuthClientFromGRPC builds an AuthClient from existing gRPC stubs (used in tests).
+func NewAuthClientFromGRPC(userClient pb.UserServiceClient) AuthClient {
+	return &authClient{
+		userClient: userClient,
+	}
 }
 
 func (c *authClient) Close() error {
@@ -48,7 +50,6 @@ func (c *authClient) Close() error {
 	return nil
 }
 
-// CanFollow mirrors Laravel UserPolicy::follow profile-limitation checks.
 // It checks both a target-to-caller limitation and the target's global
 // target-to-self limitation.
 func (c *authClient) CanFollow(ctx context.Context, callerUserID, targetUserID uint64) (bool, error) {
@@ -83,19 +84,4 @@ func (c *authClient) checkFollowLimitation(
 
 	follow := limitation.Options.Follow
 	return follow == nil || *follow, nil
-}
-
-// GetLatestProfilePhotoURL lists profile photos from auth-service and returns
-// the newest URL. Photos are ordered oldest-first by auth-service.
-func (c *authClient) GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error) {
-	resp, err := c.profilePhotoClient.ListProfilePhotos(ctx, &pb.ListProfilePhotosRequest{
-		UserId: userID,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to list profile photos: %w", err)
-	}
-	if resp == nil || len(resp.Data) == 0 {
-		return "", nil
-	}
-	return resp.Data[len(resp.Data)-1].Url, nil
 }

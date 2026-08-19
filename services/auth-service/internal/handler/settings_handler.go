@@ -18,15 +18,20 @@ type settingsHandler struct {
 	settingsService service.SettingsService
 }
 
-func RegisterSettingsHandler(grpcServer *grpc.Server, settingsService service.SettingsService) {
-	pb.RegisterSettingsServiceServer(grpcServer, &settingsHandler{
-		settingsService: settingsService,
-	})
+func RegisterSettingsHandler(grpcServer *grpc.Server, settingsService service.SettingsService) pb.SettingsServiceServer {
+	h := &settingsHandler{settingsService: settingsService}
+	pb.RegisterSettingsServiceServer(grpcServer, h)
+	return h
 }
 
 func (h *settingsHandler) GetSettings(ctx context.Context, req *pb.GetSettingsRequest) (*pb.GetSettingsResponse, error) {
 	locale := getProjectLocale()
-	settings, err := h.settingsService.GetSettings(ctx, req.UserId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	settings, err := h.settingsService.GetSettings(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", lang.Tf(locale, "failed to get settings: %v", err))
 	}
@@ -41,6 +46,11 @@ func (h *settingsHandler) GetSettings(ctx context.Context, req *pb.GetSettingsRe
 
 func (h *settingsHandler) UpdateSettings(ctx context.Context, req *pb.UpdateSettingsRequest) (*emptypb.Empty, error) {
 	locale := getProjectLocale()
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var checkoutDaysCount *uint32
 	var automaticLogout *int32
 	var setting *string
@@ -70,7 +80,7 @@ func (h *settingsHandler) UpdateSettings(ctx context.Context, req *pb.UpdateSett
 		statusVal = &val
 	}
 
-	err := h.settingsService.UpdateSettings(ctx, req.UserId, checkoutDaysCount, automaticLogout, setting, statusVal)
+	err = h.settingsService.UpdateSettings(ctx, userID, checkoutDaysCount, automaticLogout, setting, statusVal)
 	if err != nil {
 		switch err {
 		case service.ErrInvalidCheckoutDays, service.ErrInvalidAutomaticLogout, service.ErrInvalidProfileSetting, service.ErrMissingRequiredFields:
@@ -85,28 +95,39 @@ func (h *settingsHandler) UpdateSettings(ctx context.Context, req *pb.UpdateSett
 
 func (h *settingsHandler) GetGeneralSettings(ctx context.Context, req *pb.GetGeneralSettingsRequest) (*pb.GetGeneralSettingsResponse, error) {
 	locale := getProjectLocale()
-	notifications, err := h.settingsService.GetGeneralSettings(ctx, req.UserId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	generalSettings, err := h.settingsService.GetGeneralSettings(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", lang.Tf(locale, "failed to get general settings: %v", err))
 	}
 
 	return &pb.GetGeneralSettingsResponse{
 		Data: &pb.NotificationSettingsData{
-			AnnouncementsSms:       notifications["announcements_sms"],
-			AnnouncementsEmail:     notifications["announcements_email"],
-			ReportsSms:             notifications["reports_sms"],
-			ReportsEmail:           notifications["reports_email"],
-			LoginVerificationSms:   notifications["login_verification_sms"],
-			LoginVerificationEmail: notifications["login_verification_email"],
-			TransactionsSms:        notifications["transactions_sms"],
-			TransactionsEmail:      notifications["transactions_email"],
-			TradesSms:              notifications["trades_sms"],
-			TradesEmail:            notifications["trades_email"],
+			Id:                     generalSettings.ID,
+			AnnouncementsSms:       generalSettings.Notifications["announcements_sms"],
+			AnnouncementsEmail:     generalSettings.Notifications["announcements_email"],
+			ReportsSms:             generalSettings.Notifications["reports_sms"],
+			ReportsEmail:           generalSettings.Notifications["reports_email"],
+			LoginVerificationSms:   generalSettings.Notifications["login_verification_sms"],
+			LoginVerificationEmail: generalSettings.Notifications["login_verification_email"],
+			TransactionsSms:        generalSettings.Notifications["transactions_sms"],
+			TransactionsEmail:      generalSettings.Notifications["transactions_email"],
+			TradesSms:              generalSettings.Notifications["trades_sms"],
+			TradesEmail:            generalSettings.Notifications["trades_email"],
 		},
 	}, nil
 }
 
 func (h *settingsHandler) UpdateGeneralSettings(ctx context.Context, req *pb.UpdateGeneralSettingsRequest) (*pb.UpdateGeneralSettingsResponse, error) {
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	notifications := map[string]bool{
 		"announcements_sms":        req.Notifications.AnnouncementsSms,
 		"announcements_email":      req.Notifications.AnnouncementsEmail,
@@ -121,7 +142,7 @@ func (h *settingsHandler) UpdateGeneralSettings(ctx context.Context, req *pb.Upd
 	}
 
 	locale := getProjectLocale()
-	updated, err := h.settingsService.UpdateGeneralSettings(ctx, req.UserId, req.SettingId, notifications)
+	updated, err := h.settingsService.UpdateGeneralSettings(ctx, userID, req.SettingId, notifications)
 	if err != nil {
 		switch err {
 		case service.ErrSettingsNotFound:
@@ -155,7 +176,12 @@ func (h *settingsHandler) UpdateGeneralSettings(ctx context.Context, req *pb.Upd
 
 func (h *settingsHandler) GetPrivacySettings(ctx context.Context, req *pb.GetPrivacySettingsRequest) (*pb.GetPrivacySettingsResponse, error) {
 	locale := getProjectLocale()
-	privacy, err := h.settingsService.GetPrivacySettings(ctx, req.UserId)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	privacy, err := h.settingsService.GetPrivacySettings(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", lang.Tf(locale, "failed to get privacy settings: %v", err))
 	}
@@ -173,7 +199,12 @@ func (h *settingsHandler) GetPrivacySettings(ctx context.Context, req *pb.GetPri
 
 func (h *settingsHandler) UpdatePrivacySettings(ctx context.Context, req *pb.UpdatePrivacySettingsRequest) (*emptypb.Empty, error) {
 	locale := getProjectLocale()
-	err := h.settingsService.UpdatePrivacySettings(ctx, req.UserId, req.Key, req.Value)
+	userID, err := authenticatedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = h.settingsService.UpdatePrivacySettings(ctx, userID, req.Key, req.Value)
 	if err != nil {
 		switch err {
 		case service.ErrInvalidPrivacyKey, service.ErrInvalidPrivacyValue:

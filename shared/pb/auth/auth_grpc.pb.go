@@ -1323,6 +1323,7 @@ const (
 	CitizenService_GetCitizenReferrals_FullMethodName     = "/auth.CitizenService/GetCitizenReferrals"
 	CitizenService_GetCitizenReferralChart_FullMethodName = "/auth.CitizenService/GetCitizenReferralChart"
 	CitizenService_GetCitizenUserInfo_FullMethodName      = "/auth.CitizenService/GetCitizenUserInfo"
+	CitizenService_GetCitizenLevel_FullMethodName         = "/auth.CitizenService/GetCitizenLevel"
 )
 
 // CitizenServiceClient is the client API for CitizenService service.
@@ -1336,6 +1337,7 @@ type CitizenServiceClient interface {
 	GetCitizenReferralChart(ctx context.Context, in *GetCitizenReferralChartRequest, opts ...grpc.CallOption) (*CitizenReferralChartResponse, error)
 	// Lightweight identity + privacy for public citizen feature assets
 	GetCitizenUserInfo(ctx context.Context, in *GetCitizenUserInfoRequest, opts ...grpc.CallOption) (*GetCitizenUserInfoResponse, error)
+	GetCitizenLevel(ctx context.Context, in *GetCitizenLevelRequest, opts ...grpc.CallOption) (*GetCitizenLevelResponse, error)
 }
 
 type citizenServiceClient struct {
@@ -1386,6 +1388,16 @@ func (c *citizenServiceClient) GetCitizenUserInfo(ctx context.Context, in *GetCi
 	return out, nil
 }
 
+func (c *citizenServiceClient) GetCitizenLevel(ctx context.Context, in *GetCitizenLevelRequest, opts ...grpc.CallOption) (*GetCitizenLevelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCitizenLevelResponse)
+	err := c.cc.Invoke(ctx, CitizenService_GetCitizenLevel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CitizenServiceServer is the server API for CitizenService service.
 // All implementations must embed UnimplementedCitizenServiceServer
 // for forward compatibility.
@@ -1397,6 +1409,7 @@ type CitizenServiceServer interface {
 	GetCitizenReferralChart(context.Context, *GetCitizenReferralChartRequest) (*CitizenReferralChartResponse, error)
 	// Lightweight identity + privacy for public citizen feature assets
 	GetCitizenUserInfo(context.Context, *GetCitizenUserInfoRequest) (*GetCitizenUserInfoResponse, error)
+	GetCitizenLevel(context.Context, *GetCitizenLevelRequest) (*GetCitizenLevelResponse, error)
 	mustEmbedUnimplementedCitizenServiceServer()
 }
 
@@ -1418,6 +1431,9 @@ func (UnimplementedCitizenServiceServer) GetCitizenReferralChart(context.Context
 }
 func (UnimplementedCitizenServiceServer) GetCitizenUserInfo(context.Context, *GetCitizenUserInfoRequest) (*GetCitizenUserInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCitizenUserInfo not implemented")
+}
+func (UnimplementedCitizenServiceServer) GetCitizenLevel(context.Context, *GetCitizenLevelRequest) (*GetCitizenLevelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCitizenLevel not implemented")
 }
 func (UnimplementedCitizenServiceServer) mustEmbedUnimplementedCitizenServiceServer() {}
 func (UnimplementedCitizenServiceServer) testEmbeddedByValue()                        {}
@@ -1512,6 +1528,24 @@ func _CitizenService_GetCitizenUserInfo_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CitizenService_GetCitizenLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCitizenLevelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CitizenServiceServer).GetCitizenLevel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CitizenService_GetCitizenLevel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CitizenServiceServer).GetCitizenLevel(ctx, req.(*GetCitizenLevelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CitizenService_ServiceDesc is the grpc.ServiceDesc for CitizenService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1534,6 +1568,10 @@ var CitizenService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCitizenUserInfo",
 			Handler:    _CitizenService_GetCitizenUserInfo_Handler,
+		},
+		{
+			MethodName: "GetCitizenLevel",
+			Handler:    _CitizenService_GetCitizenLevel_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

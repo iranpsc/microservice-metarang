@@ -4,12 +4,9 @@
 
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
-| Services CI/CD | `services-ci.yml` | Push/PR to `main`/`develop` (service, shared, or schema changes), manual | Detects changed services and runs the full CI/CD pipeline for each |
+| Services CI/CD | `services-ci.yml` | Push/PR to `main`/`dev` (service, shared, or schema changes), manual | Detects changed services and runs the full CI/CD pipeline for each |
 | Service CI (Reusable) | `service-ci.yml` | Called by `services-ci.yml` | Lint → Test → Build/Scan → Deploy for a single service |
-| Integration Tests | `integration-tests.yml` | Push/PR to `main`/`develop`, daily at 02:00 UTC, manual | Full cross-service integration suite, wallet concurrency, and golden JSON tests |
 | Shared Packages CI | `shared-packages.yml` | Push/PR touching `shared/**`, manual | Lint, test, and vulnerability-check shared Go packages |
-| WebSocket Gateway CI/CD | `websocket-gateway.yml` | Push/PR touching `websocket-gateway/**`, manual | Build, scan, and push the Node.js WebSocket gateway image |
-| Load Tests | `load-tests.yml` | Weekly on Sundays at 03:00 UTC, manual | k6 load tests against the staging environment |
 
 ## How service CI works
 
@@ -25,7 +22,7 @@ The reusable pipeline per service:
 
 ```
 lint (golangci-lint)
-  └─ test (unit tests + govulncheck + Codecov, against MySQL/Redis containers)
+  └─ test (unit + integration tests, govulncheck, coverage summary + Codecov, against MySQL/Redis containers)
        └─ build (Docker build → Trivy scan → push on non-PR events)
             └─ deploy (main only, production environment: kubectl set image + rollout + rollback on failure)
 ```
@@ -42,25 +39,26 @@ Notes:
 Use **Actions → Services CI/CD → Run workflow**:
 
 - `services: all` — rebuild every service (replaces the old `all-services.yml`).
-- `services: auth-service,grpc-gateway` — rebuild specific services (comma-separated).
+- `services: auth-service,support-service` — rebuild specific services (comma-separated).
 
 ## Required secrets
 
 | Secret | Used by | Required |
 |--------|---------|----------|
 | `DOCKER_USERNAME` / `DOCKER_PASSWORD` | Image push to Docker Hub (`abbasajorloo/<service>`) | Yes |
-| `KUBE_CONFIG` | Deploy, load tests | For deploys |
+| `KUBE_CONFIG` | Deploy | For deploys |
 | `CODECOV_TOKEN` | Coverage upload | Optional |
 
 ## Shared building blocks
 
-- `.github/actions/setup-test-db/` — composite action that installs the MySQL client and loads `scripts/schema.sql` into the MySQL service container. Used by `service-ci.yml` and `integration-tests.yml`.
+- `.github/actions/setup-test-db/` — composite action that installs the MySQL client and loads `scripts/schema.sql` into the MySQL service container. Used by `service-ci.yml`.
+- `.github/scripts/go-test-checklist.sh` — runs `go test -json` and writes a package checklist to the job summary.
+- `.github/scripts/go-coverage-summary.sh` — merges unit/integration coverage profiles and writes total + per-package coverage to the job summary.
 - All third-party actions are pinned to commit SHAs; Dependabot (`.github/dependabot.yml`) keeps them updated weekly.
 
 ## Branch protection
 
-Recommended required checks for `main`/`develop`:
+Recommended required checks for `main`/`dev`:
 
 - **Services CI/CD** (covers lint/test/build of changed services)
-- **Integration Tests**
 - **Shared Packages CI** (for shared-only changes)

@@ -27,7 +27,8 @@ This service implements the core dynasty functionality including:
 
 ## API Endpoints
 
-All endpoints are exposed via the `grpc-gateway` service as HTTP REST endpoints.
+HTTP routes are served directly by this service (Kong `/api/dynasty` → dynasty-service `:8068`).
+gRPC remains available internally on `:50055`.
 
 ### Dynasty Management
 - `GET /api/dynasty` - Get user's dynasty or available features/intro prizes

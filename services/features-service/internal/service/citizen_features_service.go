@@ -10,7 +10,6 @@ import (
 	periodpkg "metarang/shared/pkg/period"
 )
 
-// DisplayableKarbaris matches Laravel UserFeaturesService::DISPLAYABLE_KARBARIS.
 var DisplayableKarbaris = []string{"a", "m", "t", "g", "s", "b", "e", "n"}
 
 var karbariLabels = map[string]string{
@@ -35,16 +34,22 @@ type citizenFeaturesRepo interface {
 	ListMapMarkers(ctx context.Context, userID uint64, karbaris []string) ([]models.CitizenFeatureMapMarker, error)
 }
 
-// CitizenFeaturesService implements public citizen feature asset queries.
-type CitizenFeaturesService struct {
-	repo citizenFeaturesRepo
-	now  func() time.Time
+type userCreatedAtRepo interface {
+	GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error)
 }
 
-func NewCitizenFeaturesService(repo citizenFeaturesRepo) *CitizenFeaturesService {
+// CitizenFeaturesService implements public citizen feature asset queries.
+type CitizenFeaturesService struct {
+	repo     citizenFeaturesRepo
+	userRepo userCreatedAtRepo
+	now      func() time.Time
+}
+
+func NewCitizenFeaturesService(repo citizenFeaturesRepo, userRepo userCreatedAtRepo) *CitizenFeaturesService {
 	return &CitizenFeaturesService{
-		repo: repo,
-		now:  time.Now,
+		repo:     repo,
+		userRepo: userRepo,
+		now:      time.Now,
 	}
 }
 
@@ -66,7 +71,11 @@ func (s *CitizenFeaturesService) GetSummary(
 	if reference.IsZero() {
 		reference = s.now()
 	}
-	window, err := periodpkg.ResolvePeriod(period, reference)
+	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user registration date: %w", err)
+	}
+	window, err := periodpkg.ResolvePeriod(period, reference, registeredAt)
 	if err != nil {
 		return nil, err
 	}
@@ -100,56 +109,64 @@ func (s *CitizenFeaturesService) GetSummary(
 	}, nil
 }
 
-// GetChart returns bought/sold counts bucketed by period.
+// GetChart returns bought/sold counts bucketed by period, one series per karbari.
 func (s *CitizenFeaturesService) GetChart(
 	ctx context.Context,
 	userID uint64,
 	period string,
 	allowedKarbaris []string,
 	reference time.Time,
-) (*models.CitizenFeatureChartData, error) {
+) (*models.CitizenFeatureChartResult, error) {
 	period = periodpkg.NormalizePeriod(period)
 	if reference.IsZero() {
 		reference = s.now()
 	}
-	window, err := periodpkg.ResolvePeriod(period, reference)
+	registeredAt, err := s.userRepo.GetUserCreatedAt(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user registration date: %w", err)
+	}
+	window, err := periodpkg.ResolvePeriod(period, reference, registeredAt)
 	if err != nil {
 		return nil, err
 	}
 
-	labels := make([]string, len(window.Buckets))
-	bought := make([]int32, len(window.Buckets))
-	sold := make([]int32, len(window.Buckets))
-	for i, bucket := range window.Buckets {
-		labels[i] = bucket.Label
-	}
-
 	if len(allowedKarbaris) == 0 {
-		return &models.CitizenFeatureChartData{
-			Labels: labels,
-			Bought: bought,
-			Sold:   sold,
+		return &models.CitizenFeatureChartResult{
+			Bought: []models.CitizenChartPoint{},
+			Sold:   []models.CitizenChartPoint{},
+			Period: period,
 		}, nil
 	}
 
-	boughtTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "buyer", allowedKarbaris, window.Start, window.End)
-	if err != nil {
-		return nil, fmt.Errorf("list bought trades: %w", err)
-	}
-	soldTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "seller", allowedKarbaris, window.Start, window.End)
-	if err != nil {
-		return nil, fmt.Errorf("list sold trades: %w", err)
+	bought := make([]models.CitizenChartPoint, 0, len(allowedKarbaris)*len(window.Buckets))
+	sold := make([]models.CitizenChartPoint, 0, len(allowedKarbaris)*len(window.Buckets))
+	for _, karbari := range allowedKarbaris {
+		boughtTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "buyer", []string{karbari}, window.Start, window.End)
+		if err != nil {
+			return nil, fmt.Errorf("list bought trades for %s: %w", karbari, err)
+		}
+		soldTrades, err := s.repo.ListTradeTimestamps(ctx, userID, "seller", []string{karbari}, window.Start, window.End)
+		if err != nil {
+			return nil, fmt.Errorf("list sold trades for %s: %w", karbari, err)
+		}
+		for _, bucket := range window.Buckets {
+			bought = append(bought, models.CitizenChartPoint{
+				Karbari: karbari,
+				Label:   bucket.Label,
+				Amount:  float64(countTradesInBucket(boughtTrades, bucket)),
+			})
+			sold = append(sold, models.CitizenChartPoint{
+				Karbari: karbari,
+				Label:   bucket.Label,
+				Amount:  float64(countTradesInBucket(soldTrades, bucket)),
+			})
+		}
 	}
 
-	for i, bucket := range window.Buckets {
-		bought[i] = countTradesInBucket(boughtTrades, bucket)
-		sold[i] = countTradesInBucket(soldTrades, bucket)
-	}
-
-	return &models.CitizenFeatureChartData{
-		Labels: labels,
+	return &models.CitizenFeatureChartResult{
 		Bought: bought,
 		Sold:   sold,
+		Period: period,
 	}, nil
 }
 

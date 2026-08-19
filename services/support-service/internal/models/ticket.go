@@ -4,7 +4,6 @@ import (
 	"time"
 )
 
-// Ticket status constants matching Laravel
 const (
 	TicketStatusNew        = 0
 	TicketStatusAnswered   = 1
@@ -14,7 +13,6 @@ const (
 	TicketStatusClosed     = 5
 )
 
-// Department constants matching Laravel Departments enum
 const (
 	DeptTechnicalSupport = "technical_support"
 	DeptCitizensSafety   = "citizens_safety"
@@ -35,7 +33,7 @@ type Ticket struct {
 	Importance int32     `db:"importance"`
 	Code       int32     `db:"code"`
 	UserID     uint64    `db:"user_id"`
-	ReceiverID *uint64   `db:"reciever_id"` // Note: Laravel uses 'reciever' (typo)
+	ReceiverID *uint64   `db:"reciever_id"`
 	CreatedAt  time.Time `db:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at"`
 }
@@ -74,7 +72,6 @@ func (t *Ticket) IsOpen() bool {
 	return t.Status != TicketStatusClosed
 }
 
-// GetDepartmentTitle returns Persian title for department (matching Laravel)
 func GetDepartmentTitle(dept string) string {
 	switch dept {
 	case DeptTechnicalSupport:

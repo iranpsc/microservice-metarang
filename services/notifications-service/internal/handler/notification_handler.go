@@ -27,9 +27,10 @@ type NotificationHandler struct {
 }
 
 // RegisterNotificationHandler registers the notification handler with the gRPC server.
-func RegisterNotificationHandler(grpcServer *grpc.Server, svc service.NotificationService) {
+func RegisterNotificationHandler(grpcServer *grpc.Server, svc service.NotificationService) *NotificationHandler {
 	handler := &NotificationHandler{service: svc}
 	pb.RegisterNotificationServiceServer(grpcServer, handler)
+	return handler
 }
 
 func (h *NotificationHandler) SendNotification(ctx context.Context, req *pb.SendNotificationRequest) (*pb.NotificationResponse, error) {
@@ -164,7 +165,7 @@ func convertNotification(notification models.Notification) *pb.Notification {
 	}
 
 	// Format created_at as Jalali date and time (Y/m/d H:m:s format)
-	// This will be parsed by grpc-gateway to extract separate date and time fields
+	// Parsed by the HTTP layer to extract separate date and time fields
 	if !notification.CreatedAt.IsZero() {
 		// Format as "Y/m/d H:m:s" for parsing in grpc-gateway
 		dateStr := helpers.FormatJalaliDate(notification.CreatedAt)

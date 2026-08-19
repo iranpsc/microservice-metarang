@@ -17,9 +17,11 @@ import (
 
 	"metarang/dynasty-service/internal/client"
 	"metarang/dynasty-service/internal/handler"
+	"metarang/dynasty-service/internal/middleware"
 	"metarang/dynasty-service/internal/repository"
 	"metarang/dynasty-service/internal/service"
 
+	authpb "metarang/shared/pb/auth"
 	dynastypb "metarang/shared/pb/dynasty"
 	grpcutil "metarang/shared/pkg/grpc"
 	"metarang/shared/pkg/metrics"
@@ -115,13 +117,39 @@ func main() {
 		}()
 	}
 
+	var kycPort service.KYCPort
+	authServiceAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	if ac, err := client.NewAuthClient(authServiceAddr); err != nil {
+		log.Printf("Warning: auth service client unavailable (%v); search KYC enrichment disabled", err)
+	} else {
+		kycPort = ac
+		defer func() {
+			if err := ac.Close(); err != nil {
+				log.Printf("auth client close: %v", err)
+			}
+		}()
+	}
+
+	var levelsPort service.LevelsPort
+	levelsAddr := getEnv("LEVELS_SERVICE_ADDR", "levels-service:50054")
+	if lc, err := client.NewLevelsClient(levelsAddr); err != nil {
+		log.Printf("Warning: levels service unavailable (%v); search levels enrichment disabled", err)
+	} else {
+		levelsPort = lc
+		defer func() {
+			if err := lc.Close(); err != nil {
+				log.Printf("levels client close: %v", err)
+			}
+		}()
+	}
+
 	// Initialize services
 	dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, notificationServiceAddr)
 	joinRequestService := service.NewJoinRequestService(joinRequestRepo, dynastyRepo, familyRepo, prizeRepo, notificationPort, notificationServiceAddr)
 	familyService := service.NewFamilyService(familyRepo, dynastyRepo)
 	prizeService := service.NewPrizeService(db, prizeRepo, variableRepo, userVariableRepo, walletPort)
 	permissionService := service.NewPermissionService(permissionRepo, joinRequestRepo, familyRepo, dynastyRepo)
-	userSearchService := service.NewUserSearchService(db)
+	userSearchService := service.NewUserSearchService(db, kycPort, levelsPort)
 
 	// Create gRPC server
 	serviceMetrics := metrics.NewMetrics("dynasty_service")
@@ -150,6 +178,18 @@ func main() {
 	dynastypb.RegisterFamilyServiceServer(grpcServer, familyHandler)
 	dynastypb.RegisterDynastyPrizeServiceServer(grpcServer, prizeHandler)
 
+	// Auth client for HTTP middleware (ValidateToken)
+	var authClient authpb.AuthServiceClient
+	authAddr := getEnv("AUTH_SERVICE_ADDR", "auth-service:50051")
+	authConn, err := grpcutil.NewClient(authAddr)
+	if err != nil {
+		log.Printf("Warning: failed to connect to auth service at %s: %v", authAddr, err)
+	} else {
+		defer func() { _ = authConn.Close() }()
+		authClient = authpb.NewAuthServiceClient(authConn)
+		log.Printf("Created auth service client for %s", authAddr)
+	}
+
 	// Start gRPC server
 	port := getEnv("GRPC_PORT", "50055")
 	listener, err := net.Listen("tcp", ":"+port)
@@ -157,12 +197,22 @@ func main() {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("Dynasty service listening on port %s", port)
+	log.Printf("gRPC server listening on port %s", port)
 
-	// Graceful shutdown
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	httpHandler := handler.NewHTTPDynastyHandler(dynastyHandler, joinRequestHandler, familyHandler, prizeHandler)
+	httpPort := getEnv("HTTP_PORT", "8068")
+	authMW := middleware.AuthMiddleware(authClient)
+
+	log.Printf("HTTP server listening on port %s", httpPort)
+	go func() {
+		if err := handler.StartHTTPServer(httpHandler, httpPort, authMW); err != nil {
+			log.Fatalf("Failed to serve HTTP: %v", err)
 		}
 	}()
 

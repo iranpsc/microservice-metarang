@@ -18,6 +18,7 @@ type MockChallengeRepository struct {
 	HasUserAnsweredFunc               func(ctx context.Context, userID, questionID uint64) (bool, error)
 	GetUserAnswerCountFunc            func(ctx context.Context, userID uint64, isCorrect bool) (int32, error)
 	GetTotalParticipantsCountFunc     func(ctx context.Context) (int32, error)
+	GetTotalViewsCountFunc            func(ctx context.Context) (int32, error)
 	GetSystemVariableFunc             func(ctx context.Context, slug string) (float64, error)
 	GetAnswerVoteCountFunc            func(ctx context.Context, answerID uint64) (int32, error)
 	GetQuestionTotalAnswersFunc       func(ctx context.Context, questionID uint64) (int32, error)
@@ -82,6 +83,13 @@ func (m *MockChallengeRepository) GetUserAnswerCount(ctx context.Context, userID
 func (m *MockChallengeRepository) GetTotalParticipantsCount(ctx context.Context) (int32, error) {
 	if m.GetTotalParticipantsCountFunc != nil {
 		return m.GetTotalParticipantsCountFunc(ctx)
+	}
+	return 0, nil
+}
+
+func (m *MockChallengeRepository) GetTotalViewsCount(ctx context.Context) (int32, error) {
+	if m.GetTotalViewsCountFunc != nil {
+		return m.GetTotalViewsCountFunc(ctx)
 	}
 	return 0, nil
 }
@@ -201,9 +209,8 @@ func (m *MockCommercialClient) Close() error {
 
 // MockAuthClient implements client.AuthClient for tests.
 type MockAuthClient struct {
-	CanFollowFunc                func(ctx context.Context, callerUserID, targetUserID uint64) (bool, error)
-	GetLatestProfilePhotoURLFunc func(ctx context.Context, userID uint64) (string, error)
-	CloseFunc                    func() error
+	CanFollowFunc func(ctx context.Context, callerUserID, targetUserID uint64) (bool, error)
+	CloseFunc     func() error
 }
 
 func (m *MockAuthClient) CanFollow(ctx context.Context, callerUserID, targetUserID uint64) (bool, error) {
@@ -211,13 +218,6 @@ func (m *MockAuthClient) CanFollow(ctx context.Context, callerUserID, targetUser
 		return m.CanFollowFunc(ctx, callerUserID, targetUserID)
 	}
 	return true, nil
-}
-
-func (m *MockAuthClient) GetLatestProfilePhotoURL(ctx context.Context, userID uint64) (string, error) {
-	if m.GetLatestProfilePhotoURLFunc != nil {
-		return m.GetLatestProfilePhotoURLFunc(ctx, userID)
-	}
-	return "", nil
 }
 
 func (m *MockAuthClient) Close() error {

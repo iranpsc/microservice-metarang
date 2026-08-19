@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -20,10 +21,10 @@ type citizenHandler struct {
 	citizenService service.CitizenService
 }
 
-func RegisterCitizenHandler(grpcServer *grpc.Server, citizenService service.CitizenService) {
-	pb.RegisterCitizenServiceServer(grpcServer, &citizenHandler{
-		citizenService: citizenService,
-	})
+func RegisterCitizenHandler(grpcServer *grpc.Server, citizenService service.CitizenService) pb.CitizenServiceServer {
+	h := &citizenHandler{citizenService: citizenService}
+	pb.RegisterCitizenServiceServer(grpcServer, h)
+	return h
 }
 
 // GetCitizenUserInfo returns user_id + privacy for public citizen feature assets.
@@ -53,6 +54,33 @@ func (h *citizenHandler) GetCitizenUserInfo(ctx context.Context, req *pb.GetCiti
 	return &pb.GetCitizenUserInfoResponse{
 		UserId:  info.UserID,
 		Privacy: privacy,
+	}, nil
+}
+
+// GetCitizenLevel returns the user's current level (slug + score) from levels-service.
+func (h *citizenHandler) GetCitizenLevel(ctx context.Context, req *pb.GetCitizenLevelRequest) (*pb.GetCitizenLevelResponse, error) {
+	if req.Code == "" {
+		locale := "en"
+		t := helpers.GetLocaleTranslations(locale)
+		validationErrors := map[string]string{
+			"code": fmt.Sprintf(t.Required, "code"),
+		}
+		return nil, returnValidationError(validationErrors)
+	}
+
+	level, err := h.citizenService.GetCitizenLevel(ctx, req.Code)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get citizen level: %v", err)
+	}
+	if level == nil {
+		return nil, status.Errorf(codes.NotFound, "citizen not found")
+	}
+
+	return &pb.GetCitizenLevelResponse{
+		Level: &pb.CitizenLevelSummary{
+			Slug:  level.Slug,
+			Score: strconv.FormatInt(int64(level.Score), 10),
+		},
 	}, nil
 }
 

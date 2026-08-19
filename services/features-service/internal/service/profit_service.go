@@ -128,13 +128,11 @@ func (s *ProfitService) GetProfitsByApplication(ctx context.Context, userID uint
 		withdrawProfitDays = 10
 	}
 
-	// Get all profits for this user and karbari (matches Laravel properties.karbari filter)
 	profits, err := s.profitRepo.GetAllByUserAndKarbari(ctx, userID, karbari)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get profits: %w", err)
 	}
 
-	// Process profits in chunks of 100 (as per Laravel's chunkById(100))
 	chunkSize := 100
 	totalAmount := 0.0
 
@@ -205,7 +203,11 @@ func (s *ProfitService) TransferProfitOnSale(ctx context.Context, featureID, sel
 	}
 
 	// Transfer profit record to new owner
-	if err := s.profitRepo.TransferProfitToNewOwner(ctx, featureID, sellerID, buyerID, withdrawProfitDays); err != nil {
+	asset := ""
+	if oldProfit != nil {
+		asset = oldProfit.Asset
+	}
+	if err := s.profitRepo.TransferProfitToNewOwner(ctx, featureID, sellerID, buyerID, asset, withdrawProfitDays); err != nil {
 		return fmt.Errorf("failed to transfer profit record: %w", err)
 	}
 
@@ -235,7 +237,6 @@ func (s *ProfitService) GetHourlyProfits(ctx context.Context, userID uint64, pag
 		return profits, "0.00", "0.00", "0.00", hasMore, nil
 	}
 
-	// Format totals to 2 decimal places (matching Laravel's number_format(..., 2))
 	totalMaskoniFormatted := formatTotal(totalMaskoni)
 	totalTejariFormatted := formatTotal(totalTejari)
 	totalAmozeshiFormatted := formatTotal(totalAmozeshi)
@@ -243,7 +244,6 @@ func (s *ProfitService) GetHourlyProfits(ctx context.Context, userID uint64, pag
 	return profits, totalMaskoniFormatted, totalTejariFormatted, totalAmozeshiFormatted, hasMore, nil
 }
 
-// GetHourlyProfitTimePercentage implements Laravel's hourlyProfitInfo helper.
 func (s *ProfitService) GetHourlyProfitTimePercentage(ctx context.Context, userID uint64) (float64, error) {
 	profit, err := s.profitRepo.FindOldestByUserID(ctx, userID)
 	if err != nil {
@@ -255,7 +255,7 @@ func (s *ProfitService) GetHourlyProfitTimePercentage(ctx context.Context, userI
 
 	now := time.Now()
 	totalSeconds := math.Abs(profit.Deadline.Sub(profit.UpdatedAt).Seconds())
-	secondsPassed := math.Abs(now.Sub(profit.UpdatedAt).Seconds())
+	secondsPassed := math.Abs(profit.Deadline.Sub(now).Seconds())
 
 	if totalSeconds == 0 || secondsPassed >= totalSeconds {
 		return 0, nil

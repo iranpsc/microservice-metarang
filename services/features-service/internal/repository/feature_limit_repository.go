@@ -17,7 +17,6 @@ func NewFeatureLimitRepository(db *sql.DB) *FeatureLimitRepository {
 }
 
 // GetLimitationByPropertyID checks if a feature property is within a limited campaign
-// Implements Laravel's getLimitation() logic from BuyFeatureController and FeaturePolicy
 func (r *FeatureLimitRepository) GetLimitationByPropertyID(ctx context.Context, propertyID string) (*models.FeatureLimit, error) {
 	limit := &models.FeatureLimit{}
 

@@ -1,4 +1,4 @@
-package repository
+package repository_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metarang/notifications-service/internal/models"
+	"metarang/notifications-service/internal/repository"
 )
 
 func TestCreateNotification(t *testing.T) {
@@ -72,7 +73,7 @@ func TestCreateNotification(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
 			defer db.Close()
-			repo := NewNotificationRepository(db)
+			repo := repository.NewNotificationRepository(db)
 
 			tt.setupMock(mock)
 
@@ -159,7 +160,7 @@ func TestListNotifications(t *testing.T) {
 			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 			require.NoError(t, err)
 			defer db.Close()
-			repo := NewNotificationRepository(db)
+			repo := repository.NewNotificationRepository(db)
 
 			tt.setupMock(mock)
 
@@ -216,7 +217,7 @@ func TestMarkAsRead(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
 			defer db.Close()
-			repo := NewNotificationRepository(db)
+			repo := repository.NewNotificationRepository(db)
 
 			tt.setupMock(mock)
 
@@ -259,7 +260,7 @@ func TestMarkAllAsRead(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
 			defer db.Close()
-			repo := NewNotificationRepository(db)
+			repo := repository.NewNotificationRepository(db)
 
 			tt.setupMock(mock)
 
@@ -280,7 +281,7 @@ func TestListNotifications_UnreadOnly(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewNotificationRepository(db)
+	repo := repository.NewNotificationRepository(db)
 
 	filter := models.NotificationFilter{
 		Page:       1,
@@ -375,7 +376,7 @@ func TestGetNotificationByID(t *testing.T) {
 			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 			require.NoError(t, err)
 			defer db.Close()
-			repo := NewNotificationRepository(db)
+			repo := repository.NewNotificationRepository(db)
 
 			tt.setupMock(mock)
 

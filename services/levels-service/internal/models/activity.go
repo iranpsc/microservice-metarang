@@ -4,7 +4,6 @@ package models
 import "time"
 
 // UserActivity represents user activity sessions (login/logout tracking)
-// Maps to Laravel: App\Models\Levels\UserActivity
 type UserActivity struct {
 	ID        uint64     `json:"id" db:"id"`
 	UserID    uint64     `json:"user_id" db:"user_id"`
@@ -17,7 +16,6 @@ type UserActivity struct {
 }
 
 // UserLog represents aggregated user activity and score data
-// Maps to Laravel: App\Models\UserLog
 type UserLog struct {
 	ID                uint64    `json:"id" db:"id"`
 	UserID            uint64    `json:"user_id" db:"user_id"`
@@ -31,7 +29,6 @@ type UserLog struct {
 }
 
 // UserEvent represents user events (login, logout, etc.)
-// Maps to Laravel: App\Models\UserEvent
 type UserEvent struct {
 	ID        uint64    `json:"id" db:"id"`
 	UserID    uint64    `json:"user_id" db:"user_id"`

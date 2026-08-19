@@ -8,8 +8,6 @@ import (
 )
 
 // FormatCompactNumber formats a number in compact notation (e.g., 1.2K, 3.4M)
-// Mimics Laravel's formatCompactNumber helper exactly
-// Laravel logic:
 // - If number < 1000: return with 3 decimals, trim trailing zeros and dot
 // - If number >= 1000: divide by appropriate power of 1000, format with 3 decimals, trim trailing zeros and dot, add unit
 func FormatCompactNumber(num float64) string {
@@ -121,6 +119,41 @@ func NormalizePersianNumbers(input string) string {
 	}
 
 	return result.String()
+}
+
+// ParseCompactNumber parses a compact number string (e.g. "1.2K", "3.4M") or a plain
+// numeric string (e.g. "1500.5") into float64. Empty input returns 0.
+func ParseCompactNumber(s string) (float64, error) {
+	s = strings.TrimSpace(NormalizePersianNumbers(s))
+	if s == "" {
+		return 0, nil
+	}
+
+	multiplier := 1.0
+	switch suffix := s[len(s)-1]; suffix {
+	case 'K', 'k':
+		multiplier = 1_000
+		s = strings.TrimSpace(s[:len(s)-1])
+	case 'M', 'm':
+		multiplier = 1_000_000
+		s = strings.TrimSpace(s[:len(s)-1])
+	case 'B', 'b':
+		multiplier = 1_000_000_000
+		s = strings.TrimSpace(s[:len(s)-1])
+	case 'T', 't':
+		multiplier = 1_000_000_000_000
+		s = strings.TrimSpace(s[:len(s)-1])
+	}
+
+	if s == "" {
+		return 0, fmt.Errorf("invalid compact number")
+	}
+
+	value, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, err
+	}
+	return value * multiplier, nil
 }
 
 // ParseFloat parses a string to float64 after normalizing Persian numbers

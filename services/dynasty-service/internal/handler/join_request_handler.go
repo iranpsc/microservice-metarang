@@ -286,11 +286,14 @@ func (h *JoinRequestHandler) SearchUsers(ctx context.Context, req *dynastypb.Sea
 	var protoResults []*dynastypb.UserSearchResult
 	for _, r := range results {
 		protoResults = append(protoResults, &dynastypb.UserSearchResult{
-			Id:    r.ID,
-			Code:  r.Code,
-			Name:  r.Name,
-			Image: stringOrEmpty(r.Image),
-			Level: r.Level,
+			Id:       r.ID,
+			Code:     r.Code,
+			Name:     r.Name,
+			Image:    stringOrEmpty(r.Image),
+			Level:    r.Level,
+			Verified: r.Verified,
+			Age:      r.Age,
+			Levels:   toProtoUserSearchLevels(r.Levels),
 		})
 	}
 

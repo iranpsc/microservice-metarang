@@ -1,8 +1,10 @@
-package handler
+package handler_test
 
 import (
 	"context"
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -12,7 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	handlerpkg "metarang/dynasty-service/internal/handler"
+	"metarang/dynasty-service/internal/handler"
 	"metarang/dynasty-service/internal/repository"
 	"metarang/dynasty-service/internal/service"
 	dynastypb "metarang/shared/pb/dynasty"
@@ -33,9 +35,7 @@ func TestDynastyHandler_CreateDynasty(t *testing.T) {
 		familyRepo := repository.NewFamilyRepository(db)
 		prizeRepo := repository.NewPrizeRepository(db)
 		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
-		handler := handlerpkg.NewDynastyHandler(dynastyService)
-
-		now := time.Now()
+		handler := handler.NewDynastyHandler(dynastyService)
 
 		// Check existing dynasty - none exists
 		mock.ExpectQuery("SELECT id, user_id, feature_id").
@@ -92,6 +92,9 @@ func TestDynastyHandler_CreateDynasty(t *testing.T) {
 		assert.NotEmpty(t, resp.CreatedAt) // Jalali formatted date
 		assert.NotNil(t, resp.DynastyFeature)
 		assert.Equal(t, featureID, resp.DynastyFeature.Id)
+		require.NotEmpty(t, resp.Features)
+		assert.Equal(t, featureID, resp.Features[0].Id)
+		assert.Equal(t, "15000", resp.Features[0].Stability)
 
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -105,7 +108,7 @@ func TestDynastyHandler_CreateDynasty(t *testing.T) {
 		familyRepo := repository.NewFamilyRepository(db)
 		prizeRepo := repository.NewPrizeRepository(db)
 		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
-		handler := handlerpkg.NewDynastyHandler(dynastyService)
+		handler := handler.NewDynastyHandler(dynastyService)
 
 		now := time.Now()
 
@@ -126,13 +129,13 @@ func TestDynastyHandler_CreateDynasty(t *testing.T) {
 
 		st, ok := status.FromError(err)
 		require.True(t, ok)
-		assert.Equal(t, codes.InvalidArgument, st.Code()) // mapServiceError maps "already has" to InvalidArgument
+		assert.Equal(t, codes.AlreadyExists, st.Code())
 
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("nil service", func(t *testing.T) {
-		handler := &handlerpkg.DynastyHandler{}
+		handler := &handler.DynastyHandler{}
 
 		req := &dynastypb.CreateDynastyRequest{
 			UserId:    userID,
@@ -164,7 +167,7 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 		familyRepo := repository.NewFamilyRepository(db)
 		prizeRepo := repository.NewPrizeRepository(db)
 		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
-		handler := handlerpkg.NewDynastyHandler(dynastyService)
+		handler := handler.NewDynastyHandler(dynastyService)
 
 		now := time.Now()
 
@@ -172,7 +175,7 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 		mock.ExpectQuery("SELECT id, user_id, feature_id").
 			WithArgs(dynastyID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "feature_id", "created_at", "updated_at"}).
-				AddRow(dynastyID, userID, 100, now, now))
+				AddRow(dynastyID, userID, 100, now.AddDate(0, 0, -60), now.AddDate(0, 0, -31)))
 
 		// UpdateDynastyFeature: Update feature
 		mock.ExpectExec("UPDATE dynasties SET feature_id").
@@ -225,6 +228,9 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 		assert.Equal(t, dynastyID, resp.Id)
 		assert.NotNil(t, resp.DynastyFeature)
 		assert.Equal(t, newFeatureID, resp.DynastyFeature.Id)
+		require.NotEmpty(t, resp.Features)
+		assert.Equal(t, newFeatureID, resp.Features[0].Id)
+		assert.Equal(t, "20000", resp.Features[0].Stability)
 
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -238,7 +244,7 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 		familyRepo := repository.NewFamilyRepository(db)
 		prizeRepo := repository.NewPrizeRepository(db)
 		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
-		handler := handlerpkg.NewDynastyHandler(dynastyService)
+		handler := handler.NewDynastyHandler(dynastyService)
 
 		now := time.Now()
 		otherUserID := uint64(2)
@@ -275,7 +281,7 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 		familyRepo := repository.NewFamilyRepository(db)
 		prizeRepo := repository.NewPrizeRepository(db)
 		dynastyService := service.NewDynastyService(dynastyRepo, familyRepo, prizeRepo, "localhost:50054")
-		handler := handlerpkg.NewDynastyHandler(dynastyService)
+		handler := handler.NewDynastyHandler(dynastyService)
 
 		// Dynasty doesn't exist
 		mock.ExpectQuery("SELECT id, user_id, feature_id").
@@ -300,7 +306,7 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 	})
 
 	t.Run("nil service", func(t *testing.T) {
-		handler := &handlerpkg.DynastyHandler{}
+		handler := &handler.DynastyHandler{}
 
 		req := &dynastypb.UpdateDynastyFeatureRequest{
 			DynastyId: dynastyID,
@@ -316,4 +322,70 @@ func TestDynastyHandler_UpdateDynastyFeature(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, codes.Internal, st.Code())
 	})
+}
+
+func TestDynastyHandler_GetUserDynasty_NoDynasty_AllMemberTitles(t *testing.T) {
+	ctx := context.Background()
+	userID := uint64(99)
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	h := handler.NewDynastyHandler(service.NewDynastyService(
+		repository.NewDynastyRepository(db),
+		repository.NewFamilyRepository(db),
+		repository.NewPrizeRepository(db),
+		"",
+	))
+	now := time.Now()
+	members := []string{"brother", "sister", "offspring", "father", "mother", "husband", "wife", "other"}
+
+	mock.ExpectQuery("SELECT id, user_id, feature_id").
+		WithArgs(userID).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT").
+		WithArgs(userID, uint64(0)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "properties_id", "density", "stability", "area"}).
+			AddRow(uint64(1), "p", "d", "s", "a")) // exercise getUint64/getString via available features
+	rows := sqlmock.NewRows([]string{
+		"id", "member", "satisfaction", "introduction_profit_increase",
+		"accumulated_capital_reserve", "data_storage", "psc", "created_at", "updated_at",
+	})
+	for i, m := range members {
+		rows.AddRow(i+1, m, 0.1, 0.1, 0.1, 0.1, 10, now, now)
+	}
+	mock.ExpectQuery("FROM dynasty_prizes").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT price FROM variables").
+		WithArgs("psc").
+		WillReturnRows(sqlmock.NewRows([]string{"price"}).AddRow(1.0))
+
+	resp, err := h.GetUserDynasty(ctx, &dynastypb.GetUserDynastyRequest{UserId: userID})
+	require.NoError(t, err)
+	require.Len(t, resp.Prizes, len(members))
+	assert.Equal(t, "خواهر", resp.Prizes[1].Member)
+	assert.Equal(t, "other", resp.Prizes[7].Member)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHTTPDynastyResponse_RelationshipTitlesViaSentList(t *testing.T) {
+	rels := []string{"brother", "sister", "offspring", "father", "mother", "husband", "wife", "spouse", "x"}
+	join := &fakeJoinRequestAPI{
+		GetSentRequestsFunc: func(context.Context, *dynastypb.GetSentRequestsRequest) (*dynastypb.JoinRequestsResponse, error) {
+			var reqs []*dynastypb.JoinRequestResponse
+			for i, r := range rels {
+				reqs = append(reqs, &dynastypb.JoinRequestResponse{
+					Id: uint64(i + 1), Status: 0, Relationship: r, CreatedAt: "1403/01/01",
+				})
+			}
+			return &dynastypb.JoinRequestsResponse{Requests: reqs}, nil
+		},
+	}
+	h := newHTTPHandler(nil, join, nil, nil)
+	rr := httptest.NewRecorder()
+	h.GetSentRequests(rr, withUser(1, httptest.NewRequest(http.MethodGet, "/api/dynasty/requests/sent", nil)))
+	assert.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	assert.Contains(t, body, "همسر")
+	assert.Contains(t, body, "پدر")
+	assert.Contains(t, body, "مادر")
 }

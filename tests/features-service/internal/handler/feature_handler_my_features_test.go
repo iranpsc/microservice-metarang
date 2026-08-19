@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"metarang/features-service/internal/handler"
+	"metarang/features-service/internal/service"
 	pb "metarang/shared/pb/features"
 	"metarang/shared/pkg/auth"
 
@@ -32,9 +33,11 @@ func TestFeatureHandler_ListMyFeatures_Success_WithNext(t *testing.T) {
 		features[i] = &pb.Feature{Id: uint64(i + 1)}
 	}
 	m := &mockFeaturePort{}
-	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error) {
+	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error) {
 		assert.Equal(t, uint64(42), userID)
 		assert.Equal(t, int32(2), page)
+		assert.Empty(t, search)
+		assert.Empty(t, filter)
 		return features, nil
 	}
 	h := handler.NewFeatureHandler(m, nil)
@@ -46,12 +49,13 @@ func TestFeatureHandler_ListMyFeatures_Success_WithNext(t *testing.T) {
 	assert.Contains(t, resp.Links.Next, "page=3")
 	assert.Equal(t, "/api/my-features?page=1", resp.Links.First)
 	assert.Equal(t, int32(2), resp.Meta.CurrentPage)
+	assert.Equal(t, int32(5), resp.Meta.PerPage)
 }
 
 func TestFeatureHandler_ListMyFeatures_PageResetsToOne(t *testing.T) {
 	m := &mockFeaturePort{}
 	var gotPage int32
-	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error) {
+	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error) {
 		gotPage = page
 		return []*pb.Feature{{Id: 1}}, nil
 	}
@@ -64,7 +68,7 @@ func TestFeatureHandler_ListMyFeatures_PageResetsToOne(t *testing.T) {
 
 func TestFeatureHandler_ListMyFeatures_InternalError(t *testing.T) {
 	m := &mockFeaturePort{}
-	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32) ([]*pb.Feature, error) {
+	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error) {
 		return nil, errors.New("db down")
 	}
 	h := handler.NewFeatureHandler(m, nil)
@@ -72,6 +76,60 @@ func TestFeatureHandler_ListMyFeatures_InternalError(t *testing.T) {
 	_, err := h.ListMyFeatures(ctx, &pb.ListMyFeaturesRequest{Page: 1})
 	st, _ := status.FromError(err)
 	assert.Equal(t, codes.Internal, st.Code())
+}
+
+func TestFeatureHandler_ListMyFeatures_SearchAndFilter(t *testing.T) {
+	m := &mockFeaturePort{}
+	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error) {
+		assert.Equal(t, uint64(42), userID)
+		assert.Equal(t, int32(1), page)
+		assert.Equal(t, "TO111", search)
+		assert.Equal(t, "m", filter)
+		return []*pb.Feature{{
+			Id: 1,
+			Properties: &pb.FeatureProperties{
+				Id:      "TO111",
+				Address: "Main Street 12",
+				Karbari: "m",
+			},
+		}}, nil
+	}
+	h := handler.NewFeatureHandler(m, nil)
+	ctx := withUserID(context.Background(), 42)
+	resp, err := h.ListMyFeatures(ctx, &pb.ListMyFeaturesRequest{
+		Page:   1,
+		Search: "  TO111  ",
+		Filter: " m ",
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Data, 1)
+	assert.Equal(t, "TO111", resp.Data[0].Properties.Id)
+	assert.Equal(t, "Main Street 12", resp.Data[0].Properties.Address)
+	assert.Equal(t, "m", resp.Data[0].Properties.Karbari)
+	assert.Equal(t, "/api/my-features?filter=m&page=1&search=TO111", resp.Links.First)
+	assert.Empty(t, resp.Links.Next)
+	assert.Equal(t, int32(5), resp.Meta.PerPage)
+}
+
+func TestFeatureHandler_ListMyFeatures_SearchFilterPaginationLinks(t *testing.T) {
+	features := make([]*pb.Feature, 5)
+	for i := range features {
+		features[i] = &pb.Feature{Id: uint64(i + 1)}
+	}
+	m := &mockFeaturePort{}
+	m.listMyFeatures = func(ctx context.Context, userID uint64, page int32, search, filter string) ([]*pb.Feature, error) {
+		assert.Equal(t, int32(2), page)
+		assert.Equal(t, "block", search)
+		assert.Equal(t, "t", filter)
+		return features, nil
+	}
+	h := handler.NewFeatureHandler(m, nil)
+	ctx := withUserID(context.Background(), 7)
+	resp, err := h.ListMyFeatures(ctx, &pb.ListMyFeaturesRequest{Page: 2, Search: "block", Filter: "t"})
+	require.NoError(t, err)
+	assert.Equal(t, "/api/my-features?filter=t&page=1&search=block", resp.Links.First)
+	assert.Equal(t, "/api/my-features?filter=t&page=1&search=block", resp.Links.Prev)
+	assert.Equal(t, "/api/my-features?filter=t&page=3&search=block", resp.Links.Next)
 }
 
 func TestFeatureHandler_GetMyFeature_Unauthenticated(t *testing.T) {
@@ -137,11 +195,14 @@ func TestFeatureHandler_AddMyFeatureImages_NoImages(t *testing.T) {
 }
 
 func TestFeatureHandler_AddMyFeatureImages_Success(t *testing.T) {
-	var gotURLs []string
+	var gotData [][]byte
+	var gotNames, gotTypes []string
 	m := &mockFeaturePort{}
-	m.addMyImages = func(ctx context.Context, userID, featureID uint64, imageURLs []string) (*pb.Feature, error) {
-		gotURLs = imageURLs
-		return &pb.Feature{Id: featureID}, nil
+	m.addMyImages = func(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error) {
+		gotData = imageData
+		gotNames = filenames
+		gotTypes = contentTypes
+		return &pb.Feature{Id: featureID, Images: []*pb.Image{{Id: 1, Url: "http://localhost:8000/uploads/features/100/a.jpg"}}}, nil
 	}
 	h := handler.NewFeatureHandler(m, nil)
 	ctx := withUserID(context.Background(), 3)
@@ -153,9 +214,77 @@ func TestFeatureHandler_AddMyFeatureImages_Success(t *testing.T) {
 		ContentTypes: []string{"image/jpeg", "image/jpeg"},
 	})
 	require.NoError(t, err)
-	require.Len(t, gotURLs, 2)
-	assert.Contains(t, gotURLs[0], "uploads/features/100/")
+	require.Len(t, gotData, 2)
+	assert.Equal(t, [][]byte{{1}, {2}}, gotData)
+	assert.Equal(t, []string{"a.jpg", "b.jpg"}, gotNames)
+	assert.Equal(t, []string{"image/jpeg", "image/jpeg"}, gotTypes)
 	assert.Equal(t, uint64(100), resp.Feature.Id)
+	assert.Equal(t, "http://localhost:8000/uploads/features/100/a.jpg", resp.Feature.Images[0].Url)
+}
+
+func TestFeatureHandler_AddMyFeatureImages_InvalidType(t *testing.T) {
+	h := handler.NewFeatureHandler(&mockFeaturePort{}, nil)
+	ctx := withUserID(context.Background(), 5)
+	_, err := h.AddMyFeatureImages(ctx, &pb.AddMyFeatureImagesRequest{
+		UserId:       5,
+		FeatureId:    1,
+		ImageData:    [][]byte{{1}},
+		Filenames:    []string{"a.gif"},
+		ContentTypes: []string{"image/gif"},
+	})
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+func TestFeatureHandler_AddMyFeatureImages_TooLarge(t *testing.T) {
+	h := handler.NewFeatureHandler(&mockFeaturePort{}, nil)
+	ctx := withUserID(context.Background(), 5)
+	_, err := h.AddMyFeatureImages(ctx, &pb.AddMyFeatureImagesRequest{
+		UserId:       5,
+		FeatureId:    1,
+		ImageData:    [][]byte{make([]byte, 1024*1024+1)},
+		Filenames:    []string{"a.jpg"},
+		ContentTypes: []string{"image/jpeg"},
+	})
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+func TestFeatureHandler_AddMyFeatureImages_StorageUnavailable(t *testing.T) {
+	m := &mockFeaturePort{}
+	m.addMyImages = func(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error) {
+		return nil, service.ErrStorageUnavailable
+	}
+	h := handler.NewFeatureHandler(m, nil)
+	ctx := withUserID(context.Background(), 3)
+	_, err := h.AddMyFeatureImages(ctx, &pb.AddMyFeatureImagesRequest{
+		UserId:       3,
+		FeatureId:    100,
+		ImageData:    [][]byte{{1}},
+		Filenames:    []string{"a.jpg"},
+		ContentTypes: []string{"image/jpeg"},
+	})
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Contains(t, st.Message(), "storage service not available")
+}
+
+func TestFeatureHandler_AddMyFeatureImages_NotFound(t *testing.T) {
+	m := &mockFeaturePort{}
+	m.addMyImages = func(ctx context.Context, userID, featureID uint64, imageData [][]byte, filenames, contentTypes []string) (*pb.Feature, error) {
+		return nil, errors.New("feature not found or does not belong to user")
+	}
+	h := handler.NewFeatureHandler(m, nil)
+	ctx := withUserID(context.Background(), 3)
+	_, err := h.AddMyFeatureImages(ctx, &pb.AddMyFeatureImagesRequest{
+		UserId:       3,
+		FeatureId:    100,
+		ImageData:    [][]byte{{1}},
+		Filenames:    []string{"a.jpg"},
+		ContentTypes: []string{"image/jpeg"},
+	})
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.NotFound, st.Code())
 }
 
 func TestFeatureHandler_RemoveMyFeatureImage_Unauthenticated(t *testing.T) {

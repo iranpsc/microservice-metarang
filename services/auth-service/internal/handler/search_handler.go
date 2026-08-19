@@ -16,8 +16,10 @@ type searchHandler struct {
 	searchService service.SearchService
 }
 
-func RegisterSearchHandler(grpcServer *grpc.Server, searchService service.SearchService) {
-	pb.RegisterSearchServiceServer(grpcServer, NewSearchHandler(searchService))
+func RegisterSearchHandler(grpcServer *grpc.Server, searchService service.SearchService) pb.SearchServiceServer {
+	h := NewSearchHandler(searchService)
+	pb.RegisterSearchServiceServer(grpcServer, h)
+	return h
 }
 
 // SearchUsers handles user search requests

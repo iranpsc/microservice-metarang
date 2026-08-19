@@ -160,7 +160,6 @@ func IsProductionEnv(appEnv string) bool {
 }
 
 func (s *authService) Register(ctx context.Context, backURL, referral string) (string, error) {
-	// Validate referral code exists if provided (matching Laravel: exists:users,code)
 	if referral != "" {
 		user, err := s.userRepo.FindByCode(ctx, referral)
 		if err != nil || user == nil {
@@ -298,7 +297,6 @@ func (s *authService) Callback(ctx context.Context, state, code, ip string) (*Ca
 			}
 		}
 
-		// Create wallet and user_variables via Commercial service (Laravel UserObserver::created)
 		if err == nil && s.helperService != nil {
 			if walletErr := s.helperService.CreateWallet(ctx, user.ID); walletErr != nil {
 				fmt.Printf("failed to create wallet for user %d: %v\n", user.ID, walletErr)
@@ -346,7 +344,6 @@ func (s *authService) Callback(ctx context.Context, state, code, ip string) (*Ca
 	tokenParts := splitToken(token)
 	plainToken := tokenParts[1]
 
-	// Trigger login observer only for existing users (Laravel UserObserver::logedIn).
 	// New users go through OnUserCreated above; returning users get login side-effects.
 	if !isNewUser && s.observerService != nil {
 		if err := s.observerService.OnUserLogin(ctx, user, ip, ""); err != nil {
@@ -360,7 +357,6 @@ func (s *authService) Callback(ctx context.Context, state, code, ip string) (*Ca
 	backURL, _ := s.cacheRepo.GetBackURL(ctx, state)
 
 	// Determine redirect base URL (prefer redirect_to, fallback to back_url, then frontEndURL)
-	// Matching Laravel: $url = ($redirectTo ?: $backUrl) . '/?' . $query;
 	redirectBaseURL := redirectTo
 	if redirectBaseURL == "" {
 		redirectBaseURL = backURL
@@ -374,7 +370,6 @@ func (s *authService) Callback(ctx context.Context, state, code, ip string) (*Ca
 	}
 
 	// Construct redirect URL with token and expires_at query parameters
-	// Match Laravel format: base_url + '/?' + query_string
 	redirectParams := url.Values{}
 	redirectParams.Set("token", plainToken)
 	redirectParams.Set("expires_at", fmt.Sprintf("%d", int32(time.Until(expiresAt).Minutes())))

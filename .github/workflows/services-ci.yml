@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - develop
+      - dev
     paths:
       - 'services/**'
       - 'tests/**'
@@ -13,10 +13,11 @@ on:
       - '.github/workflows/services-ci.yml'
       - '.github/workflows/service-ci.yml'
       - '.github/actions/setup-test-db/**'
+      - '.github/scripts/**'
   pull_request:
     branches:
       - main
-      - develop
+      - dev
     paths:
       - 'services/**'
       - 'tests/**'
@@ -25,6 +26,7 @@ on:
       - '.github/workflows/services-ci.yml'
       - '.github/workflows/service-ci.yml'
       - '.github/actions/setup-test-db/**'
+      - '.github/scripts/**'
   workflow_dispatch:
     inputs:
       services:
@@ -62,6 +64,7 @@ jobs:
               - '.github/workflows/services-ci.yml'
               - '.github/workflows/service-ci.yml'
               - '.github/actions/setup-test-db/**'
+              - '.github/scripts/**'
             auth-service:
               - 'services/auth-service/**'
               - 'tests/auth-service/**'
@@ -80,15 +83,14 @@ jobs:
             financial-service:
               - 'services/financial-service/**'
               - 'tests/financial-service/**'
-            grpc-gateway:
-              - 'services/grpc-gateway/**'
-              - 'tests/grpc-gateway/**'
             health-check-service:
               - 'services/health-check-service/**'
             levels-service:
               - 'services/levels-service/**'
+              - 'tests/levels-service/**'
             notifications-service:
               - 'services/notifications-service/**'
+              - 'tests/notifications-service/**'
             social-service:
               - 'services/social-service/**'
               - 'tests/social-service/**'
@@ -100,6 +102,7 @@ jobs:
               - 'tests/support-service/**'
             training-service:
               - 'services/training-service/**'
+              - 'tests/training-service/**'
 
       - name: Build service list
         id: services
@@ -108,7 +111,7 @@ jobs:
           DISPATCH_INPUT: ${{ github.event.inputs.services }}
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
-          ALL='["auth-service","calendar-service","commercial-service","dynasty-service","features-service","financial-service","grpc-gateway","health-check-service","levels-service","notifications-service","social-service","storage-service","support-service","training-service"]'
+          ALL='["auth-service","calendar-service","commercial-service","dynasty-service","features-service","financial-service","health-check-service","levels-service","notifications-service","social-service","storage-service","support-service","training-service"]'
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             if [ "$DISPATCH_INPUT" = "all" ] || [ -z "$DISPATCH_INPUT" ]; then

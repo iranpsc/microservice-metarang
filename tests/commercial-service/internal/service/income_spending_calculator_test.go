@@ -64,6 +64,9 @@ func (m *mockWalletHistoryRepo) GetCurrentBalance(ctx context.Context, userID ui
 	}
 	return m.balance, nil
 }
+func (m *mockWalletHistoryRepo) GetUserCreatedAt(ctx context.Context, userID uint64) (time.Time, error) {
+	return time.Time{}, nil
+}
 func (m *mockWalletHistoryRepo) GetPSCRate(ctx context.Context) (float64, error) {
 	if m.pscRate == 0 {
 		return 1, nil
@@ -116,22 +119,22 @@ func TestSpendingCalculator_SatisfactionBuilding(t *testing.T) {
 func TestIncomeCalculator_Buckets(t *testing.T) {
 	repo := &mockWalletHistoryRepo{deposits: 1.234}
 	calc := service.NewIncomeCalculator(repo)
-	window, err := period.ResolvePeriod("weekly", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local))
+	window, err := period.ResolvePeriod("weekly", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local), time.Time{})
 	require.NoError(t, err)
 	buckets, err := calc.CalcIncomeBuckets(context.Background(), 1, "psc", window.Buckets)
 	require.NoError(t, err)
-	require.Len(t, buckets, 7)
+	require.Len(t, buckets, 4)
 	assert.Equal(t, 1.23, buckets[0].Amount)
 }
 
 func TestSpendingCalculator_Buckets(t *testing.T) {
 	repo := &mockWalletHistoryRepo{tradeBuys: 2.5}
 	calc := service.NewSpendingCalculator(repo)
-	window, err := period.ResolvePeriod("weekly", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local))
+	window, err := period.ResolvePeriod("weekly", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local), time.Time{})
 	require.NoError(t, err)
 	buckets, err := calc.CalcSpendingBuckets(context.Background(), 1, "psc", window.Buckets)
 	require.NoError(t, err)
-	require.Len(t, buckets, 7)
+	require.Len(t, buckets, 4)
 	assert.Equal(t, 2.5, buckets[0].Amount)
 }
 
@@ -152,7 +155,7 @@ func TestSpendingCalculator_PropagatesRepoError(t *testing.T) {
 func TestIncomeCalculator_BucketsPropagatesError(t *testing.T) {
 	repo := &errRepo{failOn: "deposits"}
 	calc := service.NewIncomeCalculator(repo)
-	window, err := period.ResolvePeriod("daily", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local))
+	window, err := period.ResolvePeriod("daily", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local), time.Time{})
 	require.NoError(t, err)
 	_, err = calc.CalcIncomeBuckets(context.Background(), 1, "psc", window.Buckets)
 	require.Error(t, err)
@@ -161,7 +164,7 @@ func TestIncomeCalculator_BucketsPropagatesError(t *testing.T) {
 func TestSpendingCalculator_BucketsPropagatesError(t *testing.T) {
 	repo := &errRepo{failOn: "tradeBuys"}
 	calc := service.NewSpendingCalculator(repo)
-	window, err := period.ResolvePeriod("daily", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local))
+	window, err := period.ResolvePeriod("daily", time.Date(2026, 5, 15, 12, 0, 0, 0, time.Local), time.Time{})
 	require.NoError(t, err)
 	_, err = calc.CalcSpendingBuckets(context.Background(), 1, "psc", window.Buckets)
 	require.Error(t, err)
@@ -184,4 +187,45 @@ func (m *errRepo) SumTradeBuys(ctx context.Context, userID uint64, asset string,
 		return 0, assert.AnError
 	}
 	return 0, nil
+}
+
+func (m *errRepo) SumHourlyProfits(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "hourly" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumTradeSells(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "tradeSells" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumReferralBonuses(ctx context.Context, userID uint64, start, end time.Time) (float64, error) {
+	if m.failOn == "referrals" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumFirstOrderBonuses(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "firstOrders" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+func (m *errRepo) SumLevelRewards(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
+	if m.failOn == "level" {
+		return 0, assert.AnError
+	}
+	return 0, nil
+}
+
+func TestIncomeCalculator_PropagatesEachRepoError(t *testing.T) {
+	for _, failOn := range []string{"hourly", "tradeSells", "referrals", "firstOrders", "level"} {
+		t.Run(failOn, func(t *testing.T) {
+			calc := service.NewIncomeCalculator(&errRepo{failOn: failOn})
+			_, err := calc.CalcIncome(context.Background(), 1, "psc", time.Now().Add(-time.Hour), time.Now())
+			require.Error(t, err)
+		})
+	}
 }

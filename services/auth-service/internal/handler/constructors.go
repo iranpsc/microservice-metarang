@@ -5,15 +5,14 @@ import (
 	"metarang/auth-service/internal/repository"
 	"metarang/auth-service/internal/service"
 	pb "metarang/shared/pb/auth"
-	storagepb "metarang/shared/pb/storage"
 )
 
 // NewAuthHandler constructs an AuthServiceServer for handler tests and registration.
-func NewAuthHandler(authService service.AuthService, tokenRepo repository.TokenRepository, profilePhotoHandler *ProfilePhotoHandler, locale string) pb.AuthServiceServer {
+func NewAuthHandler(authService service.AuthService, tokenRepo repository.TokenRepository, profilePhotoService service.ProfilePhotoService, locale string) pb.AuthServiceServer {
 	return &authHandler{
 		authService:         authService,
 		tokenRepo:           tokenRepo,
-		profilePhotoHandler: profilePhotoHandler,
+		profilePhotoService: profilePhotoService,
 		locale:              lang.NormalizeLocale(locale),
 	}
 }
@@ -38,10 +37,9 @@ func NewProfileLimitationHandler(limitationService service.ProfileLimitationServ
 }
 
 // NewKYCHandler constructs a KYCServiceServer for handler tests and registration.
-func NewKYCHandler(kycService service.KYCService, storageClient storagepb.FileStorageServiceClient, apiGatewayURL string) pb.KYCServiceServer {
+func NewKYCHandler(kycService service.KYCService, apiGatewayURL string) pb.KYCServiceServer {
 	return &kycHandler{
 		kycService:    kycService,
-		storageClient: storageClient,
 		apiGatewayURL: apiGatewayURL,
 	}
 }

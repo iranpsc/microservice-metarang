@@ -1,5 +1,4 @@
-# Route registry for metarang REST API (Laravel-compatible paths via grpc-gateway).
-# Path and query parameters are auto-discovered from grpc-gateway handlers.
+# Path and query parameters are auto-discovered from service HTTP handlers when available.
 # Run `make openapi` to regenerate openapi/openapi.yaml from this file + handler discovery.
 
 routes:
@@ -90,6 +89,17 @@ routes:
     tag: Users
     summary: Update authenticated user profile
     security: bearer
+  - path: /api/user/{code}/level
+    methods: [get]
+    tag: Users
+    summary: Get user level by citizen code
+    security: none
+    params:
+      - name: code
+        in: path
+        type: string
+        description: Citizen code
+        example: HM-2000000
   - path: /api/users/{user}
     methods: [get]
     tag: Users
@@ -605,6 +615,22 @@ routes:
     tag: Features
     summary: List authenticated user features
     security: bearer
+    params:
+      - name: page
+        in: query
+        type: integer
+        description: Page number (default 1, 5 items per page)
+        example: 1
+      - name: search
+        in: query
+        type: string
+        description: Optional search by feature properties ID or address
+        example: TO111
+      - name: filter
+        in: query
+        type: string
+        description: Optional filter by karbari code (e.g. m, t, a)
+        example: m
   - path: /api/buy-requests
     methods: [get, post]
     tag: Features
@@ -750,8 +776,47 @@ routes:
   - path: /api/challenge/timings
     methods: [get]
     tag: Social
-    summary: Get challenge timings
+    summary: Get challenge timings and user answer statistics
     security: bearer
+    responses:
+      "200":
+        description: Challenge timing intervals and statistics
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  properties:
+                    display_ad_interval:
+                      type: integer
+                      description: Seconds between challenge advertisements
+                      example: 15
+                    display_question_interval:
+                      type: integer
+                      description: Seconds to display each question
+                      example: 15
+                    display_answer_interval:
+                      type: integer
+                      description: Seconds to display the answer reveal
+                      example: 15
+                    participants:
+                      type: integer
+                      description: Total distinct users who have submitted at least one answer
+                      example: 2
+                    correct_answers:
+                      type: integer
+                      description: Number of correct answers by the authenticated user
+                      example: 0
+                    wrong_answers:
+                      type: integer
+                      description: Number of wrong answers by the authenticated user
+                      example: 0
+                    views:
+                      type: integer
+                      description: Sum of views across all challenge questions
+                      example: 0
   - path: /api/challenge/advertisement
     methods: [get]
     tag: Social

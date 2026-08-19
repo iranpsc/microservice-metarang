@@ -25,7 +25,7 @@ COPY ./services/social-service/go.mod ./services/social-service/go.sum* /workspa
 COPY ./services/social-service/ /workspace/metarang/social-service/
 
 WORKDIR /workspace
-RUN echo 'go 1.25.12' > go.work && \
+RUN echo 'go 1.25.13' > go.work && \
     printf '\nuse (\n\t./metarang/social-service\n\t./metarang/shared\n)\n' >> go.work
 
 WORKDIR /workspace/metarang/social-service
@@ -37,7 +37,7 @@ RUN go build -trimpath -ldflags="-s -w" -o /app/social-service ./cmd/server
 
 FROM docker.arvancloud.ir/alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata netcat-openbsd && \
+RUN apk add --no-cache ca-certificates tzdata wget && \
     addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
 
@@ -47,9 +47,9 @@ COPY --from=builder --chown=appuser:appuser /app/social-service .
 
 USER appuser
 
-EXPOSE 50061
+EXPOSE 50061 8064
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD nc -z localhost 50061 || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8064/health || exit 1
 
 ENTRYPOINT ["/app/social-service"]

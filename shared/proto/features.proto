@@ -78,6 +78,8 @@ message GetMyFeaturesRequest {
 message ListMyFeaturesRequest {
   uint64 user_id = 1; // Authenticated user ID
   int32 page = 2; // Page number (default: 1)
+  string search = 3; // optional; search by feature_properties.id or address
+  string filter = 4; // optional; filter by karbari (e.g. m, t, a)
 }
 
 message ListMyFeaturesResponse {
@@ -398,8 +400,8 @@ message HourlyProfit {
   string amount = 5; // formatted as string
   string dead_line = 6; // Jalali date Y/m/d
   bool is_active = 7;
-  uint64 feature_db_id = 8; // features.id (Laravel feature_db_id)
-  string properties_id = 9; // feature_properties.id (Laravel feature_id)
+  uint64 feature_db_id = 8;
+  string properties_id = 9;
   string karbari = 10; // m, t, a
 }
 
@@ -456,7 +458,7 @@ message BuildingModel {
 
 message BuildFeatureRequest {
   uint64 feature_id = 1;
-  string building_model_id = 2;  // Changed from uint64 to string to match Laravel model_id format
+  string building_model_id = 2;
   string launched_satisfaction = 3;
   string rotation = 4;
   string position = 5;
@@ -473,7 +475,7 @@ message BuildingInformation {
 }
 
 message BuildFeatureResponse {
-  Feature feature = 1;  // Return full feature like Laravel does
+  Feature feature = 1;
 }
 
 message GetBuildingsRequest {
@@ -498,7 +500,7 @@ message Building {
 
 message UpdateBuildingRequest {
   uint64 feature_id = 1;
-  string building_model_id = 2;  // Changed from uint64 to string to match Laravel model_id format
+  string building_model_id = 2;
   string launched_satisfaction = 3;
   string rotation = 4;
   string position = 5;
@@ -523,7 +525,7 @@ message BuildingResponse {
 
 message DestroyBuildingRequest {
   uint64 feature_id = 1;
-  string building_model_id = 2;  // Changed from uint64 to string to match Laravel model_id format
+  string building_model_id = 2;
 }
 
 // Completed buildings (GET /api/features/buildings/completed)
@@ -534,7 +536,7 @@ message ListCompletedBuildingsRequest {
 message ListCompletedBuildingsResponse {
   repeated CompletedBuilding data = 1;
   PaginationLinks links = 2;
-  FeatureTradeHistoryPaginationMeta meta = 3; // full Laravel-style pagination meta
+  FeatureTradeHistoryPaginationMeta meta = 3;
 }
 
 message CompletedBuilding {
@@ -640,12 +642,18 @@ message GetCitizenFeatureChartRequest {
 
 message GetCitizenFeatureChartResponse {
   CitizenFeatureChartData data = 1;
+  string period = 2;
+}
+
+message CitizenChartPoint {
+  string karbari = 1;
+  string label = 2;
+  double amount = 3;
 }
 
 message CitizenFeatureChartData {
-  repeated string labels = 1;
-  repeated int32 bought = 2;
-  repeated int32 sold = 3;
+  repeated CitizenChartPoint bought = 1;
+  repeated CitizenChartPoint sold = 2;
 }
 
 message ListCitizenFeaturesRequest {
@@ -723,8 +731,7 @@ message GetCitizenBuildingChartResponse {
 }
 
 message CitizenBuildingChartData {
-  repeated string labels = 1;
-  repeated int32 completed = 2;
+  repeated CitizenChartPoint completed = 1;
 }
 
 message ListCitizenBuildingsRequest {
@@ -740,13 +747,14 @@ message ListCitizenBuildingsResponse {
 }
 
 message CitizenBuildingItem {
-  string feature_properties_id = 1;
+  string building_id = 1; // building_models.sku
   string karbari = 2;
   optional double area = 3;
   optional double visitors = 4;
   optional double empty_units = 5;
-  optional double floors = 6;
+  optional double density = 6; // from building_model attributes, not feature_properties.density
   optional string construction_end_date = 7; // Jalali Y/m/d
+  repeated Image images = 8; // from building_models.images (synced from 3dmeta)
 }
 
 // IsicCodeService handles ISIC code listing (GET /api/isic-codes).

@@ -1,6 +1,6 @@
 # Storage Service
 
-A microservice for handling file uploads with chunk support, matching Laravel `FileUploadController` functionality.
+A microservice for handling file uploads with chunk support, matching the legacy file upload API.
 
 ## 🎯 Features
 
@@ -11,7 +11,7 @@ A microservice for handling file uploads with chunk support, matching Laravel `F
 - ✅ Unique filename generation (MD5 hash)
 - ✅ Session management with auto-cleanup
 - ✅ Dual server architecture (gRPC + HTTP REST)
-- ✅ Laravel-compatible response format
+- ✅ Legacy-compatible response format
 
 ## 🏗️ Architecture
 
@@ -305,9 +305,9 @@ storage-service/
 └── README.md                 # This file
 ```
 
-## 📝 API Comparison with Laravel
+## 📝 API Comparison with legacy upload API
 
-| Feature | Laravel Controller | Storage Service |
+| Feature | Legacy API | Storage Service |
 |---------|-------------------|-----------------|
 | Endpoint | `/api/upload` | `/api/upload` |
 | Method | POST | POST |

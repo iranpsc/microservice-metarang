@@ -73,7 +73,6 @@ func (r *walletRepository) FindByUserID(ctx context.Context, userID uint64) (*mo
 	return wallet, nil
 }
 
-// Create inserts a new wallet for the user with Laravel-compatible defaults.
 // Idempotent: if a wallet already exists for the user, it is returned unchanged.
 func (r *walletRepository) Create(ctx context.Context, userID uint64) (*models.Wallet, error) {
 	existing, err := r.FindByUserID(ctx, userID)

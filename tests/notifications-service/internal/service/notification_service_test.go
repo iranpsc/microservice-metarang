@@ -1,271 +1,330 @@
-package service
+package service_test
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
+	"metarang/notifications-service/internal/errs"
 	"metarang/notifications-service/internal/models"
 	"metarang/notifications-service/internal/repository"
+	"metarang/notifications-service/internal/service"
+	"metarang/notifications-service/tests/internal/testutil"
 )
 
-// MockNotificationRepository is a mock implementation that wraps the repository
-type MockNotificationRepository struct {
-	*repository.NotificationRepository
-	mock.Mock
+func newNotificationService(db *sql.DB, sms *testutil.MockSMSChannel, email *testutil.MockEmailChannel) service.NotificationService {
+	repo := repository.NewNotificationRepository(db)
+	return service.NewNotificationService(repo, sms, email)
 }
 
-// We'll need to create a wrapper since we can't easily mock concrete types
-// For now, we'll test with integration-style tests or create an interface adapter
-
-// MockSMSChannel is a mock implementation of SMSChannel
-type MockSMSChannel struct {
-	mock.Mock
-}
-
-func (m *MockSMSChannel) SendSMS(ctx context.Context, payload models.SMSPayload) (string, error) {
-	args := m.Called(ctx, payload)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockSMSChannel) SendOTP(ctx context.Context, payload models.OTPPayload) (string, error) {
-	args := m.Called(ctx, payload)
-	return args.String(0), args.Error(1)
-}
-
-// MockEmailChannel is a mock implementation of EmailChannel
-type MockEmailChannel struct {
-	mock.Mock
-}
-
-func (m *MockEmailChannel) SendEmail(ctx context.Context, payload models.EmailPayload) (string, error) {
-	args := m.Called(ctx, payload)
-	return args.String(0), args.Error(1)
+func expectCreateNotification(mock sqlmock.Sqlmock) {
+	mock.ExpectExec(`INSERT INTO notifications`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 }
 
 func TestNotificationService_SendNotification(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       SendNotificationInput
-		setupMocks  func(*MockNotificationRepository, *MockSMSChannel, *MockEmailChannel)
-		expectError bool
-		expectSent  bool
-	}{
-		{
-			name: "successful notification without SMS or Email",
-			input: SendNotificationInput{
-				UserID:    123,
-				Type:      "system",
-				Title:     "Test Title",
-				Message:   "Test Message",
-				Data:      map[string]string{"key": "value"},
-				SendSMS:   false,
-				SendEmail: false,
-			},
-			setupMocks: func(repo *MockNotificationRepository, sms *MockSMSChannel, email *MockEmailChannel) {
-				repo.On("CreateNotification", mock.Anything, mock.AnythingOfType("*models.Notification")).
-					Return(uint64(1), nil)
-			},
-			expectError: false,
-			expectSent:  true,
-		},
-		{
-			name: "successful notification with SMS",
-			input: SendNotificationInput{
-				UserID:    123,
-				Type:      "system",
-				Title:     "Test Title",
-				Message:   "Test Message",
-				SendSMS:   true,
-				SendEmail: false,
-				SMSPayload: &models.SMSPayload{
-					Phone:   "+1234567890",
-					Message: "Test SMS",
-				},
-			},
-			setupMocks: func(repo *MockNotificationRepository, sms *MockSMSChannel, email *MockEmailChannel) {
-				repo.On("CreateNotification", mock.Anything, mock.AnythingOfType("*models.Notification")).
-					Return(uint64(1), nil)
-				sms.On("SendSMS", mock.Anything, mock.AnythingOfType("models.SMSPayload")).
-					Return("sms-id-123", nil)
-			},
-			expectError: false,
-			expectSent:  true,
-		},
-		{
-			name: "successful notification with Email",
-			input: SendNotificationInput{
-				UserID:    123,
-				Type:      "system",
-				Title:     "Test Title",
-				Message:   "Test Message",
-				SendSMS:   false,
-				SendEmail: true,
-				EmailPayload: &models.EmailPayload{
-					To:      "test@example.com",
-					Subject: "Test Subject",
-					Body:    "Test Body",
-				},
-			},
-			setupMocks: func(repo *MockNotificationRepository, sms *MockSMSChannel, email *MockEmailChannel) {
-				repo.On("CreateNotification", mock.Anything, mock.AnythingOfType("*models.Notification")).
-					Return(uint64(1), nil)
-				email.On("SendEmail", mock.Anything, mock.AnythingOfType("models.EmailPayload")).
-					Return("email-id-123", nil)
-			},
-			expectError: false,
-			expectSent:  true,
-		},
-		{
-			name: "repository error",
-			input: SendNotificationInput{
-				UserID:    123,
-				Type:      "system",
-				Title:     "Test Title",
-				Message:   "Test Message",
-				SendSMS:   false,
-				SendEmail: false,
-			},
-			setupMocks: func(repo *MockNotificationRepository, sms *MockSMSChannel, email *MockEmailChannel) {
-				repo.On("CreateNotification", mock.Anything, mock.AnythingOfType("*models.Notification")).
-					Return(uint64(0), assert.AnError)
-			},
-			expectError: true,
-			expectSent:  false,
-		},
-		{
-			name: "SMS send failure",
-			input: SendNotificationInput{
-				UserID:    123,
-				Type:      "system",
-				Title:     "Test Title",
-				Message:   "Test Message",
-				SendSMS:   true,
-				SendEmail: false,
-				SMSPayload: &models.SMSPayload{
-					Phone:   "+1234567890",
-					Message: "Test SMS",
-				},
-			},
-			setupMocks: func(repo *MockNotificationRepository, sms *MockSMSChannel, email *MockEmailChannel) {
-				repo.On("CreateNotification", mock.Anything, mock.AnythingOfType("*models.Notification")).
-					Return(uint64(1), nil)
-				sms.On("SendSMS", mock.Anything, mock.AnythingOfType("models.SMSPayload")).
-					Return("", assert.AnError)
-			},
-			expectError: false,
-			expectSent:  false, // Notification created but SMS failed
-		},
-	}
+	ctx := context.Background()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Note: Since the service uses concrete repository type,
-			// we can't easily mock it. These tests demonstrate the expected behavior
-			// but would require refactoring the service to use an interface.
-			// For now, we'll skip these unit tests and rely on integration tests.
-			t.Skip("Service uses concrete repository type - requires refactoring to use interface")
+	t.Run("successful notification without SMS or Email", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+		expectCreateNotification(mock)
+
+		result, err := svc.SendNotification(ctx, service.SendNotificationInput{
+			UserID: 123, Type: "system", Title: "Test Title", Message: "Test Message",
+			Data: map[string]string{"key": "value"},
 		})
-	}
+		require.NoError(t, err)
+		assert.True(t, result.Sent)
+		assert.NotZero(t, result.ID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("successful notification with SMS", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		smsCalled := false
+		svc := newNotificationService(db, &testutil.MockSMSChannel{
+			SendSMSFunc: func(_ context.Context, payload models.SMSPayload) (string, error) {
+				smsCalled = true
+				assert.Equal(t, "+1234567890", payload.Phone)
+				return "sms-id-123", nil
+			},
+		}, &testutil.MockEmailChannel{})
+		expectCreateNotification(mock)
+
+		result, err := svc.SendNotification(ctx, service.SendNotificationInput{
+			UserID: 123, Type: "system", Title: "Test", Message: "Message",
+			SendSMS: true, SMSPayload: &models.SMSPayload{Phone: "+1234567890", Message: "Test SMS"},
+		})
+		require.NoError(t, err)
+		assert.True(t, result.Sent)
+		assert.True(t, smsCalled)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("successful notification with Email", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		emailCalled := false
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{
+			SendEmailFunc: func(_ context.Context, payload models.EmailPayload) (string, error) {
+				emailCalled = true
+				assert.Equal(t, "test@example.com", payload.To)
+				return "email-id-123", nil
+			},
+		})
+		expectCreateNotification(mock)
+
+		result, err := svc.SendNotification(ctx, service.SendNotificationInput{
+			UserID: 123, Type: "system", Title: "Test", Message: "Message",
+			SendEmail: true, EmailPayload: &models.EmailPayload{To: "test@example.com", Subject: "Sub", Body: "Body"},
+		})
+		require.NoError(t, err)
+		assert.True(t, result.Sent)
+		assert.True(t, emailCalled)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("repository error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+		mock.ExpectExec(`INSERT INTO notifications`).WillReturnError(errors.New("db error"))
+
+		_, err = svc.SendNotification(ctx, service.SendNotificationInput{
+			UserID: 123, Type: "system", Title: "Test", Message: "Message",
+		})
+		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("SMS send failure", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		svc := newNotificationService(db, &testutil.MockSMSChannel{
+			SendSMSFunc: func(context.Context, models.SMSPayload) (string, error) {
+				return "", errors.New("sms failed")
+			},
+		}, &testutil.MockEmailChannel{})
+		expectCreateNotification(mock)
+
+		result, err := svc.SendNotification(ctx, service.SendNotificationInput{
+			UserID: 123, Type: "system", Title: "Test", Message: "Message",
+			SendSMS: true, SMSPayload: &models.SMSPayload{Phone: "+1234567890", Message: "Test SMS"},
+		})
+		assert.Error(t, err)
+		assert.False(t, result.Sent)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("email send failure", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{
+			SendEmailFunc: func(context.Context, models.EmailPayload) (string, error) {
+				return "", errors.New("email failed")
+			},
+		})
+		expectCreateNotification(mock)
+
+		result, err := svc.SendNotification(ctx, service.SendNotificationInput{
+			UserID: 123, Type: "system", Title: "Test", Message: "Message",
+			SendEmail: true, EmailPayload: &models.EmailPayload{To: "test@example.com", Subject: "Sub", Body: "Body"},
+		})
+		assert.Error(t, err)
+		assert.False(t, result.Sent)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestNotificationService_GetNotifications(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	require.NoError(t, err)
+	defer db.Close()
 
-	tests := []struct {
-		name        string
-		userID      uint64
-		filter      models.NotificationFilter
-		setupMocks  func(*MockNotificationRepository)
-		expectError bool
-		expectedLen int
-	}{
-		{
-			name:   "successful get notifications",
-			userID: 123,
-			filter: models.NotificationFilter{Page: 1, PerPage: 10},
-			setupMocks: func(repo *MockNotificationRepository) {
-				notifications := []models.Notification{
-					{
-						ID:        "1",
-						UserID:    123,
-						Type:      "system",
-						Title:     "Test",
-						Message:   "Message",
-						CreatedAt: time.Now(),
-					},
-				}
-				repo.On("ListNotifications", mock.Anything, uint64(123), mock.AnythingOfType("models.NotificationFilter")).
-					Return(notifications, int64(1), nil)
-			},
-			expectError: false,
-			expectedLen: 1,
-		},
-	}
+	svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+	ctx := context.Background()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Note: Since the service uses concrete repository type,
-			// we can't easily mock it. These tests demonstrate the expected behavior
-			// but would require refactoring the service to use an interface.
-			t.Skip("Service uses concrete repository type - requires refactoring to use interface")
-		})
-	}
+	mock.ExpectQuery(`SELECT COUNT(*) FROM notifications WHERE notifiable_type = ? AND notifiable_id = ?`).
+		WithArgs("App\\User", uint64(123)).
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
+	mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE notifiable_type = ? AND notifiable_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`).
+		WithArgs("App\\User", uint64(123), 10, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "data", "read_at", "created_at", "updated_at"}).
+			AddRow("id-1", `{"type":"system","title":"Test","message":"Message","data":{}}`, nil, time.Now(), time.Now()))
+
+	notifications, total, err := svc.GetNotifications(ctx, 123, models.NotificationFilter{Page: 1, PerPage: 10})
+	require.NoError(t, err)
+	assert.Len(t, notifications, 1)
+	assert.Equal(t, int64(1), total)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestNotificationService_GetNotificationByID(t *testing.T) {
-	tests := []struct {
-		name           string
-		notificationID string
-		userID         uint64
-		setupMocks     func(*MockNotificationRepository)
-		expectError    bool
-		expectNil      bool
-	}{
-		{
-			name:           "successful get notification",
-			notificationID: "550e8400-e29b-41d4-a716-446655440000",
-			userID:         123,
-			setupMocks: func(repo *MockNotificationRepository) {
-				notification := &models.Notification{
-					ID:        "550e8400-e29b-41d4-a716-446655440000",
-					UserID:    123,
-					Type:      "system",
-					Title:     "Test",
-					Message:   "Message",
-					CreatedAt: time.Now(),
-				}
-				repo.On("GetNotificationByID", mock.Anything, "550e8400-e29b-41d4-a716-446655440000", uint64(123)).
-					Return(notification, nil)
-			},
-			expectError: false,
-			expectNil:   false,
-		},
-		{
-			name:           "notification not found",
-			notificationID: "550e8400-e29b-41d4-a716-446655440001",
-			userID:         123,
-			setupMocks: func(repo *MockNotificationRepository) {
-				repo.On("GetNotificationByID", mock.Anything, "550e8400-e29b-41d4-a716-446655440001", uint64(123)).
-					Return(nil, nil)
-			},
-			expectError: false,
-			expectNil:   true,
-		},
-	}
+	ctx := context.Background()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Note: Since the service uses concrete repository type,
-			// we can't easily mock it. These tests demonstrate the expected behavior
-			// but would require refactoring the service to use an interface.
-			t.Skip("Service uses concrete repository type - requires refactoring to use interface")
-		})
-	}
+	t.Run("found", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+		require.NoError(t, err)
+		defer db.Close()
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+
+		mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE id = ? AND notifiable_type = ? AND notifiable_id = ? LIMIT 1`).
+			WithArgs("notif-1", "App\\User", uint64(123)).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "data", "read_at", "created_at", "updated_at"}).
+				AddRow("notif-1", `{"type":"system","title":"Test","message":"Message","data":{}}`, nil, time.Now(), time.Now()))
+
+		notif, err := svc.GetNotificationByID(ctx, "notif-1", 123)
+		require.NoError(t, err)
+		require.NotNil(t, notif)
+		assert.Equal(t, "notif-1", notif.ID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+		require.NoError(t, err)
+		defer db.Close()
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+
+		mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE id = ? AND notifiable_type = ? AND notifiable_id = ? LIMIT 1`).
+			WithArgs("missing", "App\\User", uint64(123)).
+			WillReturnError(sql.ErrNoRows)
+
+		_, err = svc.GetNotificationByID(ctx, "missing", 123)
+		assert.ErrorIs(t, err, errs.ErrNotificationNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("repository error", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+		require.NoError(t, err)
+		defer db.Close()
+		svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+
+		mock.ExpectQuery(`SELECT id, data, read_at, created_at, updated_at FROM notifications WHERE id = ? AND notifiable_type = ? AND notifiable_id = ? LIMIT 1`).
+			WithArgs("broken", "App\\User", uint64(123)).
+			WillReturnError(errors.New("db unavailable"))
+
+		_, err = svc.GetNotificationByID(ctx, "broken", 123)
+		assert.Error(t, err)
+		assert.NotErrorIs(t, err, errs.ErrNotificationNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
-// Note: The service currently uses concrete repository type
-// In a production system, you'd want to use an interface for better testability
-// This test demonstrates the pattern but may need adaptation based on actual service structure
+func TestNotificationService_MarkAsRead(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+	mock.ExpectExec(`UPDATE notifications SET read_at = NOW\(\), updated_at = NOW\(\) WHERE id = \? AND notifiable_type = \? AND notifiable_id = \?`).
+		WithArgs("notif-1", "App\\User", uint64(123)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = svc.MarkAsRead(context.Background(), "notif-1", 123)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNotificationService_MarkAllAsRead(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := newNotificationService(db, &testutil.MockSMSChannel{}, &testutil.MockEmailChannel{})
+	mock.ExpectExec(`UPDATE notifications SET read_at = NOW\(\), updated_at = NOW\(\) WHERE notifiable_type = \? AND notifiable_id = \? AND read_at IS NULL`).
+		WithArgs("App\\User", uint64(123)).
+		WillReturnResult(sqlmock.NewResult(0, 3))
+
+	err = svc.MarkAllAsRead(context.Background(), 123)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestEmailService_SendEmail(t *testing.T) {
+	svc := service.NewEmailService(&testutil.MockEmailChannel{
+		SendEmailFunc: func(_ context.Context, payload models.EmailPayload) (string, error) {
+			assert.Equal(t, "a@b.com", payload.To)
+			return "msg-1", nil
+		},
+	})
+	id, err := svc.SendEmail(context.Background(), models.EmailPayload{To: "a@b.com", Subject: "s", Body: "b"})
+	require.NoError(t, err)
+	assert.Equal(t, "msg-1", id)
+}
+
+func TestNewSMSService_NilChannelUsesNoop(t *testing.T) {
+	svc := service.NewSMSService(nil)
+	_, err := svc.SendSMS(context.Background(), models.SMSPayload{Phone: "09120000000", Message: "hi"})
+	assert.ErrorIs(t, err, errs.ErrNotImplemented)
+}
+
+func TestSMSService_SendSMSAndOTP(t *testing.T) {
+	sms := &testutil.MockSMSChannel{
+		SendSMSFunc: func(_ context.Context, payload models.SMSPayload) (string, error) {
+			assert.Equal(t, "09120000000", payload.Phone)
+			return "sms-1", nil
+		},
+		SendOTPFunc: func(_ context.Context, payload models.OTPPayload) (string, error) {
+			assert.Equal(t, "1234", payload.Code)
+			return "otp-1", nil
+		},
+	}
+	svc := service.NewSMSService(sms)
+
+	id, err := svc.SendSMS(context.Background(), models.SMSPayload{Phone: "09120000000", Message: "hi"})
+	require.NoError(t, err)
+	assert.Equal(t, "sms-1", id)
+
+	otpID, err := svc.SendOTP(context.Background(), models.OTPPayload{Phone: "09120000000", Code: "1234"})
+	require.NoError(t, err)
+	assert.Equal(t, "otp-1", otpID)
+}
+
+func TestNewSMSChannel(t *testing.T) {
+	t.Run("noop when provider empty", func(t *testing.T) {
+		ch := service.NewSMSChannel(service.SMSChannelConfig{})
+		_, err := ch.SendSMS(context.Background(), models.SMSPayload{Phone: "1", Message: "m"})
+		assert.ErrorIs(t, err, errs.ErrNotImplemented)
+	})
+
+	t.Run("noop when kavenegar without api key", func(t *testing.T) {
+		ch := service.NewSMSChannel(service.SMSChannelConfig{Provider: "kavenegar"})
+		_, err := ch.SendOTP(context.Background(), models.OTPPayload{Phone: "1", Code: "2"})
+		assert.ErrorIs(t, err, errs.ErrNotImplemented)
+	})
+
+	t.Run("unknown provider uses noop", func(t *testing.T) {
+		ch := service.NewSMSChannel(service.SMSChannelConfig{Provider: "unknown"})
+		_, err := ch.SendSMS(context.Background(), models.SMSPayload{Phone: "1", Message: "m"})
+		assert.ErrorIs(t, err, errs.ErrNotImplemented)
+	})
+}
+
+func TestNewEmailService_NoopChannel(t *testing.T) {
+	svc := service.NewEmailService(nil)
+	_, err := svc.SendEmail(context.Background(), models.EmailPayload{To: "a@b.com", Subject: "s", Body: "b"})
+	assert.ErrorIs(t, err, errs.ErrNotImplemented)
+}

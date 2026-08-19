@@ -338,3 +338,62 @@ func TestGetEventStats_ViewQueryError(t *testing.T) {
 		t.Fatal(err, st)
 	}
 }
+
+func TestGetInteractionStats_OK(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM interactions WHERE likeable_type = ? AND likeable_id = ? AND liked = 1")).
+		WithArgs(calendarMorphType, uint64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(int64(3)))
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM interactions WHERE likeable_type = ? AND likeable_id = ? AND liked = 0")).
+		WithArgs(calendarMorphType, uint64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(int64(1)))
+
+	r := repository.NewCalendarRepository(db)
+	st, err := r.GetInteractionStats(context.Background(), 7)
+	if err != nil || st.LikesCount != 3 || st.DislikesCount != 1 {
+		t.Fatal(err, st)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetLatestVersionTitle_Found(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT version_title FROM calendars WHERE is_version = 1 ORDER BY starts_at DESC LIMIT 1")).
+		WillReturnRows(sqlmock.NewRows([]string{"version_title"}).AddRow("V1.2.3"))
+
+	r := repository.NewCalendarRepository(db)
+	title, err := r.GetLatestVersionTitle(context.Background())
+	if err != nil || title != "V1.2.3" {
+		t.Fatal(err, title)
+	}
+}
+
+func TestGetLatestVersionTitle_QueryError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT version_title FROM calendars WHERE is_version = 1 ORDER BY starts_at DESC LIMIT 1")).
+		WillReturnError(errors.New("db error"))
+
+	r := repository.NewCalendarRepository(db)
+	_, err = r.GetLatestVersionTitle(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}

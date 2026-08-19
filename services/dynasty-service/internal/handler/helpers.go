@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"metarang/dynasty-service/internal/models"
+	"metarang/dynasty-service/internal/service"
 	commonpb "metarang/shared/pb/common"
 	dynastypb "metarang/shared/pb/dynasty"
 	"metarang/shared/pkg/helpers"
@@ -29,6 +30,31 @@ func stringOrEmpty(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func toProtoUserSearchLevels(levels []*service.UserSearchLevelItem) []*dynastypb.UserSearchLevelItem {
+	if len(levels) == 0 {
+		return nil
+	}
+	out := make([]*dynastypb.UserSearchLevelItem, 0, len(levels))
+	for _, lvl := range levels {
+		if lvl == nil {
+			continue
+		}
+		item := &dynastypb.UserSearchLevelItem{
+			Id:   lvl.ID,
+			Slug: lvl.Slug,
+		}
+		if lvl.Gem != nil {
+			item.Gem = &dynastypb.UserSearchLevelGem{
+				Id:    lvl.Gem.ID,
+				Name:  lvl.Gem.Name,
+				Image: lvl.Gem.Image,
+			}
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func buildDynastyFeature(details map[string]interface{}, memberCount int32, updatedAt time.Time) *dynastypb.DynastyFeature {
@@ -57,15 +83,31 @@ func buildDynastyFeature(details map[string]interface{}, memberCount int32, upda
 func buildAvailableFeatures(features []map[string]interface{}) []*dynastypb.AvailableFeature {
 	var result []*dynastypb.AvailableFeature
 	for _, f := range features {
-		result = append(result, &dynastypb.AvailableFeature{
-			Id:           getUint64(f["id"]),
-			PropertiesId: getString(f["properties_id"]),
-			Density:      getString(f["density"]),
-			Stability:    getString(f["stability"]),
-			Area:         getString(f["area"]),
-		})
+		if item := availableFeatureFromDetails(f); item != nil {
+			result = append(result, item)
+		}
 	}
 	return result
+}
+
+func availableFeatureFromDetails(details map[string]interface{}) *dynastypb.AvailableFeature {
+	if details == nil {
+		return nil
+	}
+	return &dynastypb.AvailableFeature{
+		Id:           getUint64(details["id"]),
+		PropertiesId: getString(details["properties_id"]),
+		Density:      getString(details["density"]),
+		Stability:    getString(details["stability"]),
+		Area:         getString(details["area"]),
+	}
+}
+
+func withSelectedFeature(selected *dynastypb.AvailableFeature, others []*dynastypb.AvailableFeature) []*dynastypb.AvailableFeature {
+	if selected == nil {
+		return others
+	}
+	return append([]*dynastypb.AvailableFeature{selected}, others...)
 }
 
 func memberTitle(member string) string {

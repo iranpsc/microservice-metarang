@@ -42,11 +42,12 @@ type UserRepository interface {
 
 // UserLevel represents level information from database
 type UserLevel struct {
-	ID    uint64
-	Name  string
-	Score int32
-	Slug  string
-	Image string
+	ID         uint64
+	Name       string
+	Score      int32
+	Slug       string
+	Image      string
+	GemPngFile string
 }
 
 // UserWithRelations represents a user with related data for listing
@@ -56,7 +57,6 @@ type UserWithRelations struct {
 	ProfilePhotoURL *string
 }
 
-// UserListLevel is a level row for GET /api/users (Laravel UserResource levels)
 type UserListLevel struct {
 	ID    uint64
 	Name  string
@@ -92,7 +92,6 @@ func NewUserRepository(db *sql.DB, adminPanelURL string) UserRepository {
 }
 
 // formatImageURL formats image URL with admin_panel_url + /uploads/ prefix.
-// Implements Laravel: config('app.admin_panel_url') . '/uploads/' . $this->image->url
 func (r *userRepository) formatImageURL(imageURL string) string {
 	if imageURL == "" {
 		return ""
@@ -481,7 +480,6 @@ func (r *userRepository) ListUsers(ctx context.Context, search string, orderBy s
 	return users, totalCount, nil
 }
 
-// GetUsersLevelsForList loads all achieved levels per user for GET /api/users (Laravel UserResource).
 func (r *userRepository) GetUsersLevelsForList(ctx context.Context, userIDs []uint64) (map[uint64]*UserListLevels, error) {
 	result := make(map[uint64]*UserListLevels)
 	if len(userIDs) == 0 {
@@ -540,7 +538,6 @@ func (r *userRepository) GetUsersLevelsForList(ctx context.Context, userIDs []ui
 		lvl := level
 		bundle.Previous = append(bundle.Previous, &lvl)
 
-		// Laravel latest_level: levels()->orderByDesc('id')->first()
 		if bundle.Current == nil || level.ID > bundle.Current.ID {
 			currentCopy := lvl
 			bundle.Current = &currentCopy
@@ -637,17 +634,19 @@ func (r *userRepository) GetAllProfilePhotoURLs(ctx context.Context, userID uint
 func (r *userRepository) GetUserLatestLevel(ctx context.Context, userID uint64) (*UserLevel, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS SIGNED) as score,
-		       COALESCE(i.url, '') as image_url
+		       COALESCE(i.url, '') as image_url,
+		       COALESCE(lg.png_file, '') as gem_png_file
 		FROM level_user lu
 		INNER JOIN levels l ON l.id = lu.level_id
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
+		LEFT JOIN level_gems lg ON lg.level_id = l.id
 		WHERE lu.user_id = ?
 		ORDER BY lu.id DESC
 		LIMIT 1
 	`
 
 	var level UserLevel
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image)
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image, &level.GemPngFile)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -655,6 +654,7 @@ func (r *userRepository) GetUserLatestLevel(ctx context.Context, userID uint64) 
 		return nil, fmt.Errorf("failed to get latest level: %w", err)
 	}
 	level.Image = r.formatImageURL(level.Image)
+	level.GemPngFile = r.formatImageURL(level.GemPngFile)
 	return &level, nil
 }
 
@@ -662,9 +662,11 @@ func (r *userRepository) GetUserLatestLevel(ctx context.Context, userID uint64) 
 func (r *userRepository) GetLevelsBelowScore(ctx context.Context, score int32) ([]*UserLevel, error) {
 	query := `
 		SELECT l.id, l.name, l.slug, CAST(l.score AS SIGNED) as score,
-		       COALESCE(i.url, '') as image_url
+		       COALESCE(i.url, '') as image_url,
+		       COALESCE(lg.png_file, '') as gem_png_file
 		FROM levels l
 		LEFT JOIN images i ON i.imageable_id = l.id AND i.imageable_type = 'App\\Models\\Levels\\Level'
+		LEFT JOIN level_gems lg ON lg.level_id = l.id
 		WHERE CAST(l.score AS SIGNED) < ?
 		ORDER BY CAST(l.score AS SIGNED) ASC
 	`
@@ -678,10 +680,11 @@ func (r *userRepository) GetLevelsBelowScore(ctx context.Context, score int32) (
 	var levels []*UserLevel
 	for rows.Next() {
 		var level UserLevel
-		if err := rows.Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image); err != nil {
+		if err := rows.Scan(&level.ID, &level.Name, &level.Slug, &level.Score, &level.Image, &level.GemPngFile); err != nil {
 			return nil, fmt.Errorf("failed to scan level: %w", err)
 		}
 		level.Image = r.formatImageURL(level.Image)
+		level.GemPngFile = r.formatImageURL(level.GemPngFile)
 		levels = append(levels, &level)
 	}
 
