@@ -980,9 +980,9 @@ func (s *MarketplaceService) CreateSellRequest(ctx context.Context, req *pb.Crea
 		}
 
 		// Check age-based limit
-		if isUnder18 && req.MinimumPricePercentage < int32(under18PricingLimit) {
+		if isUnder18 && int(req.MinimumPricePercentage) < under18PricingLimit {
 			return nil, fmt.Errorf("شما مجاز به فروش زمین خود به کمتر از %d درصد قیمت خرید ملک نمی باشید", under18PricingLimit)
-		} else if !isUnder18 && req.MinimumPricePercentage < int32(publicPricingLimit) {
+		} else if !isUnder18 && int(req.MinimumPricePercentage) < publicPricingLimit {
 			return nil, fmt.Errorf("شما مجاز به فروش زمین خود به کمتر از %d درصد قیمت خرید ملک نمی باشید", publicPricingLimit)
 		}
 

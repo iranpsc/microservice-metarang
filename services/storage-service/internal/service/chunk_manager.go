@@ -55,6 +55,10 @@ func (cm *ChunkManager) GetOrCreateSession(uploadID, filename, contentType strin
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
+	if err := validateUploadID(uploadID); err != nil {
+		return nil, err
+	}
+
 	// Check if session already exists
 	if session, exists := cm.sessions[uploadID]; exists {
 		return session, nil
