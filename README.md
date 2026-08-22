@@ -169,6 +169,22 @@ Use `grpcurl` or Postman gRPC for API testing (Kong returns `415` for plain REST
 
 Shared schema in `scripts/schema.sql`. Notes: `transactions.id` is VARCHAR; `feature_properties.id` has prefix/postfix; soft deletes use `deleted_at`; polymorphic relations use `{model}_type` and `{model}_id`.
 
+### Migrations
+
+Schema dumps and existing databases are updated with Laravel-style SQL files in `scripts/migrations`. Applied files are recorded in the `migrations` table (`migration` + `batch`), same as Laravel.
+
+```bash
+make migrate-make NAME=add_foo_to_bar   # create stub
+make migrate                            # run pending files
+make migrate-status                     # ran vs pending
+make migrate-rollback                   # undo last batch (STEP=1 for one file)
+make migrate-baseline                   # mark pending as ran without executing (after schema import)
+```
+
+Each file uses `-- migrate:up` / `-- migrate:down`. After `make import-schema`, pending files are baselined so historical ALTERs are not replayed on a dump that already contains those columns. For an older database, skip baseline and run `make migrate`.
+
+DB connection: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_DATABASE` (Make defaults match Docker MySQL). Or: `go run ./shared/cmd/migrate help`.
+
 ## API Compatibility
 
 **CRITICAL**: All services MUST maintain 100% API compatibility with the existing platform API (JSON fields, status codes, validation format, Jalali dates, URLs).

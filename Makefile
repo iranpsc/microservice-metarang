@@ -1,4 +1,4 @@
-.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up kong-validate kong-reload
+.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up kong-validate kong-reload migrate migrate-rollback migrate-status migrate-reset migrate-refresh migrate-baseline migrate-make migrate-install
 
 # Proto generation
 PROTO_DIR=shared/proto
@@ -80,8 +80,15 @@ help:
 	@echo "  dev-ps           - Show development service status"
 	@echo ""
 	@echo "Database:"
-	@echo "  import-schema    - Import database schema only (schema.sql)"
-	@echo "  import-database  - Import database with data (metarang_db.sql)"
+	@echo "  import-schema         - Import database schema only (schema.sql), then baseline migrations"
+	@echo "  import-database       - Import database with data (metarang_db.sql)"
+	@echo "  migrate               - Run pending SQL migrations (Laravel-style)"
+	@echo "  migrate-rollback      - Roll back the last migration batch (STEP=N optional)"
+	@echo "  migrate-status        - Show ran / pending migrations"
+	@echo "  migrate-reset         - Roll back all migrations"
+	@echo "  migrate-refresh       - Reset, then migrate"
+	@echo "  migrate-baseline      - Mark pending files as ran without executing SQL"
+	@echo "  migrate-make          - Create a migration stub (NAME=add_foo_to_bar)"
 	@echo ""
 	@echo "Service-specific (set SERVICE=service-name):"
 	@echo "  build-service    - Build specific service"
@@ -313,7 +320,7 @@ endif
 # Docker Compose Management
 # =============================================================================
 
-.PHONY: up down restart logs ps build clean import-schema import-database dev-up dev-down dev-build dev-logs dev-restart dev-ps kong-validate kong-reload
+.PHONY: up down restart logs ps build clean import-schema import-database dev-up dev-down dev-build dev-logs dev-restart dev-ps kong-validate kong-reload migrate migrate-rollback migrate-status migrate-reset migrate-refresh migrate-baseline migrate-make migrate-install
 
 kong-validate:
 	@echo "🔍 Validating Kong declarative config..."
@@ -397,6 +404,22 @@ clean-runtime:
 	docker builder prune -af
 	@echo "✅ Runtime cleanup complete"
 
+# Laravel-style SQL migrations (scripts/migrations + `migrations` table).
+DB_HOST ?= 127.0.0.1
+DB_PORT ?= 3306
+DB_USER ?= root
+DB_PASSWORD ?= root_password
+DB_DATABASE ?= metarang_db
+MIGRATIONS_PATH ?= scripts/migrations
+STEP ?=
+PRETEND ?=
+
+ifeq ($(OS),Windows_NT)
+run_migrate = powershell -NoProfile -Command "$$ErrorActionPreference='Stop'; $$env:DB_HOST='$(DB_HOST)'; $$env:DB_PORT='$(DB_PORT)'; $$env:DB_USER='$(DB_USER)'; $$env:DB_PASSWORD='$(DB_PASSWORD)'; $$env:DB_DATABASE='$(DB_DATABASE)'; go run ./shared/cmd/migrate $(1) -path=$(MIGRATIONS_PATH) $(if $(STEP),-step=$(STEP),) $(if $(PRETEND),-pretend,)"
+else
+run_migrate = DB_HOST=$(DB_HOST) DB_PORT=$(DB_PORT) DB_USER=$(DB_USER) DB_PASSWORD=$(DB_PASSWORD) DB_DATABASE=$(DB_DATABASE) go run ./shared/cmd/migrate $(1) -path=$(MIGRATIONS_PATH) $(if $(STEP),-step=$(STEP),) $(if $(PRETEND),-pretend,)
+endif
+
 import-schema:
 	@echo "📥 Importing database schema..."
 	@if [ ! -f scripts/schema.sql ]; then \
@@ -405,6 +428,8 @@ import-schema:
 	fi
 	docker exec -i metarang-mysql mysql -uroot -proot_password metarang_db < scripts/schema.sql
 	@echo "✅ Schema imported successfully"
+	@echo "Recording existing SQL migrations as applied (schema dump already includes them)..."
+	@$(call run_migrate,baseline)
 	@echo ""
 	@echo "Verifying tables..."
 ifeq ($(OS),Windows_NT)
@@ -445,6 +470,40 @@ else
 	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metarang_db';" 2>/dev/null | grep -v table_count || echo "Could not verify table count"
 	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as row_count FROM account_securities;" 2>/dev/null | grep -v row_count || echo "Could not verify data"
 endif
+
+migrate:
+	@echo "Running pending migrations..."
+	@$(call run_migrate,up)
+
+migrate-rollback:
+	@echo "Rolling back last migration batch..."
+	@$(call run_migrate,rollback)
+
+migrate-status:
+	@$(call run_migrate,status)
+
+migrate-reset:
+	@echo "Rolling back all migrations..."
+	@$(call run_migrate,reset)
+
+migrate-refresh:
+	@echo "Refreshing migrations..."
+	@$(call run_migrate,refresh)
+
+migrate-baseline:
+	@echo "Baselining pending migrations (record only)..."
+	@$(call run_migrate,baseline)
+
+migrate-install:
+	@$(call run_migrate,install)
+
+migrate-make:
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Please specify NAME=snake_case_description"; \
+		echo "Example: make migrate-make NAME=add_wallet_login_to_personal_access_tokens"; \
+		exit 1; \
+	fi
+	go run ./shared/cmd/migrate make -path=$(MIGRATIONS_PATH) $(NAME)
 
 dev:
 	@echo "🚀 Starting development environment..."

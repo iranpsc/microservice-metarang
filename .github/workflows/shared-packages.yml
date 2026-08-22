@@ -90,7 +90,7 @@ jobs:
           bash .github/scripts/go-test-checklist.sh \
             "Shared Package Tests (shared/pkg/...)" \
             "shared" \
-            -- ./pkg/... -race -cover -coverprofile=coverage-unit.out -covermode=atomic
+            -- ./pkg/... ./cmd/... -race -cover -coverprofile=coverage-unit.out -covermode=atomic
 
       # Keep later suites running after a failure so the checklist is complete.
       # Prefer if: always() over continue-on-error so failed steps stay red.

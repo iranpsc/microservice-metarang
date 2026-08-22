@@ -191,6 +191,7 @@ message RedirectResponse {
 message CallbackRequest {
   string state = 1;
   string code = 2;
+  bool wallet_login = 3;
 }
 
 message CallbackResponse {
@@ -221,6 +222,7 @@ message UserResponse {
   string birthdate = 14;
   bool has_wallet = 15;
   string wallet_address = 16;
+  bool wallet_login = 17;
 }
 
 message LogoutRequest {

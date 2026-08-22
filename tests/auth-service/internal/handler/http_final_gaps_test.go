@@ -128,7 +128,7 @@ func TestHTTPAuthAccountCorePaths(t *testing.T) {
 	authSvc.redirectFunc = func(context.Context, string, string) (string, string, error) {
 		return "https://oauth", "state", nil
 	}
-	authSvc.callbackFunc = func(context.Context, string, string, string) (*service.CallbackResult, error) {
+	authSvc.callbackFunc = func(context.Context, string, string, string, bool) (*service.CallbackResult, error) {
 		return &service.CallbackResult{Token: "t", ExpiresAt: 3600, RedirectURL: "/"}, nil
 	}
 	authSvc.getMeFunc = func(context.Context, string) (*service.UserDetails, error) {

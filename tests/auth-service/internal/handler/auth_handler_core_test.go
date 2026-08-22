@@ -85,7 +85,7 @@ func TestAuthHandler_RegisterRedirectCallbackGetMeLogoutValidate(t *testing.T) {
 
 	t.Run("callback", func(t *testing.T) {
 		m := &mockAuthService{}
-		m.callbackFunc = func(_ context.Context, _, _, ip string) (*service.CallbackResult, error) {
+		m.callbackFunc = func(_ context.Context, _, _, ip string, _ bool) (*service.CallbackResult, error) {
 			if ip != "9.9.9.9" {
 				t.Fatalf("ip=%s", ip)
 			}
@@ -99,7 +99,7 @@ func TestAuthHandler_RegisterRedirectCallbackGetMeLogoutValidate(t *testing.T) {
 			t.Fatalf("resp=%v err=%v", resp, err)
 		}
 
-		m.callbackFunc = func(context.Context, string, string, string) (*service.CallbackResult, error) {
+		m.callbackFunc = func(context.Context, string, string, string, bool) (*service.CallbackResult, error) {
 			return nil, errors.New("invalid state value")
 		}
 		_, err = h.Callback(context.Background(), &pb.CallbackRequest{})
@@ -108,7 +108,7 @@ func TestAuthHandler_RegisterRedirectCallbackGetMeLogoutValidate(t *testing.T) {
 			t.Fatalf("code=%v", st.Code())
 		}
 
-		m.callbackFunc = func(context.Context, string, string, string) (*service.CallbackResult, error) {
+		m.callbackFunc = func(context.Context, string, string, string, bool) (*service.CallbackResult, error) {
 			return nil, errors.New("other")
 		}
 		_, err = h.Callback(context.Background(), &pb.CallbackRequest{})
@@ -119,7 +119,7 @@ func TestAuthHandler_RegisterRedirectCallbackGetMeLogoutValidate(t *testing.T) {
 
 		md = metadata.Pairs("x-real-ip", "8.8.8.8")
 		ctx = metadata.NewIncomingContext(context.Background(), md)
-		m.callbackFunc = func(_ context.Context, _, _, ip string) (*service.CallbackResult, error) {
+		m.callbackFunc = func(_ context.Context, _, _, ip string, _ bool) (*service.CallbackResult, error) {
 			if ip != "8.8.8.8" {
 				t.Fatalf("ip=%s", ip)
 			}
@@ -146,7 +146,8 @@ func TestAuthHandler_RegisterRedirectCallbackGetMeLogoutValidate(t *testing.T) {
 		m.getMeFunc = func(context.Context, string) (*service.UserDetails, error) {
 			return &service.UserDetails{
 				ID: 1, Name: "n", Code: "c", AutomaticLogout: 0,
-				Image: "/p.jpg", Level: &service.LevelInfo{ID: 2, Title: "t", Description: "d", Score: 1, Slug: "s"},
+				Image: "/p.jpg", WalletLogin: true,
+				Level: &service.LevelInfo{ID: 2, Title: "t", Description: "d", Score: 1, Slug: "s"},
 			}, nil
 		}
 		resp, err := h.GetMe(context.Background(), &pb.GetMeRequest{Token: "x"})
@@ -155,6 +156,9 @@ func TestAuthHandler_RegisterRedirectCallbackGetMeLogoutValidate(t *testing.T) {
 		}
 		if resp.AutomaticLogout != 55 || resp.Level == nil || resp.Level.Id != 2 {
 			t.Fatalf("%+v", resp)
+		}
+		if !resp.WalletLogin {
+			t.Fatal("expected wallet_login to be preserved on GetMe")
 		}
 	})
 

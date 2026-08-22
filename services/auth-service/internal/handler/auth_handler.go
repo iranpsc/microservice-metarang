@@ -80,7 +80,7 @@ func (h *authHandler) Callback(ctx context.Context, req *pb.CallbackRequest) (*p
 	// Extract IP from gRPC metadata if available
 	ip := extractIPFromContext(ctx)
 
-	result, err := h.authService.Callback(ctx, req.State, req.Code, ip)
+	result, err := h.authService.Callback(ctx, req.State, req.Code, ip, req.WalletLogin)
 	if err != nil {
 		// Map InvalidArgumentException to InvalidArgument status code
 		if strings.Contains(err.Error(), "invalid state value") {
@@ -121,6 +121,7 @@ func (h *authHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User
 		Birthdate:                  userDetails.Birthdate,
 		HasWallet:                  userDetails.HasWallet,
 		WalletAddress:              userDetails.WalletAddress,
+		WalletLogin:                userDetails.WalletLogin,
 	}
 
 	if userDetails.Level != nil {

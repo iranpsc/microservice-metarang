@@ -272,7 +272,7 @@ func TestCallback(t *testing.T) {
 			false,
 		)
 
-		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
+		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1", false)
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -323,7 +323,7 @@ func TestCallback(t *testing.T) {
 			false,
 		)
 
-		_, err := svc.Callback(ctx, "invalid_state", "test_code", "127.0.0.1")
+		_, err := svc.Callback(ctx, "invalid_state", "test_code", "127.0.0.1", false)
 		if err == nil {
 			t.Fatal("Expected error for invalid state")
 		}
@@ -375,7 +375,7 @@ func TestCallback(t *testing.T) {
 			false,
 		)
 
-		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
+		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1", false)
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -438,7 +438,7 @@ func TestCallback(t *testing.T) {
 			false,
 		)
 
-		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
+		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1", false)
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -531,7 +531,7 @@ func TestCallbackCreatesUserRelatedRecords(t *testing.T) {
 			false,
 		)
 
-		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
+		result, err := svc.Callback(ctx, state, "test_code", "127.0.0.1", false)
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -646,7 +646,7 @@ func TestCallbackCreatesUserRelatedRecords(t *testing.T) {
 			false,
 		)
 
-		_, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
+		_, err := svc.Callback(ctx, state, "test_code", "127.0.0.1", false)
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -759,7 +759,7 @@ func TestCallbackLoggedInEvent(t *testing.T) {
 			false,
 		)
 
-		_, err := svc.Callback(ctx, state, "test_code", "203.0.113.10")
+		_, err := svc.Callback(ctx, state, "test_code", "203.0.113.10", false)
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -882,7 +882,7 @@ func TestCallbackLoggedInEvent(t *testing.T) {
 			false,
 		)
 
-		_, err := svc.Callback(ctx, state, "test_code", "127.0.0.1")
+		_, err := svc.Callback(ctx, state, "test_code", "127.0.0.1", false)
 		if err != nil {
 			t.Fatalf("Callback failed: %v", err)
 		}
@@ -1115,32 +1115,62 @@ func TestValidateToken(t *testing.T) {
 // --- OAuth-specific fake implementations ---
 
 type fakeTokenRepository struct {
-	tokens               map[string]*models.User
-	createTokenFunc      func(context.Context, uint64, string, time.Time) (string, error)
-	validateTokenFunc    func(context.Context, string) (*models.User, error)
-	deleteUserTokensFunc func(context.Context, uint64) error
+	tokens                   map[string]*models.User
+	walletLogin              map[string]bool
+	createTokenFunc          func(context.Context, uint64, string, time.Time, bool) (string, error)
+	validateTokenFunc        func(context.Context, string) (*models.User, error)
+	validateTokenSessionFunc func(context.Context, string) (*repository.ValidatedToken, error)
+	deleteUserTokensFunc     func(context.Context, uint64) error
 }
 
 func newFakeTokenRepository() *fakeTokenRepository {
 	return &fakeTokenRepository{
-		tokens: make(map[string]*models.User),
+		tokens:      make(map[string]*models.User),
+		walletLogin: make(map[string]bool),
 	}
 }
 
-func (f *fakeTokenRepository) Create(ctx context.Context, userID uint64, name string, expiresAt time.Time) (string, error) {
+func (f *fakeTokenRepository) Create(ctx context.Context, userID uint64, name string, expiresAt time.Time, walletLogin bool) (string, error) {
 	if f.createTokenFunc != nil {
-		return f.createTokenFunc(ctx, userID, name, expiresAt)
+		return f.createTokenFunc(ctx, userID, name, expiresAt, walletLogin)
 	}
-	token := fmt.Sprintf("token_%d_%d", userID, time.Now().Unix())
-	return fmt.Sprintf("%d|%s", userID, token), nil
+	token := fmt.Sprintf("token_%d_%d", userID, time.Now().UnixNano())
+	full := fmt.Sprintf("%d|%s", userID, token)
+	if f.walletLogin == nil {
+		f.walletLogin = make(map[string]bool)
+	}
+	if f.tokens == nil {
+		f.tokens = make(map[string]*models.User)
+	}
+	user := &models.User{ID: userID}
+	f.tokens[token] = user
+	f.tokens[full] = user
+	f.walletLogin[token] = walletLogin
+	f.walletLogin[full] = walletLogin
+	return full, nil
 }
 
 func (f *fakeTokenRepository) ValidateToken(ctx context.Context, token string) (*models.User, error) {
+	session, err := f.ValidateTokenSession(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	return session.User, nil
+}
+
+func (f *fakeTokenRepository) ValidateTokenSession(ctx context.Context, token string) (*repository.ValidatedToken, error) {
+	if f.validateTokenSessionFunc != nil {
+		return f.validateTokenSessionFunc(ctx, token)
+	}
 	if f.validateTokenFunc != nil {
-		return f.validateTokenFunc(ctx, token)
+		user, err := f.validateTokenFunc(ctx, token)
+		if err != nil {
+			return nil, err
+		}
+		return &repository.ValidatedToken{User: user, WalletLogin: f.walletLogin[token]}, nil
 	}
 	if user, ok := f.tokens[token]; ok {
-		return user, nil
+		return &repository.ValidatedToken{User: user, WalletLogin: f.walletLogin[token]}, nil
 	}
 	return nil, fmt.Errorf("invalid token")
 }
