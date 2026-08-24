@@ -58,6 +58,7 @@ services:
       - mysql_data:/var/lib/mysql
     networks:
       - metarang-network
+      - dokploy-network
     command: 
       - --host-cache-size=0
       - --pid-file=/tmp/mysqld.pid
@@ -934,4 +935,6 @@ volumes:
 networks:
   metarang-network:
     driver: bridge
+  dokploy-network:
+    external: true
 
