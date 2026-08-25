@@ -870,6 +870,7 @@ service WalletConnectionService {
   rpc LinkWallet(LinkWalletRequest) returns (LinkWalletResponse);
   rpc GetSecurityNonce(GetWalletSecurityNonceRequest) returns (GetWalletNonceResponse);
   rpc VerifySecuritySignature(VerifyWalletSecuritySignatureRequest) returns (VerifyWalletSecuritySignatureResponse);
+  rpc CheckRegistered(CheckWalletRegisteredRequest) returns (CheckWalletRegisteredResponse);
 }
 
 message GetWalletLinkNonceRequest {
@@ -910,6 +911,16 @@ message VerifyWalletSecuritySignatureRequest {
 message VerifyWalletSecuritySignatureResponse {
   string message = 1;
   int64 until = 2;
+}
+
+// CheckRegistered - POST /api/wallets/registered
+message CheckWalletRegisteredRequest {
+  string wallet_address = 1;
+}
+
+message CheckWalletRegisteredResponse {
+  bool already_registered = 1;
+  optional string user_code = 2;
 }
 
 // ============== Search Service ==============

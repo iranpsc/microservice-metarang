@@ -224,6 +224,10 @@ func (r *fakeKYCUserRepository) ExistsByWalletAddress(context.Context, string, u
 	return false, nil
 }
 
+func (r *fakeKYCUserRepository) FindByWalletAddress(context.Context, string) (*models.User, error) {
+	return nil, nil
+}
+
 func (r *fakeKYCUserRepository) LinkWalletAddress(context.Context, uint64, string) (repository.LinkWalletResult, error) {
 	return repository.LinkWalletSuccess, nil
 }

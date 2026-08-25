@@ -43,6 +43,7 @@ func StartHTTPServer(
 	mux.Handle("/api/wallet/link", authMiddleware(http.HandlerFunc(walletHandler.LinkWallet)))
 	mux.Handle("/api/wallet/security/nonce", authMiddleware(http.HandlerFunc(walletHandler.GetSecurityNonce)))
 	mux.Handle("/api/wallet/security/verify", authMiddleware(http.HandlerFunc(walletHandler.VerifySecuritySignature)))
+	mux.HandleFunc("POST /api/wallets/registered", walletHandler.CheckRegistered)
 
 	mux.Handle("/api/users", optionalAuthMiddleware(http.HandlerFunc(authHandler.ListUsers)))
 	mux.Handle("/api/user", authMiddleware(http.HandlerFunc(authHandler.GetUser)))

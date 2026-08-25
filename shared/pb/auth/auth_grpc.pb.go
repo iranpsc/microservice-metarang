@@ -2501,6 +2501,7 @@ const (
 	WalletConnectionService_LinkWallet_FullMethodName              = "/auth.WalletConnectionService/LinkWallet"
 	WalletConnectionService_GetSecurityNonce_FullMethodName        = "/auth.WalletConnectionService/GetSecurityNonce"
 	WalletConnectionService_VerifySecuritySignature_FullMethodName = "/auth.WalletConnectionService/VerifySecuritySignature"
+	WalletConnectionService_CheckRegistered_FullMethodName         = "/auth.WalletConnectionService/CheckRegistered"
 )
 
 // WalletConnectionServiceClient is the client API for WalletConnectionService service.
@@ -2513,6 +2514,7 @@ type WalletConnectionServiceClient interface {
 	LinkWallet(ctx context.Context, in *LinkWalletRequest, opts ...grpc.CallOption) (*LinkWalletResponse, error)
 	GetSecurityNonce(ctx context.Context, in *GetWalletSecurityNonceRequest, opts ...grpc.CallOption) (*GetWalletNonceResponse, error)
 	VerifySecuritySignature(ctx context.Context, in *VerifyWalletSecuritySignatureRequest, opts ...grpc.CallOption) (*VerifyWalletSecuritySignatureResponse, error)
+	CheckRegistered(ctx context.Context, in *CheckWalletRegisteredRequest, opts ...grpc.CallOption) (*CheckWalletRegisteredResponse, error)
 }
 
 type walletConnectionServiceClient struct {
@@ -2563,6 +2565,16 @@ func (c *walletConnectionServiceClient) VerifySecuritySignature(ctx context.Cont
 	return out, nil
 }
 
+func (c *walletConnectionServiceClient) CheckRegistered(ctx context.Context, in *CheckWalletRegisteredRequest, opts ...grpc.CallOption) (*CheckWalletRegisteredResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckWalletRegisteredResponse)
+	err := c.cc.Invoke(ctx, WalletConnectionService_CheckRegistered_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WalletConnectionServiceServer is the server API for WalletConnectionService service.
 // All implementations must embed UnimplementedWalletConnectionServiceServer
 // for forward compatibility.
@@ -2573,6 +2585,7 @@ type WalletConnectionServiceServer interface {
 	LinkWallet(context.Context, *LinkWalletRequest) (*LinkWalletResponse, error)
 	GetSecurityNonce(context.Context, *GetWalletSecurityNonceRequest) (*GetWalletNonceResponse, error)
 	VerifySecuritySignature(context.Context, *VerifyWalletSecuritySignatureRequest) (*VerifyWalletSecuritySignatureResponse, error)
+	CheckRegistered(context.Context, *CheckWalletRegisteredRequest) (*CheckWalletRegisteredResponse, error)
 	mustEmbedUnimplementedWalletConnectionServiceServer()
 }
 
@@ -2594,6 +2607,9 @@ func (UnimplementedWalletConnectionServiceServer) GetSecurityNonce(context.Conte
 }
 func (UnimplementedWalletConnectionServiceServer) VerifySecuritySignature(context.Context, *VerifyWalletSecuritySignatureRequest) (*VerifyWalletSecuritySignatureResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifySecuritySignature not implemented")
+}
+func (UnimplementedWalletConnectionServiceServer) CheckRegistered(context.Context, *CheckWalletRegisteredRequest) (*CheckWalletRegisteredResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckRegistered not implemented")
 }
 func (UnimplementedWalletConnectionServiceServer) mustEmbedUnimplementedWalletConnectionServiceServer() {
 }
@@ -2689,6 +2705,24 @@ func _WalletConnectionService_VerifySecuritySignature_Handler(srv interface{}, c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletConnectionService_CheckRegistered_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckWalletRegisteredRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletConnectionServiceServer).CheckRegistered(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletConnectionService_CheckRegistered_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletConnectionServiceServer).CheckRegistered(ctx, req.(*CheckWalletRegisteredRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WalletConnectionService_ServiceDesc is the grpc.ServiceDesc for WalletConnectionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2711,6 +2745,10 @@ var WalletConnectionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifySecuritySignature",
 			Handler:    _WalletConnectionService_VerifySecuritySignature_Handler,
+		},
+		{
+			MethodName: "CheckRegistered",
+			Handler:    _WalletConnectionService_CheckRegistered_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

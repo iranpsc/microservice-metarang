@@ -20,6 +20,7 @@ type mockWalletConnectionService struct {
 	linkWalletFunc              func(context.Context, uint64, string, string, string) (string, error)
 	getSecurityNonceFunc        func(context.Context, uint64, string) (string, error)
 	verifySecuritySignatureFunc func(context.Context, uint64, string, string, int32, string, string) (int64, error)
+	checkRegisteredFunc         func(context.Context, string) (bool, string, error)
 }
 
 func (m *mockWalletConnectionService) GetLinkNonce(ctx context.Context, userID uint64, address string) (string, error) {
@@ -45,6 +46,13 @@ func (m *mockWalletConnectionService) VerifySecuritySignature(ctx context.Contex
 		return m.verifySecuritySignatureFunc(ctx, userID, address, signature, duration, ip, ua)
 	}
 	return time.Now().Add(time.Hour).Unix(), nil
+}
+
+func (m *mockWalletConnectionService) CheckRegistered(ctx context.Context, walletAddress string) (bool, string, error) {
+	if m.checkRegisteredFunc != nil {
+		return m.checkRegisteredFunc(ctx, walletAddress)
+	}
+	return false, "", nil
 }
 
 var _ service.WalletConnectionService = (*mockWalletConnectionService)(nil)
@@ -147,6 +155,42 @@ func TestWalletConnectionHandler(t *testing.T) {
 		})
 		if err != nil || ok.Until == 0 {
 			t.Fatalf("resp=%v err=%v", ok, err)
+		}
+	})
+
+	t.Run("check registered validation", func(t *testing.T) {
+		h := newWalletHandler(&mockWalletConnectionService{})
+		_, err := h.CheckRegistered(context.Background(), &pb.CheckWalletRegisteredRequest{})
+		st, _ := status.FromError(err)
+		if st.Code() != codes.InvalidArgument {
+			t.Fatalf("code=%v", st.Code())
+		}
+	})
+
+	t.Run("check registered found", func(t *testing.T) {
+		m := &mockWalletConnectionService{
+			checkRegisteredFunc: func(context.Context, string) (bool, string, error) {
+				return true, "hm-123", nil
+			},
+		}
+		h := newWalletHandler(m)
+		resp, err := h.CheckRegistered(context.Background(), &pb.CheckWalletRegisteredRequest{WalletAddress: "0xtf"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.AlreadyRegistered || resp.GetUserCode() != "hm-123" {
+			t.Fatalf("resp=%v", resp)
+		}
+	})
+
+	t.Run("check registered not found", func(t *testing.T) {
+		h := newWalletHandler(&mockWalletConnectionService{})
+		resp, err := h.CheckRegistered(context.Background(), &pb.CheckWalletRegisteredRequest{WalletAddress: "0xtf"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.AlreadyRegistered || resp.UserCode != nil {
+			t.Fatalf("resp=%v", resp)
 		}
 	})
 }

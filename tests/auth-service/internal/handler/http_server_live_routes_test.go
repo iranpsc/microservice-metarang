@@ -233,6 +233,7 @@ func TestStartHTTPServer_LiveRouteCoverage(t *testing.T) {
 	postJSON("/api/wallet/link", `{"address":"`+addr+`","signature":"sig"}`)
 	get("/api/wallet/security/nonce?address=" + addr)
 	postJSON("/api/wallet/security/verify", `{"address":"`+addr+`","signature":"sig","duration":15}`)
+	postJSON("/api/wallets/registered", `{"wallet_address":"0xtf"}`)
 
 	_ = bytes.NewBuffer(nil)
 }

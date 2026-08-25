@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -114,6 +115,35 @@ func (h *walletConnectionHandler) VerifySecuritySignature(ctx context.Context, r
 		Message: "Account security unlocked successfully",
 		Until:   until,
 	}, nil
+}
+
+func (h *walletConnectionHandler) CheckRegistered(ctx context.Context, req *pb.CheckWalletRegisteredRequest) (*pb.CheckWalletRegisteredResponse, error) {
+	if err := validateWalletRegisteredRequest(req, h.locale); err != nil {
+		return nil, err
+	}
+
+	alreadyRegistered, userCode, err := h.walletService.CheckRegistered(ctx, req.WalletAddress)
+	if err != nil {
+		return nil, mapWalletConnectionError(err, h.locale)
+	}
+
+	resp := &pb.CheckWalletRegisteredResponse{
+		AlreadyRegistered: alreadyRegistered,
+	}
+	if alreadyRegistered {
+		resp.UserCode = &userCode
+	}
+	return resp, nil
+}
+
+func validateWalletRegisteredRequest(req *pb.CheckWalletRegisteredRequest, locale string) error {
+	if strings.TrimSpace(req.GetWalletAddress()) == "" {
+		t := helpers.GetLocaleTranslations(locale)
+		return status.Error(codes.InvalidArgument, helpers.EncodeValidationError(map[string]string{
+			"wallet_address": fmt.Sprintf(t.Required, "wallet_address"),
+		}))
+	}
+	return nil
 }
 
 func validateWalletAddressField(address, locale string) error {

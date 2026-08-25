@@ -6875,6 +6875,34 @@ paths:
             summary: Verify wallet security signature
             tags:
                 - Wallet
+    /api/wallets/registered:
+        post:
+            operationId: post_wallets_registered
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            properties:
+                                wallet_address:
+                                    type: string
+                            required:
+                                - wallet_address
+                    multipart/form-data:
+                        schema:
+                            type: object
+            responses:
+                "200":
+                    description: Successful response
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ValidationError'
+                    description: Validation error
+            summary: Check if a wallet address is already registered
+            tags:
+                - Wallet
     /uploads/{path}:
         get:
             operationId: get__uploads_path

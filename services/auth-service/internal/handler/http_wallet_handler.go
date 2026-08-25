@@ -167,6 +167,39 @@ func (h *HTTPWalletHandler) VerifySecuritySignature(w http.ResponseWriter, r *ht
 	}, true)
 }
 
+// CheckRegistered handles POST /api/wallets/registered
+func (h *HTTPWalletHandler) CheckRegistered(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		WalletAddress string `json:"wallet_address"`
+	}
+	if err := decodeRequestBody(r, &req); err != nil {
+		if err == io.EOF {
+			writeError(w, http.StatusBadRequest, "request body is required")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+		}
+		return
+	}
+
+	resp, err := h.walletClient.CheckRegistered(r.Context(), &pb.CheckWalletRegisteredRequest{
+		WalletAddress: req.WalletAddress,
+	})
+	if err != nil {
+		h.writeWalletGRPCError(w, err)
+		return
+	}
+
+	var userCode interface{}
+	if resp.UserCode != nil {
+		userCode = *resp.UserCode
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"already_registered": resp.AlreadyRegistered,
+		"user_code":          userCode,
+	}, true)
+}
+
 func (h *HTTPWalletHandler) writeWalletGRPCError(w http.ResponseWriter, err error) {
 	st, ok := status.FromError(err)
 	if !ok {

@@ -136,6 +136,7 @@ func TestLocalClients_AllMethods(t *testing.T) {
 	_, _ = clients.WalletConnection.LinkWallet(ctx, &pb.LinkWalletRequest{})
 	_, _ = clients.WalletConnection.GetSecurityNonce(ctx, &pb.GetWalletSecurityNonceRequest{})
 	_, _ = clients.WalletConnection.VerifySecuritySignature(ctx, &pb.VerifyWalletSecuritySignatureRequest{})
+	_, _ = clients.WalletConnection.CheckRegistered(ctx, &pb.CheckWalletRegisteredRequest{})
 
 	if clients.Auth == nil || clients.WalletConnection == nil {
 		t.Fatal("expected non-nil clients")

@@ -7665,6 +7665,103 @@ func (x *VerifyWalletSecuritySignatureResponse) GetUntil() int64 {
 	return 0
 }
 
+// CheckRegistered - POST /api/wallets/registered
+type CheckWalletRegisteredRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WalletAddress string                 `protobuf:"bytes,1,opt,name=wallet_address,json=walletAddress,proto3" json:"wallet_address,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckWalletRegisteredRequest) Reset() {
+	*x = CheckWalletRegisteredRequest{}
+	mi := &file_auth_proto_msgTypes[120]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckWalletRegisteredRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckWalletRegisteredRequest) ProtoMessage() {}
+
+func (x *CheckWalletRegisteredRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_auth_proto_msgTypes[120]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckWalletRegisteredRequest.ProtoReflect.Descriptor instead.
+func (*CheckWalletRegisteredRequest) Descriptor() ([]byte, []int) {
+	return file_auth_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *CheckWalletRegisteredRequest) GetWalletAddress() string {
+	if x != nil {
+		return x.WalletAddress
+	}
+	return ""
+}
+
+type CheckWalletRegisteredResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AlreadyRegistered bool                   `protobuf:"varint,1,opt,name=already_registered,json=alreadyRegistered,proto3" json:"already_registered,omitempty"`
+	UserCode          *string                `protobuf:"bytes,2,opt,name=user_code,json=userCode,proto3,oneof" json:"user_code,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *CheckWalletRegisteredResponse) Reset() {
+	*x = CheckWalletRegisteredResponse{}
+	mi := &file_auth_proto_msgTypes[121]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckWalletRegisteredResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckWalletRegisteredResponse) ProtoMessage() {}
+
+func (x *CheckWalletRegisteredResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_auth_proto_msgTypes[121]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckWalletRegisteredResponse.ProtoReflect.Descriptor instead.
+func (*CheckWalletRegisteredResponse) Descriptor() ([]byte, []int) {
+	return file_auth_proto_rawDescGZIP(), []int{121}
+}
+
+func (x *CheckWalletRegisteredResponse) GetAlreadyRegistered() bool {
+	if x != nil {
+		return x.AlreadyRegistered
+	}
+	return false
+}
+
+func (x *CheckWalletRegisteredResponse) GetUserCode() string {
+	if x != nil && x.UserCode != nil {
+		return *x.UserCode
+	}
+	return ""
+}
+
 // SearchUsersRequest - POST /api/search/users
 type SearchUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -7675,7 +7772,7 @@ type SearchUsersRequest struct {
 
 func (x *SearchUsersRequest) Reset() {
 	*x = SearchUsersRequest{}
-	mi := &file_auth_proto_msgTypes[120]
+	mi := &file_auth_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7687,7 +7784,7 @@ func (x *SearchUsersRequest) String() string {
 func (*SearchUsersRequest) ProtoMessage() {}
 
 func (x *SearchUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[120]
+	mi := &file_auth_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7700,7 +7797,7 @@ func (x *SearchUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUsersRequest.ProtoReflect.Descriptor instead.
 func (*SearchUsersRequest) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{120}
+	return file_auth_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *SearchUsersRequest) GetSearchTerm() string {
@@ -7720,7 +7817,7 @@ type SearchUsersResponse struct {
 
 func (x *SearchUsersResponse) Reset() {
 	*x = SearchUsersResponse{}
-	mi := &file_auth_proto_msgTypes[121]
+	mi := &file_auth_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7732,7 +7829,7 @@ func (x *SearchUsersResponse) String() string {
 func (*SearchUsersResponse) ProtoMessage() {}
 
 func (x *SearchUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[121]
+	mi := &file_auth_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7745,7 +7842,7 @@ func (x *SearchUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUsersResponse.ProtoReflect.Descriptor instead.
 func (*SearchUsersResponse) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{121}
+	return file_auth_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *SearchUsersResponse) GetData() []*SearchUserResult {
@@ -7770,7 +7867,7 @@ type SearchUserResult struct {
 
 func (x *SearchUserResult) Reset() {
 	*x = SearchUserResult{}
-	mi := &file_auth_proto_msgTypes[122]
+	mi := &file_auth_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7782,7 +7879,7 @@ func (x *SearchUserResult) String() string {
 func (*SearchUserResult) ProtoMessage() {}
 
 func (x *SearchUserResult) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[122]
+	mi := &file_auth_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7795,7 +7892,7 @@ func (x *SearchUserResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUserResult.ProtoReflect.Descriptor instead.
 func (*SearchUserResult) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{122}
+	return file_auth_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *SearchUserResult) GetId() uint64 {
@@ -7850,7 +7947,7 @@ type SearchFeaturesRequest struct {
 
 func (x *SearchFeaturesRequest) Reset() {
 	*x = SearchFeaturesRequest{}
-	mi := &file_auth_proto_msgTypes[123]
+	mi := &file_auth_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7862,7 +7959,7 @@ func (x *SearchFeaturesRequest) String() string {
 func (*SearchFeaturesRequest) ProtoMessage() {}
 
 func (x *SearchFeaturesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[123]
+	mi := &file_auth_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7875,7 +7972,7 @@ func (x *SearchFeaturesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchFeaturesRequest.ProtoReflect.Descriptor instead.
 func (*SearchFeaturesRequest) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{123}
+	return file_auth_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *SearchFeaturesRequest) GetSearchTerm() string {
@@ -7895,7 +7992,7 @@ type SearchFeaturesResponse struct {
 
 func (x *SearchFeaturesResponse) Reset() {
 	*x = SearchFeaturesResponse{}
-	mi := &file_auth_proto_msgTypes[124]
+	mi := &file_auth_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7907,7 +8004,7 @@ func (x *SearchFeaturesResponse) String() string {
 func (*SearchFeaturesResponse) ProtoMessage() {}
 
 func (x *SearchFeaturesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[124]
+	mi := &file_auth_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7920,7 +8017,7 @@ func (x *SearchFeaturesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchFeaturesResponse.ProtoReflect.Descriptor instead.
 func (*SearchFeaturesResponse) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{124}
+	return file_auth_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *SearchFeaturesResponse) GetData() []*SearchFeatureResult {
@@ -7947,7 +8044,7 @@ type SearchFeatureResult struct {
 
 func (x *SearchFeatureResult) Reset() {
 	*x = SearchFeatureResult{}
-	mi := &file_auth_proto_msgTypes[125]
+	mi := &file_auth_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7959,7 +8056,7 @@ func (x *SearchFeatureResult) String() string {
 func (*SearchFeatureResult) ProtoMessage() {}
 
 func (x *SearchFeatureResult) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[125]
+	mi := &file_auth_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7972,7 +8069,7 @@ func (x *SearchFeatureResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchFeatureResult.ProtoReflect.Descriptor instead.
 func (*SearchFeatureResult) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{125}
+	return file_auth_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *SearchFeatureResult) GetId() uint64 {
@@ -8043,7 +8140,7 @@ type Coordinate struct {
 
 func (x *Coordinate) Reset() {
 	*x = Coordinate{}
-	mi := &file_auth_proto_msgTypes[126]
+	mi := &file_auth_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8055,7 +8152,7 @@ func (x *Coordinate) String() string {
 func (*Coordinate) ProtoMessage() {}
 
 func (x *Coordinate) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[126]
+	mi := &file_auth_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8068,7 +8165,7 @@ func (x *Coordinate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Coordinate.ProtoReflect.Descriptor instead.
 func (*Coordinate) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{126}
+	return file_auth_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *Coordinate) GetId() uint64 {
@@ -8102,7 +8199,7 @@ type SearchIsicCodesRequest struct {
 
 func (x *SearchIsicCodesRequest) Reset() {
 	*x = SearchIsicCodesRequest{}
-	mi := &file_auth_proto_msgTypes[127]
+	mi := &file_auth_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8114,7 +8211,7 @@ func (x *SearchIsicCodesRequest) String() string {
 func (*SearchIsicCodesRequest) ProtoMessage() {}
 
 func (x *SearchIsicCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[127]
+	mi := &file_auth_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8127,7 +8224,7 @@ func (x *SearchIsicCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchIsicCodesRequest.ProtoReflect.Descriptor instead.
 func (*SearchIsicCodesRequest) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{127}
+	return file_auth_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *SearchIsicCodesRequest) GetSearchTerm() string {
@@ -8147,7 +8244,7 @@ type SearchIsicCodesResponse struct {
 
 func (x *SearchIsicCodesResponse) Reset() {
 	*x = SearchIsicCodesResponse{}
-	mi := &file_auth_proto_msgTypes[128]
+	mi := &file_auth_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8159,7 +8256,7 @@ func (x *SearchIsicCodesResponse) String() string {
 func (*SearchIsicCodesResponse) ProtoMessage() {}
 
 func (x *SearchIsicCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[128]
+	mi := &file_auth_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8172,7 +8269,7 @@ func (x *SearchIsicCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchIsicCodesResponse.ProtoReflect.Descriptor instead.
 func (*SearchIsicCodesResponse) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{128}
+	return file_auth_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *SearchIsicCodesResponse) GetData() []*IsicCodeResult {
@@ -8194,7 +8291,7 @@ type IsicCodeResult struct {
 
 func (x *IsicCodeResult) Reset() {
 	*x = IsicCodeResult{}
-	mi := &file_auth_proto_msgTypes[129]
+	mi := &file_auth_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8206,7 +8303,7 @@ func (x *IsicCodeResult) String() string {
 func (*IsicCodeResult) ProtoMessage() {}
 
 func (x *IsicCodeResult) ProtoReflect() protoreflect.Message {
-	mi := &file_auth_proto_msgTypes[129]
+	mi := &file_auth_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8219,7 +8316,7 @@ func (x *IsicCodeResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IsicCodeResult.ProtoReflect.Descriptor instead.
 func (*IsicCodeResult) Descriptor() ([]byte, []int) {
-	return file_auth_proto_rawDescGZIP(), []int{129}
+	return file_auth_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *IsicCodeResult) GetId() uint64 {
@@ -8863,7 +8960,14 @@ const file_auth_proto_rawDesc = "" +
 	"user_agent\x18\x06 \x01(\tR\tuserAgent\"W\n" +
 	"%VerifyWalletSecuritySignatureResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x14\n" +
-	"\x05until\x18\x02 \x01(\x03R\x05until\"5\n" +
+	"\x05until\x18\x02 \x01(\x03R\x05until\"E\n" +
+	"\x1cCheckWalletRegisteredRequest\x12%\n" +
+	"\x0ewallet_address\x18\x01 \x01(\tR\rwalletAddress\"~\n" +
+	"\x1dCheckWalletRegisteredResponse\x12-\n" +
+	"\x12already_registered\x18\x01 \x01(\bR\x11alreadyRegistered\x12 \n" +
+	"\tuser_code\x18\x02 \x01(\tH\x00R\buserCode\x88\x01\x01B\f\n" +
+	"\n" +
+	"_user_code\"5\n" +
 	"\x12SearchUsersRequest\x12\x1f\n" +
 	"\vsearch_term\x18\x01 \x01(\tR\n" +
 	"searchTerm\"A\n" +
@@ -8965,13 +9069,14 @@ const file_auth_proto_rawDesc = "" +
 	"\fGetUserEvent\x12\x19.auth.GetUserEventRequest\x1a\x1a.auth.GetUserEventResponse\x12N\n" +
 	"\x0fReportUserEvent\x12\x1c.auth.ReportUserEventRequest\x1a\x1d.auth.UserEventReportResponse\x12\\\n" +
 	"\x12SendReportResponse\x12\x1f.auth.SendReportResponseRequest\x1a%.auth.UserEventReportResponseResponse\x12I\n" +
-	"\x10CloseEventReport\x12\x1d.auth.CloseEventReportRequest\x1a\x16.google.protobuf.Empty2\xf4\x02\n" +
+	"\x10CloseEventReport\x12\x1d.auth.CloseEventReportRequest\x1a\x16.google.protobuf.Empty2\xd0\x03\n" +
 	"\x17WalletConnectionService\x12M\n" +
 	"\fGetLinkNonce\x12\x1f.auth.GetWalletLinkNonceRequest\x1a\x1c.auth.GetWalletNonceResponse\x12?\n" +
 	"\n" +
 	"LinkWallet\x12\x17.auth.LinkWalletRequest\x1a\x18.auth.LinkWalletResponse\x12U\n" +
 	"\x10GetSecurityNonce\x12#.auth.GetWalletSecurityNonceRequest\x1a\x1c.auth.GetWalletNonceResponse\x12r\n" +
-	"\x17VerifySecuritySignature\x12*.auth.VerifyWalletSecuritySignatureRequest\x1a+.auth.VerifyWalletSecuritySignatureResponse2\xf0\x01\n" +
+	"\x17VerifySecuritySignature\x12*.auth.VerifyWalletSecuritySignatureRequest\x1a+.auth.VerifyWalletSecuritySignatureResponse\x12Z\n" +
+	"\x0fCheckRegistered\x12\".auth.CheckWalletRegisteredRequest\x1a#.auth.CheckWalletRegisteredResponse2\xf0\x01\n" +
 	"\rSearchService\x12B\n" +
 	"\vSearchUsers\x12\x18.auth.SearchUsersRequest\x1a\x19.auth.SearchUsersResponse\x12K\n" +
 	"\x0eSearchFeatures\x12\x1b.auth.SearchFeaturesRequest\x1a\x1c.auth.SearchFeaturesResponse\x12N\n" +
@@ -8989,7 +9094,7 @@ func file_auth_proto_rawDescGZIP() []byte {
 	return file_auth_proto_rawDescData
 }
 
-var file_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 137)
+var file_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 139)
 var file_auth_proto_goTypes = []any{
 	(*User)(nil),                                  // 0: auth.User
 	(*KYC)(nil),                                   // 1: auth.KYC
@@ -9111,37 +9216,39 @@ var file_auth_proto_goTypes = []any{
 	(*LinkWalletResponse)(nil),                    // 117: auth.LinkWalletResponse
 	(*VerifyWalletSecuritySignatureRequest)(nil),  // 118: auth.VerifyWalletSecuritySignatureRequest
 	(*VerifyWalletSecuritySignatureResponse)(nil), // 119: auth.VerifyWalletSecuritySignatureResponse
-	(*SearchUsersRequest)(nil),                    // 120: auth.SearchUsersRequest
-	(*SearchUsersResponse)(nil),                   // 121: auth.SearchUsersResponse
-	(*SearchUserResult)(nil),                      // 122: auth.SearchUserResult
-	(*SearchFeaturesRequest)(nil),                 // 123: auth.SearchFeaturesRequest
-	(*SearchFeaturesResponse)(nil),                // 124: auth.SearchFeaturesResponse
-	(*SearchFeatureResult)(nil),                   // 125: auth.SearchFeatureResult
-	(*Coordinate)(nil),                            // 126: auth.Coordinate
-	(*SearchIsicCodesRequest)(nil),                // 127: auth.SearchIsicCodesRequest
-	(*SearchIsicCodesResponse)(nil),               // 128: auth.SearchIsicCodesResponse
-	(*IsicCodeResult)(nil),                        // 129: auth.IsicCodeResult
-	nil,                                           // 130: auth.Settings.PrivacyEntry
-	nil,                                           // 131: auth.Settings.NotificationsEntry
-	nil,                                           // 132: auth.CitizenCustoms.PassionsEntry
-	nil,                                           // 133: auth.GetCitizenUserInfoResponse.PrivacyEntry
-	nil,                                           // 134: auth.PersonalInfoData.PassionsEntry
-	nil,                                           // 135: auth.UpdatePersonalInfoRequest.PassionsEntry
-	nil,                                           // 136: auth.GetPrivacySettingsResponse.DataEntry
-	(*timestamppb.Timestamp)(nil),                 // 137: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                         // 138: google.protobuf.Empty
+	(*CheckWalletRegisteredRequest)(nil),          // 120: auth.CheckWalletRegisteredRequest
+	(*CheckWalletRegisteredResponse)(nil),         // 121: auth.CheckWalletRegisteredResponse
+	(*SearchUsersRequest)(nil),                    // 122: auth.SearchUsersRequest
+	(*SearchUsersResponse)(nil),                   // 123: auth.SearchUsersResponse
+	(*SearchUserResult)(nil),                      // 124: auth.SearchUserResult
+	(*SearchFeaturesRequest)(nil),                 // 125: auth.SearchFeaturesRequest
+	(*SearchFeaturesResponse)(nil),                // 126: auth.SearchFeaturesResponse
+	(*SearchFeatureResult)(nil),                   // 127: auth.SearchFeatureResult
+	(*Coordinate)(nil),                            // 128: auth.Coordinate
+	(*SearchIsicCodesRequest)(nil),                // 129: auth.SearchIsicCodesRequest
+	(*SearchIsicCodesResponse)(nil),               // 130: auth.SearchIsicCodesResponse
+	(*IsicCodeResult)(nil),                        // 131: auth.IsicCodeResult
+	nil,                                           // 132: auth.Settings.PrivacyEntry
+	nil,                                           // 133: auth.Settings.NotificationsEntry
+	nil,                                           // 134: auth.CitizenCustoms.PassionsEntry
+	nil,                                           // 135: auth.GetCitizenUserInfoResponse.PrivacyEntry
+	nil,                                           // 136: auth.PersonalInfoData.PassionsEntry
+	nil,                                           // 137: auth.UpdatePersonalInfoRequest.PassionsEntry
+	nil,                                           // 138: auth.GetPrivacySettingsResponse.DataEntry
+	(*timestamppb.Timestamp)(nil),                 // 139: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                         // 140: google.protobuf.Empty
 }
 var file_auth_proto_depIdxs = []int32{
-	137, // 0: auth.User.last_seen:type_name -> google.protobuf.Timestamp
-	137, // 1: auth.User.created_at:type_name -> google.protobuf.Timestamp
-	137, // 2: auth.User.email_verified_at:type_name -> google.protobuf.Timestamp
-	137, // 3: auth.User.phone_verified_at:type_name -> google.protobuf.Timestamp
-	137, // 4: auth.KYC.created_at:type_name -> google.protobuf.Timestamp
-	137, // 5: auth.KYC.updated_at:type_name -> google.protobuf.Timestamp
-	130, // 6: auth.Settings.privacy:type_name -> auth.Settings.PrivacyEntry
-	131, // 7: auth.Settings.notifications:type_name -> auth.Settings.NotificationsEntry
-	137, // 8: auth.Notification.created_at:type_name -> google.protobuf.Timestamp
-	137, // 9: auth.Notification.read_at:type_name -> google.protobuf.Timestamp
+	139, // 0: auth.User.last_seen:type_name -> google.protobuf.Timestamp
+	139, // 1: auth.User.created_at:type_name -> google.protobuf.Timestamp
+	139, // 2: auth.User.email_verified_at:type_name -> google.protobuf.Timestamp
+	139, // 3: auth.User.phone_verified_at:type_name -> google.protobuf.Timestamp
+	139, // 4: auth.KYC.created_at:type_name -> google.protobuf.Timestamp
+	139, // 5: auth.KYC.updated_at:type_name -> google.protobuf.Timestamp
+	132, // 6: auth.Settings.privacy:type_name -> auth.Settings.PrivacyEntry
+	133, // 7: auth.Settings.notifications:type_name -> auth.Settings.NotificationsEntry
+	139, // 8: auth.Notification.created_at:type_name -> google.protobuf.Timestamp
+	139, // 9: auth.Notification.read_at:type_name -> google.protobuf.Timestamp
 	5,   // 10: auth.Level.gem:type_name -> auth.LevelGem
 	6,   // 11: auth.UserResponse.level:type_name -> auth.Level
 	6,   // 12: auth.UserLevelResponse.level:type_name -> auth.Level
@@ -9152,20 +9259,20 @@ var file_auth_proto_depIdxs = []int32{
 	41,  // 17: auth.CitizenProfileResponse.customs:type_name -> auth.CitizenCustoms
 	42,  // 18: auth.CitizenProfileResponse.current_level:type_name -> auth.CitizenLevel
 	42,  // 19: auth.CitizenProfileResponse.achieved_levels:type_name -> auth.CitizenLevel
-	132, // 20: auth.CitizenCustoms.passions:type_name -> auth.CitizenCustoms.PassionsEntry
+	134, // 20: auth.CitizenCustoms.passions:type_name -> auth.CitizenCustoms.PassionsEntry
 	45,  // 21: auth.CitizenReferralsResponse.data:type_name -> auth.CitizenReferral
 	47,  // 22: auth.CitizenReferralsResponse.meta:type_name -> auth.PaginationMeta
 	46,  // 23: auth.CitizenReferral.referrer_orders:type_name -> auth.ReferrerOrder
 	50,  // 24: auth.CitizenReferralChartResponse.data:type_name -> auth.ReferralChartData
 	51,  // 25: auth.ReferralChartData.chart_data:type_name -> auth.ChartDataPoint
-	133, // 26: auth.GetCitizenUserInfoResponse.privacy:type_name -> auth.GetCitizenUserInfoResponse.PrivacyEntry
+	135, // 26: auth.GetCitizenUserInfoResponse.privacy:type_name -> auth.GetCitizenUserInfoResponse.PrivacyEntry
 	56,  // 27: auth.GetCitizenLevelResponse.level:type_name -> auth.CitizenLevelSummary
 	59,  // 28: auth.GetPersonalInfoResponse.data:type_name -> auth.PersonalInfoData
-	134, // 29: auth.PersonalInfoData.passions:type_name -> auth.PersonalInfoData.PassionsEntry
-	135, // 30: auth.UpdatePersonalInfoRequest.passions:type_name -> auth.UpdatePersonalInfoRequest.PassionsEntry
+	136, // 29: auth.PersonalInfoData.passions:type_name -> auth.PersonalInfoData.PassionsEntry
+	137, // 30: auth.UpdatePersonalInfoRequest.passions:type_name -> auth.UpdatePersonalInfoRequest.PassionsEntry
 	61,  // 31: auth.ProfileLimitation.options:type_name -> auth.ProfileLimitationOptions
-	137, // 32: auth.ProfileLimitation.created_at:type_name -> google.protobuf.Timestamp
-	137, // 33: auth.ProfileLimitation.updated_at:type_name -> google.protobuf.Timestamp
+	139, // 32: auth.ProfileLimitation.created_at:type_name -> google.protobuf.Timestamp
+	139, // 33: auth.ProfileLimitation.updated_at:type_name -> google.protobuf.Timestamp
 	61,  // 34: auth.CreateProfileLimitationRequest.options:type_name -> auth.ProfileLimitationOptions
 	61,  // 35: auth.UpdateProfileLimitationRequest.options:type_name -> auth.ProfileLimitationOptions
 	62,  // 36: auth.ProfileLimitationResponse.data:type_name -> auth.ProfileLimitation
@@ -9175,7 +9282,7 @@ var file_auth_proto_depIdxs = []int32{
 	81,  // 40: auth.GetGeneralSettingsResponse.data:type_name -> auth.NotificationSettingsData
 	81,  // 41: auth.UpdateGeneralSettingsRequest.notifications:type_name -> auth.NotificationSettingsData
 	81,  // 42: auth.UpdateGeneralSettingsResponse.data:type_name -> auth.NotificationSettingsData
-	136, // 43: auth.GetPrivacySettingsResponse.data:type_name -> auth.GetPrivacySettingsResponse.DataEntry
+	138, // 43: auth.GetPrivacySettingsResponse.data:type_name -> auth.GetPrivacySettingsResponse.DataEntry
 	94,  // 44: auth.ListUserEventsResponse.data:type_name -> auth.UserEventResource
 	47,  // 45: auth.ListUserEventsResponse.pagination:type_name -> auth.PaginationMeta
 	94,  // 46: auth.GetUserEventResponse.data:type_name -> auth.UserEventResource
@@ -9194,10 +9301,10 @@ var file_auth_proto_depIdxs = []int32{
 	6,   // 59: auth.UserLevelData.previous_levels:type_name -> auth.Level
 	109, // 60: auth.GetUserProfileResponse.data:type_name -> auth.UserProfileData
 	112, // 61: auth.GetUserFeaturesCountResponse.data:type_name -> auth.UserFeaturesCountData
-	122, // 62: auth.SearchUsersResponse.data:type_name -> auth.SearchUserResult
-	125, // 63: auth.SearchFeaturesResponse.data:type_name -> auth.SearchFeatureResult
-	126, // 64: auth.SearchFeatureResult.coordinates:type_name -> auth.Coordinate
-	129, // 65: auth.SearchIsicCodesResponse.data:type_name -> auth.IsicCodeResult
+	124, // 62: auth.SearchUsersResponse.data:type_name -> auth.SearchUserResult
+	127, // 63: auth.SearchFeaturesResponse.data:type_name -> auth.SearchFeatureResult
+	128, // 64: auth.SearchFeatureResult.coordinates:type_name -> auth.Coordinate
+	131, // 65: auth.SearchIsicCodesResponse.data:type_name -> auth.IsicCodeResult
 	7,   // 66: auth.AuthService.Register:input_type -> auth.RegisterRequest
 	9,   // 67: auth.AuthService.Redirect:input_type -> auth.RedirectRequest
 	11,  // 68: auth.AuthService.Callback:input_type -> auth.CallbackRequest
@@ -9251,67 +9358,69 @@ var file_auth_proto_depIdxs = []int32{
 	116, // 116: auth.WalletConnectionService.LinkWallet:input_type -> auth.LinkWalletRequest
 	114, // 117: auth.WalletConnectionService.GetSecurityNonce:input_type -> auth.GetWalletSecurityNonceRequest
 	118, // 118: auth.WalletConnectionService.VerifySecuritySignature:input_type -> auth.VerifyWalletSecuritySignatureRequest
-	120, // 119: auth.SearchService.SearchUsers:input_type -> auth.SearchUsersRequest
-	123, // 120: auth.SearchService.SearchFeatures:input_type -> auth.SearchFeaturesRequest
-	127, // 121: auth.SearchService.SearchIsicCodes:input_type -> auth.SearchIsicCodesRequest
-	8,   // 122: auth.AuthService.Register:output_type -> auth.RegisterResponse
-	10,  // 123: auth.AuthService.Redirect:output_type -> auth.RedirectResponse
-	12,  // 124: auth.AuthService.Callback:output_type -> auth.CallbackResponse
-	14,  // 125: auth.AuthService.GetMe:output_type -> auth.UserResponse
-	138, // 126: auth.AuthService.Logout:output_type -> google.protobuf.Empty
-	17,  // 127: auth.AuthService.ValidateToken:output_type -> auth.ValidateTokenResponse
-	138, // 128: auth.AuthService.RequestAccountSecurity:output_type -> google.protobuf.Empty
-	138, // 129: auth.AuthService.VerifyAccountSecurity:output_type -> google.protobuf.Empty
-	0,   // 130: auth.UserService.GetUser:output_type -> auth.User
-	0,   // 131: auth.UserService.UpdateProfile:output_type -> auth.User
-	100, // 132: auth.UserService.ListUsers:output_type -> auth.ListUsersResponse
-	105, // 133: auth.UserService.GetUserLevels:output_type -> auth.GetUserLevelsResponse
-	108, // 134: auth.UserService.GetUserProfile:output_type -> auth.GetUserProfileResponse
-	23,  // 135: auth.UserService.GetUserWallet:output_type -> auth.UserWalletResponse
-	25,  // 136: auth.UserService.GetUserLevel:output_type -> auth.UserLevelResponse
-	68,  // 137: auth.UserService.GetProfileLimitations:output_type -> auth.GetProfileLimitationsResponse
-	111, // 138: auth.UserService.GetUserFeaturesCount:output_type -> auth.GetUserFeaturesCountResponse
-	67,  // 139: auth.ProfileLimitationService.CreateProfileLimitation:output_type -> auth.ProfileLimitationResponse
-	67,  // 140: auth.ProfileLimitationService.UpdateProfileLimitation:output_type -> auth.ProfileLimitationResponse
-	138, // 141: auth.ProfileLimitationService.DeleteProfileLimitation:output_type -> google.protobuf.Empty
-	29,  // 142: auth.KYCService.GetKYC:output_type -> auth.KYCResponse
-	29,  // 143: auth.KYCService.UpdateKYC:output_type -> auth.KYCResponse
-	31,  // 144: auth.KYCService.ListBankAccounts:output_type -> auth.ListBankAccountsResponse
-	36,  // 145: auth.KYCService.CreateBankAccount:output_type -> auth.BankAccountResponse
-	36,  // 146: auth.KYCService.GetBankAccount:output_type -> auth.BankAccountResponse
-	36,  // 147: auth.KYCService.UpdateBankAccount:output_type -> auth.BankAccountResponse
-	138, // 148: auth.KYCService.DeleteBankAccount:output_type -> google.protobuf.Empty
-	38,  // 149: auth.CitizenService.GetCitizenProfile:output_type -> auth.CitizenProfileResponse
-	44,  // 150: auth.CitizenService.GetCitizenReferrals:output_type -> auth.CitizenReferralsResponse
-	49,  // 151: auth.CitizenService.GetCitizenReferralChart:output_type -> auth.CitizenReferralChartResponse
-	53,  // 152: auth.CitizenService.GetCitizenUserInfo:output_type -> auth.GetCitizenUserInfoResponse
-	55,  // 153: auth.CitizenService.GetCitizenLevel:output_type -> auth.GetCitizenLevelResponse
-	58,  // 154: auth.PersonalInfoService.GetPersonalInfo:output_type -> auth.GetPersonalInfoResponse
-	138, // 155: auth.PersonalInfoService.UpdatePersonalInfo:output_type -> google.protobuf.Empty
-	70,  // 156: auth.ProfilePhotoService.ListProfilePhotos:output_type -> auth.ListProfilePhotosResponse
-	74,  // 157: auth.ProfilePhotoService.UploadProfilePhoto:output_type -> auth.ProfilePhotoResponse
-	74,  // 158: auth.ProfilePhotoService.GetProfilePhoto:output_type -> auth.ProfilePhotoResponse
-	138, // 159: auth.ProfilePhotoService.DeleteProfilePhoto:output_type -> google.protobuf.Empty
-	76,  // 160: auth.SettingsService.GetSettings:output_type -> auth.GetSettingsResponse
-	138, // 161: auth.SettingsService.UpdateSettings:output_type -> google.protobuf.Empty
-	80,  // 162: auth.SettingsService.GetGeneralSettings:output_type -> auth.GetGeneralSettingsResponse
-	83,  // 163: auth.SettingsService.UpdateGeneralSettings:output_type -> auth.UpdateGeneralSettingsResponse
-	85,  // 164: auth.SettingsService.GetPrivacySettings:output_type -> auth.GetPrivacySettingsResponse
-	138, // 165: auth.SettingsService.UpdatePrivacySettings:output_type -> google.protobuf.Empty
-	88,  // 166: auth.UserEventsService.ListUserEvents:output_type -> auth.ListUserEventsResponse
-	90,  // 167: auth.UserEventsService.GetUserEvent:output_type -> auth.GetUserEventResponse
-	97,  // 168: auth.UserEventsService.ReportUserEvent:output_type -> auth.UserEventReportResponse
-	98,  // 169: auth.UserEventsService.SendReportResponse:output_type -> auth.UserEventReportResponseResponse
-	138, // 170: auth.UserEventsService.CloseEventReport:output_type -> google.protobuf.Empty
-	115, // 171: auth.WalletConnectionService.GetLinkNonce:output_type -> auth.GetWalletNonceResponse
-	117, // 172: auth.WalletConnectionService.LinkWallet:output_type -> auth.LinkWalletResponse
-	115, // 173: auth.WalletConnectionService.GetSecurityNonce:output_type -> auth.GetWalletNonceResponse
-	119, // 174: auth.WalletConnectionService.VerifySecuritySignature:output_type -> auth.VerifyWalletSecuritySignatureResponse
-	121, // 175: auth.SearchService.SearchUsers:output_type -> auth.SearchUsersResponse
-	124, // 176: auth.SearchService.SearchFeatures:output_type -> auth.SearchFeaturesResponse
-	128, // 177: auth.SearchService.SearchIsicCodes:output_type -> auth.SearchIsicCodesResponse
-	122, // [122:178] is the sub-list for method output_type
-	66,  // [66:122] is the sub-list for method input_type
+	120, // 119: auth.WalletConnectionService.CheckRegistered:input_type -> auth.CheckWalletRegisteredRequest
+	122, // 120: auth.SearchService.SearchUsers:input_type -> auth.SearchUsersRequest
+	125, // 121: auth.SearchService.SearchFeatures:input_type -> auth.SearchFeaturesRequest
+	129, // 122: auth.SearchService.SearchIsicCodes:input_type -> auth.SearchIsicCodesRequest
+	8,   // 123: auth.AuthService.Register:output_type -> auth.RegisterResponse
+	10,  // 124: auth.AuthService.Redirect:output_type -> auth.RedirectResponse
+	12,  // 125: auth.AuthService.Callback:output_type -> auth.CallbackResponse
+	14,  // 126: auth.AuthService.GetMe:output_type -> auth.UserResponse
+	140, // 127: auth.AuthService.Logout:output_type -> google.protobuf.Empty
+	17,  // 128: auth.AuthService.ValidateToken:output_type -> auth.ValidateTokenResponse
+	140, // 129: auth.AuthService.RequestAccountSecurity:output_type -> google.protobuf.Empty
+	140, // 130: auth.AuthService.VerifyAccountSecurity:output_type -> google.protobuf.Empty
+	0,   // 131: auth.UserService.GetUser:output_type -> auth.User
+	0,   // 132: auth.UserService.UpdateProfile:output_type -> auth.User
+	100, // 133: auth.UserService.ListUsers:output_type -> auth.ListUsersResponse
+	105, // 134: auth.UserService.GetUserLevels:output_type -> auth.GetUserLevelsResponse
+	108, // 135: auth.UserService.GetUserProfile:output_type -> auth.GetUserProfileResponse
+	23,  // 136: auth.UserService.GetUserWallet:output_type -> auth.UserWalletResponse
+	25,  // 137: auth.UserService.GetUserLevel:output_type -> auth.UserLevelResponse
+	68,  // 138: auth.UserService.GetProfileLimitations:output_type -> auth.GetProfileLimitationsResponse
+	111, // 139: auth.UserService.GetUserFeaturesCount:output_type -> auth.GetUserFeaturesCountResponse
+	67,  // 140: auth.ProfileLimitationService.CreateProfileLimitation:output_type -> auth.ProfileLimitationResponse
+	67,  // 141: auth.ProfileLimitationService.UpdateProfileLimitation:output_type -> auth.ProfileLimitationResponse
+	140, // 142: auth.ProfileLimitationService.DeleteProfileLimitation:output_type -> google.protobuf.Empty
+	29,  // 143: auth.KYCService.GetKYC:output_type -> auth.KYCResponse
+	29,  // 144: auth.KYCService.UpdateKYC:output_type -> auth.KYCResponse
+	31,  // 145: auth.KYCService.ListBankAccounts:output_type -> auth.ListBankAccountsResponse
+	36,  // 146: auth.KYCService.CreateBankAccount:output_type -> auth.BankAccountResponse
+	36,  // 147: auth.KYCService.GetBankAccount:output_type -> auth.BankAccountResponse
+	36,  // 148: auth.KYCService.UpdateBankAccount:output_type -> auth.BankAccountResponse
+	140, // 149: auth.KYCService.DeleteBankAccount:output_type -> google.protobuf.Empty
+	38,  // 150: auth.CitizenService.GetCitizenProfile:output_type -> auth.CitizenProfileResponse
+	44,  // 151: auth.CitizenService.GetCitizenReferrals:output_type -> auth.CitizenReferralsResponse
+	49,  // 152: auth.CitizenService.GetCitizenReferralChart:output_type -> auth.CitizenReferralChartResponse
+	53,  // 153: auth.CitizenService.GetCitizenUserInfo:output_type -> auth.GetCitizenUserInfoResponse
+	55,  // 154: auth.CitizenService.GetCitizenLevel:output_type -> auth.GetCitizenLevelResponse
+	58,  // 155: auth.PersonalInfoService.GetPersonalInfo:output_type -> auth.GetPersonalInfoResponse
+	140, // 156: auth.PersonalInfoService.UpdatePersonalInfo:output_type -> google.protobuf.Empty
+	70,  // 157: auth.ProfilePhotoService.ListProfilePhotos:output_type -> auth.ListProfilePhotosResponse
+	74,  // 158: auth.ProfilePhotoService.UploadProfilePhoto:output_type -> auth.ProfilePhotoResponse
+	74,  // 159: auth.ProfilePhotoService.GetProfilePhoto:output_type -> auth.ProfilePhotoResponse
+	140, // 160: auth.ProfilePhotoService.DeleteProfilePhoto:output_type -> google.protobuf.Empty
+	76,  // 161: auth.SettingsService.GetSettings:output_type -> auth.GetSettingsResponse
+	140, // 162: auth.SettingsService.UpdateSettings:output_type -> google.protobuf.Empty
+	80,  // 163: auth.SettingsService.GetGeneralSettings:output_type -> auth.GetGeneralSettingsResponse
+	83,  // 164: auth.SettingsService.UpdateGeneralSettings:output_type -> auth.UpdateGeneralSettingsResponse
+	85,  // 165: auth.SettingsService.GetPrivacySettings:output_type -> auth.GetPrivacySettingsResponse
+	140, // 166: auth.SettingsService.UpdatePrivacySettings:output_type -> google.protobuf.Empty
+	88,  // 167: auth.UserEventsService.ListUserEvents:output_type -> auth.ListUserEventsResponse
+	90,  // 168: auth.UserEventsService.GetUserEvent:output_type -> auth.GetUserEventResponse
+	97,  // 169: auth.UserEventsService.ReportUserEvent:output_type -> auth.UserEventReportResponse
+	98,  // 170: auth.UserEventsService.SendReportResponse:output_type -> auth.UserEventReportResponseResponse
+	140, // 171: auth.UserEventsService.CloseEventReport:output_type -> google.protobuf.Empty
+	115, // 172: auth.WalletConnectionService.GetLinkNonce:output_type -> auth.GetWalletNonceResponse
+	117, // 173: auth.WalletConnectionService.LinkWallet:output_type -> auth.LinkWalletResponse
+	115, // 174: auth.WalletConnectionService.GetSecurityNonce:output_type -> auth.GetWalletNonceResponse
+	119, // 175: auth.WalletConnectionService.VerifySecuritySignature:output_type -> auth.VerifyWalletSecuritySignatureResponse
+	121, // 176: auth.WalletConnectionService.CheckRegistered:output_type -> auth.CheckWalletRegisteredResponse
+	123, // 177: auth.SearchService.SearchUsers:output_type -> auth.SearchUsersResponse
+	126, // 178: auth.SearchService.SearchFeatures:output_type -> auth.SearchFeaturesResponse
+	130, // 179: auth.SearchService.SearchIsicCodes:output_type -> auth.SearchIsicCodesResponse
+	123, // [123:180] is the sub-list for method output_type
+	66,  // [66:123] is the sub-list for method input_type
 	66,  // [66:66] is the sub-list for extension type_name
 	66,  // [66:66] is the sub-list for extension extendee
 	0,   // [0:66] is the sub-list for field type_name
@@ -9326,13 +9435,14 @@ func file_auth_proto_init() {
 	file_auth_proto_msgTypes[62].OneofWrappers = []any{}
 	file_auth_proto_msgTypes[63].OneofWrappers = []any{}
 	file_auth_proto_msgTypes[64].OneofWrappers = []any{}
+	file_auth_proto_msgTypes[121].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_auth_proto_rawDesc), len(file_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   137,
+			NumMessages:   139,
 			NumExtensions: 0,
 			NumServices:   11,
 		},
