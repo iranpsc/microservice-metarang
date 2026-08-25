@@ -58,7 +58,6 @@ services:
       - mysql_data:/var/lib/mysql
     networks:
       - metarang-network
-      - dokploy-network
     command: 
       - --host-cache-size=0
       - --pid-file=/tmp/mysqld.pid
