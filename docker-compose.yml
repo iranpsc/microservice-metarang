@@ -935,6 +935,4 @@ volumes:
 networks:
   metarang-network:
     driver: bridge
-  dokploy-network:
-    external: true
 
