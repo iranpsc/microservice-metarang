@@ -158,3 +158,79 @@ func TestHTTPWalletHandler(t *testing.T) {
 		}
 	})
 }
+
+func TestHTTPWalletHandler_CheckRegistered(t *testing.T) {
+	s := grpc.NewServer()
+	defer s.Stop()
+	walletServer := handler.RegisterWalletConnectionHandler(s, &mockWalletConnectionService{
+		checkRegisteredFunc: func(_ context.Context, address string) (bool, string, error) {
+			if strings.EqualFold(address, "0xtf") {
+				return true, "hm-123", nil
+			}
+			return false, "", nil
+		},
+	}, "en")
+	clients := handler.NewLocalClients(
+		&pb.UnimplementedAuthServiceServer{},
+		&pb.UnimplementedUserServiceServer{},
+		&pb.UnimplementedKYCServiceServer{},
+		&pb.UnimplementedCitizenServiceServer{},
+		&pb.UnimplementedPersonalInfoServiceServer{},
+		&pb.UnimplementedProfileLimitationServiceServer{},
+		&pb.UnimplementedProfilePhotoServiceServer{},
+		&pb.UnimplementedSettingsServiceServer{},
+		&pb.UnimplementedUserEventsServiceServer{},
+		&pb.UnimplementedSearchServiceServer{},
+		walletServer,
+	)
+	h := handler.NewHTTPWalletHandler(clients.WalletConnection, "en")
+
+	t.Run("registered", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"wallet_address":"0xtf"}`)
+		r := httptest.NewRequest(http.MethodPost, "/api/wallets/registered", body)
+		r.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		h.CheckRegistered(rr, r)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+		if !strings.Contains(rr.Body.String(), `"already_registered":true`) || !strings.Contains(rr.Body.String(), `"user_code":"hm-123"`) {
+			t.Fatalf("body=%s", rr.Body.String())
+		}
+	})
+
+	t.Run("not registered", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"wallet_address":"0xmissing"}`)
+		r := httptest.NewRequest(http.MethodPost, "/api/wallets/registered", body)
+		r.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		h.CheckRegistered(rr, r)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+		if !strings.Contains(rr.Body.String(), `"already_registered":false`) || !strings.Contains(rr.Body.String(), `"user_code":null`) {
+			t.Fatalf("body=%s", rr.Body.String())
+		}
+	})
+
+	t.Run("wallet address required", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"wallet_address":""}`)
+		r := httptest.NewRequest(http.MethodPost, "/api/wallets/registered", body)
+		r.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		h.CheckRegistered(rr, r)
+		if rr.Code != http.StatusUnprocessableEntity && rr.Code != http.StatusBadRequest {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodPost, "/api/wallets/registered", strings.NewReader(`{`))
+		r.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		h.CheckRegistered(rr, r)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+}

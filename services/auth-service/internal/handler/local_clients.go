@@ -257,3 +257,6 @@ func (c *localWalletConnectionClient) GetSecurityNonce(ctx context.Context, in *
 func (c *localWalletConnectionClient) VerifySecuritySignature(ctx context.Context, in *pb.VerifyWalletSecuritySignatureRequest, _ ...grpc.CallOption) (*pb.VerifyWalletSecuritySignatureResponse, error) {
 	return c.WalletConnectionServiceServer.VerifySecuritySignature(ctx, in)
 }
+func (c *localWalletConnectionClient) CheckRegistered(ctx context.Context, in *pb.CheckWalletRegisteredRequest, _ ...grpc.CallOption) (*pb.CheckWalletRegisteredResponse, error) {
+	return c.WalletConnectionServiceServer.CheckRegistered(ctx, in)
+}

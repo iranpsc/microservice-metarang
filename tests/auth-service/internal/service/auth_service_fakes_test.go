@@ -130,6 +130,10 @@ func (f *fakeUserRepository) ExistsByWalletAddress(context.Context, string, uint
 	panic("unexpected call to ExistsByWalletAddress")
 }
 
+func (f *fakeUserRepository) FindByWalletAddress(context.Context, string) (*models.User, error) {
+	panic("unexpected call to FindByWalletAddress")
+}
+
 func (f *fakeUserRepository) LinkWalletAddress(context.Context, uint64, string) (repository.LinkWalletResult, error) {
 	panic("unexpected call to LinkWalletAddress")
 }

@@ -39,6 +39,7 @@ type WalletConnectionService interface {
 	LinkWallet(ctx context.Context, userID uint64, address, signature, ip string) (string, error)
 	GetSecurityNonce(ctx context.Context, userID uint64, address string) (string, error)
 	VerifySecuritySignature(ctx context.Context, userID uint64, address, signature string, durationMinutes int32, ip, userAgent string) (int64, error)
+	CheckRegistered(ctx context.Context, walletAddress string) (alreadyRegistered bool, userCode string, err error)
 }
 
 type walletConnectionService struct {
@@ -239,6 +240,23 @@ func (s *walletConnectionService) VerifySecuritySignature(ctx context.Context, u
 	}
 
 	return until, nil
+}
+
+func (s *walletConnectionService) CheckRegistered(ctx context.Context, walletAddress string) (bool, string, error) {
+	address := strings.ToLower(strings.TrimSpace(walletAddress))
+	if address == "" {
+		return false, "", ErrInvalidWalletAddress
+	}
+
+	user, err := s.userRepo.FindByWalletAddress(ctx, address)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to find user by wallet address: %w", err)
+	}
+	if user == nil {
+		return false, "", nil
+	}
+
+	return true, user.Code, nil
 }
 
 func (s *walletConnectionService) buildLinkMessage(userID uint64, address string) string {
