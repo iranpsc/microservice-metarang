@@ -109,6 +109,14 @@ func (f *fakeWalletUserRepo) ExistsByWalletAddress(_ context.Context, address st
 	}
 	return false, nil
 }
+func (f *fakeWalletUserRepo) FindByWalletAddress(_ context.Context, address string) (*models.User, error) {
+	for _, user := range f.users {
+		if user.WalletAddress.Valid && strings.EqualFold(user.WalletAddress.String, address) {
+			return user, nil
+		}
+	}
+	return nil, nil
+}
 func (f *fakeWalletUserRepo) LinkWalletAddress(_ context.Context, userID uint64, address string) (repository.LinkWalletResult, error) {
 	user := f.users[userID]
 	if user == nil {
@@ -626,4 +634,44 @@ func TestVerifySecuritySignatureRejectsExpiredNonce(t *testing.T) {
 	if err != service.ErrWalletNonceExpired {
 		t.Fatalf("expected ErrWalletNonceExpired, got %v", err)
 	}
+}
+
+func TestCheckRegistered(t *testing.T) {
+	t.Run("empty address", func(t *testing.T) {
+		svc := newTestWalletConnectionService(&fakeWalletUserRepo{}, &fakeWalletCacheRepo{}, nil, nil)
+		_, _, err := svc.CheckRegistered(context.Background(), "  ")
+		if err != service.ErrInvalidWalletAddress {
+			t.Fatalf("expected ErrInvalidWalletAddress, got %v", err)
+		}
+	})
+
+	t.Run("not registered", func(t *testing.T) {
+		svc := newTestWalletConnectionService(&fakeWalletUserRepo{users: map[uint64]*models.User{}}, &fakeWalletCacheRepo{}, nil, nil)
+		registered, code, err := svc.CheckRegistered(context.Background(), "0xtf")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if registered || code != "" {
+			t.Fatalf("registered=%v code=%q", registered, code)
+		}
+	})
+
+	t.Run("already registered", func(t *testing.T) {
+		svc := newTestWalletConnectionService(&fakeWalletUserRepo{
+			users: map[uint64]*models.User{
+				1: {
+					ID:            1,
+					Code:          "hm-123",
+					WalletAddress: sql.NullString{String: "0xtf", Valid: true},
+				},
+			},
+		}, &fakeWalletCacheRepo{}, nil, nil)
+		registered, code, err := svc.CheckRegistered(context.Background(), "0xTF")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !registered || code != "hm-123" {
+			t.Fatalf("registered=%v code=%q", registered, code)
+		}
+	})
 }

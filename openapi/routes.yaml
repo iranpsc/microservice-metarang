@@ -67,6 +67,11 @@ routes:
     tag: Wallet
     summary: Verify wallet security signature
     security: bearer
+  - path: /api/wallets/registered
+    methods: [post]
+    tag: Wallet
+    summary: Check if a wallet address is already registered
+    security: none
 
   # --- Users ---
   - path: /api/users

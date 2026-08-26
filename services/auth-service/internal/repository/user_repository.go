@@ -26,6 +26,7 @@ type UserRepository interface {
 	MarkPhoneAsVerified(ctx context.Context, userID uint64) error
 	IsPhoneTaken(ctx context.Context, phone string, excludeUserID uint64) (bool, error)
 	ExistsByWalletAddress(ctx context.Context, address string, excludeUserID uint64) (bool, error)
+	FindByWalletAddress(ctx context.Context, address string) (*models.User, error)
 	LinkWalletAddress(ctx context.Context, userID uint64, address string) (LinkWalletResult, error)
 	// Users API methods
 	ListUsers(ctx context.Context, search string, orderBy string, page int32, limit int32) ([]*UserWithRelations, int32, error)
@@ -331,6 +332,31 @@ func (r *userRepository) ExistsByWalletAddress(ctx context.Context, address stri
 		return false, fmt.Errorf("failed to check wallet address uniqueness: %w", err)
 	}
 	return count > 0, nil
+}
+
+func (r *userRepository) FindByWalletAddress(ctx context.Context, address string) (*models.User, error) {
+	query := `
+		SELECT id, name, email, phone, password, code, referrer_id, score, ip, 
+			last_seen, email_verified_at, phone_verified_at, access_token, 
+			refresh_token, token_type, expires_in, wallet_address, created_at, updated_at
+		FROM users
+		WHERE wallet_address = ?
+	`
+	user := &models.User{}
+	err := r.db.QueryRowContext(ctx, query, address).Scan(
+		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Password,
+		&user.Code, &user.ReferrerID, &user.Score, &user.IP, &user.LastSeen,
+		&user.EmailVerifiedAt, &user.PhoneVerifiedAt, &user.AccessToken,
+		&user.RefreshToken, &user.TokenType, &user.ExpiresIn, &user.WalletAddress,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user by wallet address: %w", err)
+	}
+	return user, nil
 }
 
 func (r *userRepository) LinkWalletAddress(ctx context.Context, userID uint64, address string) (LinkWalletResult, error) {

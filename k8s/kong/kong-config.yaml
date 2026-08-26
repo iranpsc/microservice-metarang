@@ -11,6 +11,7 @@ services:
           - /api/auth
           - /api/account
           - /api/wallet
+          - /api/wallets
           - /api/users
           - /api/user/wallet
           - /api/user/profile

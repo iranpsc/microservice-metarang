@@ -267,6 +267,22 @@ func TestUserRepository_SQLMockBasics(t *testing.T) {
 		require.NoError(t, repo.MarkEmailAsVerified(ctx, 1))
 	})
 
+	t.Run("find by wallet address", func(t *testing.T) {
+		rows := sqlmock.NewRows(userCols).AddRow(
+			uint64(7), "n", "e@x.com", nil, "hash", "hm-123", nil, int32(10), "1.1.1.1",
+			nil, nil, nil, nil, nil, nil, nil, "0xtf", now, now,
+		)
+		mock.ExpectQuery("FROM users").WithArgs("0xtf").WillReturnRows(rows)
+		u, err := repo.FindByWalletAddress(ctx, "0xtf")
+		require.NoError(t, err)
+		require.Equal(t, "hm-123", u.Code)
+
+		mock.ExpectQuery("FROM users").WithArgs("0xmissing").WillReturnError(sql.ErrNoRows)
+		u, err = repo.FindByWalletAddress(ctx, "0xmissing")
+		require.NoError(t, err)
+		require.Nil(t, u)
+	})
+
 	t.Run("link wallet", func(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery("SELECT wallet_address FROM users WHERE id").
