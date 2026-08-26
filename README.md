@@ -194,7 +194,7 @@ DB connection: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_DATABASE` (Ma
 | Issue | Command |
 |-------|---------|
 | Services not starting | `docker-compose logs auth-service` |
-| Database connection | `docker exec metarang-mysql mysql -uroot -proot_password -e "SELECT 1"` |
+| Database connection | `docker compose exec mysql mysql -uroot -proot_password -e "SELECT 1"` |
 | Port in use | `lsof -i :50051` (macOS) or `netstat -tulpn \| grep 50051` (Linux) |
 | Proto errors | `make clean-proto && make proto` |
 | Reset everything | `make clean && make dev` |
@@ -207,6 +207,28 @@ kubectl apply -f k8s/auth-service/
 ```
 
 See `docs/DEPLOYMENT.md` and `docs/TROUBLESHOOTING.md` for production details.
+
+### Dokploy (shared MySQL with the admin panel)
+
+Create these networks once on the Ubuntu host before the first deploy:
+
+```bash
+docker network create dokploy-network   # already exists on a Dokploy server
+docker network create metarang-shared
+```
+
+Deploy **this** Compose app first. MySQL is reachable from the admin panel as hostname `metarang-mysql` on `metarang-shared`. Set the same secrets in both Dokploy apps:
+
+```env
+MYSQL_ROOT_PASSWORD=<strong>
+MYSQL_DATABASE=metarang_db
+MYSQL_USER=metarang_user
+MYSQL_PASSWORD=<strong>
+APP_URL=https://api.your-domain
+ADMIN_PANEL_URL=https://admin.your-domain
+```
+
+Do not enable Isolated Deployment for these two apps. Local `make up` / `make dev` create the networks automatically.
 
 ## Development Rules
 

@@ -1,4 +1,4 @@
-.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up kong-validate kong-reload migrate migrate-rollback migrate-status migrate-reset migrate-refresh migrate-baseline migrate-make migrate-install
+.PHONY: proto clean-proto gen-auth gen-commercial gen-features gen-levels gen-dynasty gen-support gen-training gen-notifications gen-calendar gen-storage gen-financial gen-all help build-all deploy-all test test-unit test-services test-database test-all up down restart logs ps build clean clean-runtime dev dev-up dev-down link-uploads init-storage-uploads init-storage-uploads openapi docs docs-up kong-validate kong-reload migrate migrate-rollback migrate-status migrate-reset migrate-refresh migrate-baseline migrate-make migrate-install ensure-networks
 
 # Proto generation
 PROTO_DIR=shared/proto
@@ -7,6 +7,8 @@ PROTO_OUT_DIR=shared/pb
 # Docker
 DOCKER_REGISTRY=abbasajorloo
 VERSION?=latest
+MYSQL_ROOT_PASSWORD ?= root_password
+MYSQL_DATABASE ?= metarang_db
 
 # Local uploads (storage-service writes here; link-uploads exposes it at project root)
 UPLOADS_SRC=services/storage-service/uploads
@@ -59,6 +61,7 @@ help:
 	@echo "  init-storage-uploads   - Create local storage-service uploads directory"
 	@echo ""
 	@echo "Docker Compose:"
+	@echo "  ensure-networks  - Create dokploy-network and metarang-shared if missing"
 	@echo "  dev              - Start complete development environment"
 	@echo "  up               - Start all services"
 	@echo "  down             - Stop all services"
@@ -116,7 +119,7 @@ docs: openapi docs-up
 	@echo "  Swagger UI (Kong):    http://localhost:8000/"
 	@echo "  OpenAPI spec:         http://localhost:8081/openapi/openapi.yaml"
 
-docs-up:
+docs-up: ensure-networks
 	@echo "🚀 Starting Swagger UI..."
 	$(DOCKER_COMPOSE) up -d swagger-ui
 	@echo "✅ Swagger UI started"
@@ -331,7 +334,17 @@ kong-reload:
 	@echo "🔄 Restarting Kong to apply kong/kong.yml..."
 	$(DOCKER_COMPOSE) restart kong
 
-up: init-storage-uploads
+# External networks used by Dokploy (Traefik) and the Laravel admin panel (shared MySQL).
+ensure-networks:
+ifeq ($(OS),Windows_NT)
+	-@docker network create dokploy-network
+	-@docker network create metarang-shared
+else
+	@docker network inspect dokploy-network >/dev/null 2>&1 || docker network create dokploy-network
+	@docker network inspect metarang-shared >/dev/null 2>&1 || docker network create metarang-shared
+endif
+
+up: init-storage-uploads ensure-networks
 	@echo "🚀 Starting all microservices..."
 	$(DOCKER_COMPOSE) up -d
 	@echo "✅ All services started!"
@@ -426,16 +439,16 @@ import-schema:
 		echo "❌ scripts/schema.sql not found!"; \
 		exit 1; \
 	fi
-	docker exec -i metarang-mysql mysql -uroot -proot_password metarang_db < scripts/schema.sql
+	$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) < scripts/schema.sql
 	@echo "✅ Schema imported successfully"
 	@echo "Recording existing SQL migrations as applied (schema dump already includes them)..."
 	@$(call run_migrate,baseline)
 	@echo ""
 	@echo "Verifying tables..."
 ifeq ($(OS),Windows_NT)
-	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metarang_db';" 2>nul | findstr /v table_count || echo "Could not verify"
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='$(MYSQL_DATABASE)';" 2>nul | findstr /v table_count || echo "Could not verify"
 else
-	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metarang_db';" 2>/dev/null | grep -v table_count || echo "Could not verify"
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='$(MYSQL_DATABASE)';" 2>/dev/null | grep -v table_count || echo "Could not verify"
 endif
 
 import-database:
@@ -452,23 +465,23 @@ endif
 	@echo "Importing database (schema + data) from $(DB_DUMP_FILE)..."
 	@echo "Dropping and recreating database..."
 ifeq ($(OS),Windows_NT)
-	@docker exec -i metarang-mysql mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS metarang_db; CREATE DATABASE metarang_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) -e "DROP DATABASE IF EXISTS $(MYSQL_DATABASE); CREATE DATABASE $(MYSQL_DATABASE) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 	@echo "Importing data..."
-	@powershell -NoProfile -Command "Get-Content -Raw '$(DB_DUMP_FILE)' | docker exec -i metarang-mysql mysql -uroot -proot_password metarang_db"
+	@powershell -NoProfile -Command "Get-Content -Raw '$(DB_DUMP_FILE)' | docker compose exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE)"
 else
-	@docker exec -i metarang-mysql mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS metarang_db; CREATE DATABASE metarang_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) -e "DROP DATABASE IF EXISTS $(MYSQL_DATABASE); CREATE DATABASE $(MYSQL_DATABASE) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
 	@echo "Importing data..."
-	@docker exec -i metarang-mysql mysql -uroot -proot_password metarang_db < $(DB_DUMP_FILE)
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) < $(DB_DUMP_FILE)
 endif
 	@echo "Database imported successfully"
 	@echo ""
 	@echo "Verifying import..."
 ifeq ($(OS),Windows_NT)
-	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metarang_db';" 2>nul | findstr /v table_count || echo "Could not verify table count"
-	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as row_count FROM account_securities;" 2>nul | findstr /v row_count || echo "Could not verify data"
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='$(MYSQL_DATABASE)';" 2>nul | findstr /v table_count || echo "Could not verify table count"
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e "SELECT COUNT(*) as row_count FROM account_securities;" 2>nul | findstr /v row_count || echo "Could not verify data"
 else
-	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='metarang_db';" 2>/dev/null | grep -v table_count || echo "Could not verify table count"
-	@docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) as row_count FROM account_securities;" 2>/dev/null | grep -v row_count || echo "Could not verify data"
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e "SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema='$(MYSQL_DATABASE)';" 2>/dev/null | grep -v table_count || echo "Could not verify table count"
+	@$(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e "SELECT COUNT(*) as row_count FROM account_securities;" 2>/dev/null | grep -v row_count || echo "Could not verify data"
 endif
 
 migrate:
@@ -505,7 +518,7 @@ migrate-make:
 	fi
 	go run ./shared/cmd/migrate make -path=$(MIGRATIONS_PATH) $(NAME)
 
-dev:
+dev: ensure-networks
 	@echo "🚀 Starting development environment..."
 	@echo "ℹ️  Each service uses its own config.env (copy from config.env.sample)"
 	@echo "Starting MySQL and Redis..."
@@ -514,11 +527,11 @@ dev:
 ifeq ($(OS),Windows_NT)
 	@powershell -NoProfile -Command "Start-Sleep -Seconds 10"
 	@echo "Checking if schema needs to be imported..."
-	@powershell -NoProfile -Command "$$ErrorActionPreference='Continue'; $$tableCount = (docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='metarang_db';\" 2>$$null | Select-Object -Last 1).Trim(); if ($$tableCount -eq '0') { Write-Host 'Importing schema...'; make import-schema } else { Write-Host (\"✅ Database already initialized ({0} tables)\" -f $$tableCount) }"
+	@powershell -NoProfile -Command "$$ErrorActionPreference='Continue'; $$tableCount = (docker compose exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$(MYSQL_DATABASE)';\" 2>$$null | Select-Object -Last 1).Trim(); if ($$tableCount -eq '0') { Write-Host 'Importing schema...'; make import-schema } else { Write-Host (\"✅ Database already initialized ({0} tables)\" -f $$tableCount) }"
 else
 	@sleep 10
 	@echo "Checking if schema needs to be imported..."
-	@TABLE_COUNT=$$(docker exec metarang-mysql mysql -uroot -proot_password metarang_db -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='metarang_db';" 2>/dev/null | tail -1); \
+	@TABLE_COUNT=$$($(DOCKER_COMPOSE) exec -T mysql mysql -uroot -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$(MYSQL_DATABASE)';" 2>/dev/null | tail -1); \
 	if [ "$$TABLE_COUNT" = "0" ]; then \
 		echo "Importing schema..."; \
 		make import-schema; \
@@ -567,7 +580,7 @@ endif
 # Development with Hot Reloading
 # =============================================================================
 
-dev-up: init-storage-uploads
+dev-up: init-storage-uploads ensure-networks
 	@echo "🚀 Starting development environment with Docker Compose Watch..."
 	@echo "ℹ️  File changes will automatically trigger rebuilds (Go services)"
 	@echo ""
