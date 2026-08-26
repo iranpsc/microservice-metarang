@@ -36,6 +36,7 @@ type PersonalAccessToken struct {
 	Abilities     string       `db:"abilities"`
 	LastUsedAt    sql.NullTime `db:"last_used_at"`
 	ExpiresAt     sql.NullTime `db:"expires_at"`
+	WalletLogin   bool         `db:"wallet_login"`
 	CreatedAt     time.Time    `db:"created_at"`
 	UpdatedAt     time.Time    `db:"updated_at"`
 }

@@ -2,12 +2,15 @@
 package handler
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 
 	"metarang/auth-service/internal/middleware"
 	pb "metarang/shared/pb/auth"
 )
+
+const maxProfilePhotoSize = 10 << 20
 
 // ============================================================================
 // Profile Photo Service Handlers
@@ -59,10 +62,18 @@ func (h *HTTPAuthHandler) UploadProfilePhoto(w http.ResponseWriter, r *http.Requ
 	}
 	defer func() { _ = file.Close() }()
 
-	// Read file data
-	imageData := make([]byte, header.Size)
-	if _, err := file.Read(imageData); err != nil {
+	if header.Size < 0 || header.Size > maxProfilePhotoSize {
+		writeError(w, http.StatusBadRequest, "image file too large")
+		return
+	}
+
+	imageData, err := io.ReadAll(io.LimitReader(file, maxProfilePhotoSize+1))
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "failed to read image data")
+		return
+	}
+	if int64(len(imageData)) > maxProfilePhotoSize {
+		writeError(w, http.StatusBadRequest, "image file too large")
 		return
 	}
 

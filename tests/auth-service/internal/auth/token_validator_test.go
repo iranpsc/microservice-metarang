@@ -16,7 +16,7 @@ type mockTokenRepo struct {
 	err  error
 }
 
-func (m *mockTokenRepo) Create(context.Context, uint64, string, time.Time) (string, error) {
+func (m *mockTokenRepo) Create(context.Context, uint64, string, time.Time, bool) (string, error) {
 	return "", nil
 }
 func (m *mockTokenRepo) ValidateToken(_ context.Context, _ string) (*models.User, error) {
@@ -24,6 +24,12 @@ func (m *mockTokenRepo) ValidateToken(_ context.Context, _ string) (*models.User
 		return nil, m.err
 	}
 	return m.user, nil
+}
+func (m *mockTokenRepo) ValidateTokenSession(_ context.Context, _ string) (*repository.ValidatedToken, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &repository.ValidatedToken{User: m.user}, nil
 }
 func (m *mockTokenRepo) DeleteUserTokens(context.Context, uint64) error { return nil }
 func (m *mockTokenRepo) FindTokenByHash(context.Context, string) (*models.PersonalAccessToken, error) {

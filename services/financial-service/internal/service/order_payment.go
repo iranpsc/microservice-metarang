@@ -322,7 +322,11 @@ func (s *orderService) markOrderAndTransactionFailed(ctx context.Context, order 
 }
 
 func parseStatusCode(resCode string) int32 {
-	return int32(parseInt64OrDefault(resCode, int64(constants.StatusUnknown)))
+	parsed, err := strconv.ParseInt(resCode, 10, 32)
+	if err != nil {
+		return int32(constants.StatusUnknown)
+	}
+	return int32(parsed)
 }
 
 func parseInt64OrDefault(value string, defaultValue int64) int64 {

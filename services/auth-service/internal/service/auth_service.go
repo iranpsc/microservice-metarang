@@ -30,7 +30,7 @@ import (
 type AuthService interface {
 	Register(ctx context.Context, backURL, referral string) (string, error)
 	Redirect(ctx context.Context, redirectTo, backURL string) (string, string, error) // returns url and state
-	Callback(ctx context.Context, state, code, ip string) (*CallbackResult, error)
+	Callback(ctx context.Context, state, code, ip string, walletLogin bool) (*CallbackResult, error)
 	GetMe(ctx context.Context, token string) (*UserDetails, error)
 	Logout(ctx context.Context, userID uint64, ip, userAgent string) error
 	ValidateToken(ctx context.Context, token string) (*models.User, error)
@@ -78,6 +78,7 @@ type UserDetails struct {
 	Birthdate                  string
 	HasWallet                  bool
 	WalletAddress              string
+	WalletLogin                bool
 }
 
 type LevelInfo struct {
@@ -231,7 +232,7 @@ func (s *authService) Redirect(ctx context.Context, redirectTo, backURL string) 
 	return authURL, state, nil
 }
 
-func (s *authService) Callback(ctx context.Context, state, code, ip string) (*CallbackResult, error) {
+func (s *authService) Callback(ctx context.Context, state, code, ip string, walletLogin bool) (*CallbackResult, error) {
 	// Retrieve and remove cached state (pull semantics)
 	// Throws InvalidArgumentException if missing or doesn't match
 	stateExists, err := s.cacheRepo.GetState(ctx, state)
@@ -335,7 +336,7 @@ func (s *authService) Callback(ctx context.Context, state, code, ip string) (*Ca
 	}
 	expiresAt := time.Now().Add(time.Duration(automaticLogout) * time.Minute)
 
-	token, err := s.tokenRepo.Create(ctx, user.ID, fmt.Sprintf("token_%d", user.ID), expiresAt)
+	token, err := s.tokenRepo.Create(ctx, user.ID, fmt.Sprintf("token_%d", user.ID), expiresAt, walletLogin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
@@ -387,10 +388,11 @@ func (s *authService) Callback(ctx context.Context, state, code, ip string) (*Ca
 }
 
 func (s *authService) GetMe(ctx context.Context, token string) (*UserDetails, error) {
-	user, err := s.tokenRepo.ValidateToken(ctx, token)
+	session, err := s.tokenRepo.ValidateTokenSession(ctx, token)
 	if err != nil {
 		return nil, err
 	}
+	user := session.User
 
 	// Update last seen
 	_ = s.userRepo.UpdateLastSeen(ctx, user.ID)
@@ -416,6 +418,7 @@ func (s *authService) GetMe(ctx context.Context, token string) (*UserDetails, er
 		AutomaticLogout:          settings.AutomaticLogout,
 		UnreadNotificationsCount: notificationsCount,
 		VerifiedKYC:              kyc != nil && kyc.Status == 1,
+		WalletLogin:              session.WalletLogin,
 	}
 
 	if user.AccessToken.Valid {

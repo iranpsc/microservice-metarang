@@ -24,7 +24,7 @@ func TestHTTPAuthHandler_CoreRoutes(t *testing.T) {
 	authSvc.redirectFunc = func(context.Context, string, string) (string, string, error) {
 		return "https://oauth.example/redirect", "st", nil
 	}
-	authSvc.callbackFunc = func(context.Context, string, string, string) (*service.CallbackResult, error) {
+	authSvc.callbackFunc = func(context.Context, string, string, string, bool) (*service.CallbackResult, error) {
 		return &service.CallbackResult{Token: "tok", ExpiresAt: 55, RedirectURL: "https://app/cb"}, nil
 	}
 	authSvc.getMeFunc = func(context.Context, string) (*service.UserDetails, error) {

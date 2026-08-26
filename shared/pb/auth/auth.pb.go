@@ -887,6 +887,7 @@ type CallbackRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	State         string                 `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
 	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	WalletLogin   bool                   `protobuf:"varint,3,opt,name=wallet_login,json=walletLogin,proto3" json:"wallet_login,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -933,6 +934,13 @@ func (x *CallbackRequest) GetCode() string {
 		return x.Code
 	}
 	return ""
+}
+
+func (x *CallbackRequest) GetWalletLogin() bool {
+	if x != nil {
+		return x.WalletLogin
+	}
+	return false
 }
 
 type CallbackResponse struct {
@@ -1056,6 +1064,7 @@ type UserResponse struct {
 	Birthdate                  string                 `protobuf:"bytes,14,opt,name=birthdate,proto3" json:"birthdate,omitempty"`
 	HasWallet                  bool                   `protobuf:"varint,15,opt,name=has_wallet,json=hasWallet,proto3" json:"has_wallet,omitempty"`
 	WalletAddress              string                 `protobuf:"bytes,16,opt,name=wallet_address,json=walletAddress,proto3" json:"wallet_address,omitempty"`
+	WalletLogin                bool                   `protobuf:"varint,17,opt,name=wallet_login,json=walletLogin,proto3" json:"wallet_login,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -1193,6 +1202,13 @@ func (x *UserResponse) GetWalletAddress() string {
 		return x.WalletAddress
 	}
 	return ""
+}
+
+func (x *UserResponse) GetWalletLogin() bool {
+	if x != nil {
+		return x.WalletLogin
+	}
+	return false
 }
 
 type LogoutRequest struct {
@@ -8414,17 +8430,18 @@ const file_auth_proto_rawDesc = "" +
 	"redirectTo\x12\x19\n" +
 	"\bback_url\x18\x02 \x01(\tR\abackUrl\"$\n" +
 	"\x10RedirectResponse\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\";\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"^\n" +
 	"\x0fCallbackRequest\x12\x14\n" +
 	"\x05state\x18\x01 \x01(\tR\x05state\x12\x12\n" +
-	"\x04code\x18\x02 \x01(\tR\x04code\"j\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12!\n" +
+	"\fwallet_login\x18\x03 \x01(\bR\vwalletLogin\"j\n" +
 	"\x10CallbackResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1d\n" +
 	"\n" +
 	"expires_at\x18\x02 \x01(\x05R\texpiresAt\x12!\n" +
 	"\fredirect_url\x18\x03 \x01(\tR\vredirectUrl\"$\n" +
 	"\fGetMeRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"\xd1\x04\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\xf4\x04\n" +
 	"\fUserResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -8442,7 +8459,8 @@ const file_auth_proto_rawDesc = "" +
 	"\tbirthdate\x18\x0e \x01(\tR\tbirthdate\x12\x1d\n" +
 	"\n" +
 	"has_wallet\x18\x0f \x01(\bR\thasWallet\x12%\n" +
-	"\x0ewallet_address\x18\x10 \x01(\tR\rwalletAddressJ\x04\b\v\x10\fR\x1aunasnwered_questions_count\"%\n" +
+	"\x0ewallet_address\x18\x10 \x01(\tR\rwalletAddress\x12!\n" +
+	"\fwallet_login\x18\x11 \x01(\bR\vwalletLoginJ\x04\b\v\x10\fR\x1aunasnwered_questions_count\"%\n" +
 	"\rLogoutRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\",\n" +
 	"\x14ValidateTokenRequest\x12\x14\n" +

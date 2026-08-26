@@ -69,8 +69,9 @@ func (h *HTTPAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 
 	grpcReq := &pb.CallbackRequest{
-		State: state,
-		Code:  code,
+		State:       state,
+		Code:        code,
+		WalletLogin: parseWalletLoginQuery(r.URL.Query().Get("wallet_login")),
 	}
 
 	resp, err := h.authClient.Callback(r.Context(), grpcReq)
@@ -130,6 +131,7 @@ func (h *HTTPAuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 			"birthdate":                      resp.Birthdate,
 			"has_wallet":                     resp.HasWallet,
 			"wallet_address":                 walletAddress,
+			"wallet_login":                   resp.WalletLogin,
 		},
 	}
 

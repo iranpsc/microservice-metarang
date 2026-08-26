@@ -12,7 +12,7 @@ import (
 type mockAuthService struct {
 	registerFunc               func(context.Context, string, string) (string, error)
 	redirectFunc               func(context.Context, string, string) (string, string, error)
-	callbackFunc               func(context.Context, string, string, string) (*service.CallbackResult, error)
+	callbackFunc               func(context.Context, string, string, string, bool) (*service.CallbackResult, error)
 	getMeFunc                  func(context.Context, string) (*service.UserDetails, error)
 	logoutFunc                 func(context.Context, uint64, string, string) error
 	validateTokenFunc          func(context.Context, string) (*models.User, error)
@@ -34,9 +34,9 @@ func (m *mockAuthService) Redirect(ctx context.Context, redirectTo, backURL stri
 	return "", "", nil
 }
 
-func (m *mockAuthService) Callback(ctx context.Context, state, code, ip string) (*service.CallbackResult, error) {
+func (m *mockAuthService) Callback(ctx context.Context, state, code, ip string, walletLogin bool) (*service.CallbackResult, error) {
 	if m.callbackFunc != nil {
-		return m.callbackFunc(ctx, state, code, ip)
+		return m.callbackFunc(ctx, state, code, ip, walletLogin)
 	}
 	return nil, nil
 }
@@ -79,10 +79,11 @@ func (m *mockAuthService) VerifyAccountSecurity(ctx context.Context, userID uint
 var _ service.AuthService = (*mockAuthService)(nil)
 
 type mockTokenRepository struct {
-	validateTokenFunc func(context.Context, string) (*models.User, error)
+	validateTokenFunc        func(context.Context, string) (*models.User, error)
+	validateTokenSessionFunc func(context.Context, string) (*repository.ValidatedToken, error)
 }
 
-func (m *mockTokenRepository) Create(ctx context.Context, userID uint64, name string, expiresAt time.Time) (string, error) {
+func (m *mockTokenRepository) Create(ctx context.Context, userID uint64, name string, expiresAt time.Time, walletLogin bool) (string, error) {
 	return "", nil
 }
 
@@ -91,6 +92,17 @@ func (m *mockTokenRepository) ValidateToken(ctx context.Context, token string) (
 		return m.validateTokenFunc(ctx, token)
 	}
 	return nil, nil
+}
+
+func (m *mockTokenRepository) ValidateTokenSession(ctx context.Context, token string) (*repository.ValidatedToken, error) {
+	if m.validateTokenSessionFunc != nil {
+		return m.validateTokenSessionFunc(ctx, token)
+	}
+	user, err := m.ValidateToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	return &repository.ValidatedToken{User: user}, nil
 }
 
 func (m *mockTokenRepository) DeleteUserTokens(ctx context.Context, userID uint64) error {

@@ -13,9 +13,16 @@ import (
 	"metarang/auth-service/internal/models"
 )
 
+// ValidatedToken is a personal access token plus the user it authenticates.
+type ValidatedToken struct {
+	User        *models.User
+	WalletLogin bool
+}
+
 type TokenRepository interface {
-	Create(ctx context.Context, userID uint64, name string, expiresAt time.Time) (string, error)
+	Create(ctx context.Context, userID uint64, name string, expiresAt time.Time, walletLogin bool) (string, error)
 	ValidateToken(ctx context.Context, token string) (*models.User, error)
+	ValidateTokenSession(ctx context.Context, token string) (*ValidatedToken, error)
 	DeleteUserTokens(ctx context.Context, userID uint64) error
 	FindTokenByHash(ctx context.Context, tokenHash string) (*models.PersonalAccessToken, error)
 }
@@ -28,14 +35,14 @@ func NewTokenRepository(db *sql.DB) TokenRepository {
 	return &tokenRepository{db: db}
 }
 
-func (r *tokenRepository) Create(ctx context.Context, userID uint64, name string, expiresAt time.Time) (string, error) {
+func (r *tokenRepository) Create(ctx context.Context, userID uint64, name string, expiresAt time.Time, walletLogin bool) (string, error) {
 	// Generate a random token (Sanctum-like format)
 	plainToken := generatePlainToken()
 	tokenHash := hashToken(plainToken)
 
 	query := `
-		INSERT INTO personal_access_tokens (tokenable_type, tokenable_id, name, token, abilities, expires_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO personal_access_tokens (tokenable_type, tokenable_id, name, token, abilities, expires_at, wallet_login, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	result, err := r.db.ExecContext(ctx, query,
 		"App\\Models\\User",
@@ -44,6 +51,7 @@ func (r *tokenRepository) Create(ctx context.Context, userID uint64, name string
 		tokenHash,
 		"[\"*\"]",
 		expiresAt,
+		walletLogin,
 		time.Now(),
 		time.Now(),
 	)
@@ -61,6 +69,14 @@ func (r *tokenRepository) Create(ctx context.Context, userID uint64, name string
 }
 
 func (r *tokenRepository) ValidateToken(ctx context.Context, token string) (*models.User, error) {
+	session, err := r.ValidateTokenSession(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	return session.User, nil
+}
+
+func (r *tokenRepository) ValidateTokenSession(ctx context.Context, token string) (*ValidatedToken, error) {
 	// Extract plain token part if token is in format {id}|{plainToken}
 	// Tokens can be either:
 	// 1. Full format: "123|piSZrgcQzybhwnpeOWVABqXxurr2L3KIkBA8eK0c" - extract part after |
@@ -73,7 +89,7 @@ func (r *tokenRepository) ValidateToken(ctx context.Context, token string) (*mod
 	tokenHash := hashToken(plainToken)
 
 	query := `
-		SELECT pat.id, pat.tokenable_id, pat.expires_at, pat.last_used_at,
+		SELECT pat.id, pat.tokenable_id, pat.expires_at, pat.last_used_at, pat.wallet_login,
 			   u.id, u.name, u.email, u.phone, u.password, u.code, u.referrer_id, u.score, u.ip,
 			   u.last_seen, u.email_verified_at, u.phone_verified_at, u.access_token,
 			   u.refresh_token, u.token_type, u.expires_in, u.wallet_address, u.created_at, u.updated_at
@@ -86,10 +102,11 @@ func (r *tokenRepository) ValidateToken(ctx context.Context, token string) (*mod
 	var tokenableID uint64
 	var expiresAt sql.NullTime
 	var lastUsedAt sql.NullTime
+	var walletLogin bool
 	user := &models.User{}
 
 	err := r.db.QueryRowContext(ctx, query, tokenHash).Scan(
-		&patID, &tokenableID, &expiresAt, &lastUsedAt,
+		&patID, &tokenableID, &expiresAt, &lastUsedAt, &walletLogin,
 		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Password,
 		&user.Code, &user.ReferrerID, &user.Score, &user.IP, &user.LastSeen,
 		&user.EmailVerifiedAt, &user.PhoneVerifiedAt, &user.AccessToken,
@@ -111,7 +128,7 @@ func (r *tokenRepository) ValidateToken(ctx context.Context, token string) (*mod
 	// Update last_used_at
 	go r.updateLastUsedAt(patID)
 
-	return user, nil
+	return &ValidatedToken{User: user, WalletLogin: walletLogin}, nil
 }
 
 func (r *tokenRepository) DeleteUserTokens(ctx context.Context, userID uint64) error {
@@ -125,7 +142,7 @@ func (r *tokenRepository) DeleteUserTokens(ctx context.Context, userID uint64) e
 
 func (r *tokenRepository) FindTokenByHash(ctx context.Context, tokenHash string) (*models.PersonalAccessToken, error) {
 	query := `
-		SELECT id, tokenable_type, tokenable_id, name, token, abilities, last_used_at, expires_at, created_at, updated_at
+		SELECT id, tokenable_type, tokenable_id, name, token, abilities, last_used_at, expires_at, wallet_login, created_at, updated_at
 		FROM personal_access_tokens
 		WHERE token = ?
 	`
@@ -133,7 +150,7 @@ func (r *tokenRepository) FindTokenByHash(ctx context.Context, tokenHash string)
 	err := r.db.QueryRowContext(ctx, query, tokenHash).Scan(
 		&token.ID, &token.TokenableType, &token.TokenableID, &token.Name,
 		&token.Token, &token.Abilities, &token.LastUsedAt, &token.ExpiresAt,
-		&token.CreatedAt, &token.UpdatedAt,
+		&token.WalletLogin, &token.CreatedAt, &token.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil

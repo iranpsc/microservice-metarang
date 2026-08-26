@@ -28,7 +28,7 @@ func (stubHelperForGetMe) GetUserWallet(context.Context, uint64) (*service.Walle
 }
 func (stubHelperForGetMe) CreateWallet(context.Context, uint64) error        { return nil }
 func (stubHelperForGetMe) CreateUserVariables(context.Context, uint64) error { return nil }
-func (stubHelperForGetMe) Close() error                                     { return nil }
+func (stubHelperForGetMe) Close() error                                      { return nil }
 
 func TestGetMe_RichPaths(t *testing.T) {
 	ctx := context.Background()
@@ -58,6 +58,7 @@ func TestGetMe_RichPaths(t *testing.T) {
 	tokenRepo.validateTokenFunc = func(_ context.Context, token string) (*models.User, error) {
 		return users[1], nil
 	}
+	tokenRepo.walletLogin["tok"] = true
 
 	svc := service.NewAuthService(
 		userRepo, tokenRepo, newFakeCacheRepository(), newFakeAccountSecurityRepository(), newFakeActivityRepository(),
@@ -71,6 +72,7 @@ func TestGetMe_RichPaths(t *testing.T) {
 	require.Equal(t, "Ali Karimi", details.Name)
 	require.True(t, details.HasWallet)
 	require.Equal(t, "0xabc", details.WalletAddress)
+	require.True(t, details.WalletLogin)
 	require.Equal(t, "at", details.AccessToken)
 	require.True(t, details.VerifiedKYC)
 	require.NotEmpty(t, details.Birthdate)

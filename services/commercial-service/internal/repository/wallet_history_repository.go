@@ -192,18 +192,10 @@ func (r *walletHistoryRepository) SumFirstOrderBonuses(ctx context.Context, user
 }
 
 func (r *walletHistoryRepository) SumLevelRewards(ctx context.Context, userID uint64, asset string, start, end time.Time) (float64, error) {
-	column, ok := levelPrizeColumn(asset)
+	query, ok := levelPrizeSumQuery(asset)
 	if !ok {
 		return 0, nil
 	}
-
-	query := fmt.Sprintf(`
-		SELECT COALESCE(SUM(level_prizes.%s), 0)
-		FROM recieved_level_prizes
-		INNER JOIN level_prizes ON level_prizes.id = recieved_level_prizes.level_prize_id
-		WHERE recieved_level_prizes.user_id = ?
-		  AND recieved_level_prizes.created_at BETWEEN ? AND ?
-	`, column)
 
 	var total float64
 	if err := r.db.QueryRowContext(ctx, query, userID, start, end).Scan(&total); err != nil {
@@ -223,10 +215,27 @@ func (r *walletHistoryRepository) SumLevelRewards(ctx context.Context, userID ui
 	return total, nil
 }
 
-func levelPrizeColumn(asset string) (string, bool) {
+func levelPrizeSumQuery(asset string) (string, bool) {
+	const baseQuery = `
+		FROM recieved_level_prizes
+		INNER JOIN level_prizes ON level_prizes.id = recieved_level_prizes.level_prize_id
+		WHERE recieved_level_prizes.user_id = ?
+		  AND recieved_level_prizes.created_at BETWEEN ? AND ?
+	`
+
 	switch asset {
-	case "psc", "blue", "red", "yellow", "satisfaction", "effect":
-		return asset, true
+	case "psc":
+		return `SELECT COALESCE(SUM(level_prizes.psc), 0)` + baseQuery, true
+	case "blue":
+		return `SELECT COALESCE(SUM(level_prizes.blue), 0)` + baseQuery, true
+	case "red":
+		return `SELECT COALESCE(SUM(level_prizes.red), 0)` + baseQuery, true
+	case "yellow":
+		return `SELECT COALESCE(SUM(level_prizes.yellow), 0)` + baseQuery, true
+	case "satisfaction":
+		return `SELECT COALESCE(SUM(level_prizes.satisfaction), 0)` + baseQuery, true
+	case "effect":
+		return `SELECT COALESCE(SUM(level_prizes.effect), 0)` + baseQuery, true
 	default:
 		return "", false
 	}

@@ -352,7 +352,8 @@ func generateSignData(data, base64Key string) (string, error) {
 	}
 
 	// Sadad mandates Triple-DES for SignData; cannot substitute a different algorithm.
-	block, err := des.NewTripleDESCipher(key) // lgtm[go/weak-cryptographic-algorithm]
+	// codeql[go/weak-cryptographic-algorithm]
+	block, err := des.NewTripleDESCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("failed to create 3DES cipher: %w", err)
 	}
@@ -361,7 +362,8 @@ func generateSignData(data, base64Key string) (string, error) {
 	encrypted := make([]byte, len(padded))
 
 	for i := 0; i < len(padded); i += block.BlockSize() {
-		block.Encrypt(encrypted[i:i+block.BlockSize()], padded[i:i+block.BlockSize()]) // lgtm[go/weak-cryptographic-algorithm]
+		// codeql[go/weak-cryptographic-algorithm]
+		block.Encrypt(encrypted[i:i+block.BlockSize()], padded[i:i+block.BlockSize()])
 	}
 
 	return base64.StdEncoding.EncodeToString(encrypted), nil

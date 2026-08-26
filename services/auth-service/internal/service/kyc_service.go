@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"metarang/auth-service/internal/models"
@@ -99,6 +100,9 @@ func (s *kycService) UpdateKYC(ctx context.Context, userID uint64, fname, lname,
 	if verifyTextID == 0 {
 		return nil, ErrVerifyTextIDRequired
 	}
+	if verifyTextID > math.MaxInt64 {
+		return nil, ErrVerifyTextIDRequired
+	}
 
 	// Check if verify_text_id exists
 	exists, err := s.kycRepo.CheckVerifyTextExists(ctx, verifyTextID)
@@ -159,7 +163,7 @@ func (s *kycService) UpdateKYC(ctx context.Context, userID uint64, fname, lname,
 		existing.Errors = sql.NullString{} // Clear errors
 		// Video, verify_text_id, and gender are required, so always set them
 		existing.Video = sql.NullString{String: videoURL, Valid: true}
-		existing.VerifyTextID = sql.NullInt64{Int64: int64(verifyTextID), Valid: true}
+		existing.VerifyTextID = sql.NullInt64{Int64: verifyTextIDAsInt64(verifyTextID), Valid: true}
 		existing.Gender = sql.NullString{String: gender, Valid: true}
 
 		if err := s.kycRepo.Update(ctx, existing); err != nil {
@@ -180,7 +184,7 @@ func (s *kycService) UpdateKYC(ctx context.Context, userID uint64, fname, lname,
 		Birthdate:    sql.NullTime{Time: parsedDate, Valid: true},
 		Errors:       sql.NullString{},
 		Video:        sql.NullString{String: videoURL, Valid: true},
-		VerifyTextID: sql.NullInt64{Int64: int64(verifyTextID), Valid: true},
+		VerifyTextID: sql.NullInt64{Int64: verifyTextIDAsInt64(verifyTextID), Valid: true},
 		Gender:       sql.NullString{String: gender, Valid: true},
 	}
 
@@ -432,4 +436,11 @@ func (s *kycService) DeleteBankAccount(ctx context.Context, userID uint64, bankA
 	}
 
 	return nil
+}
+
+func verifyTextIDAsInt64(verifyTextID uint64) int64 {
+	if verifyTextID > math.MaxInt64 {
+		return 0
+	}
+	return int64(verifyTextID)
 }
