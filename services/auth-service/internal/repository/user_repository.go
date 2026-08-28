@@ -343,8 +343,9 @@ func (r *userRepository) FindByWalletAddress(ctx context.Context, address string
 		WHERE wallet_address = ?
 	`
 	user := &models.User{}
+	var email sql.NullString
 	err := r.db.QueryRowContext(ctx, query, address).Scan(
-		&user.ID, &user.Name, &user.Email, &user.Phone, &user.Password,
+		&user.ID, &user.Name, &email, &user.Phone, &user.Password,
 		&user.Code, &user.ReferrerID, &user.Score, &user.IP, &user.LastSeen,
 		&user.EmailVerifiedAt, &user.PhoneVerifiedAt, &user.AccessToken,
 		&user.RefreshToken, &user.TokenType, &user.ExpiresIn, &user.WalletAddress,
@@ -355,6 +356,9 @@ func (r *userRepository) FindByWalletAddress(ctx context.Context, address string
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user by wallet address: %w", err)
+	}
+	if email.Valid {
+		user.Email = email.String
 	}
 	return user, nil
 }

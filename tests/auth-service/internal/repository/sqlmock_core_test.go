@@ -298,6 +298,16 @@ func TestUserRepository_SQLMockBasics(t *testing.T) {
 		u, err = repo.FindByWalletAddress(ctx, "0xmissing")
 		require.NoError(t, err)
 		require.Nil(t, u)
+
+		rows = sqlmock.NewRows(userCols).AddRow(
+			uint64(8), "wallet user", nil, nil, "hash", "hm-456", nil, int32(0), "1.1.1.1",
+			nil, nil, nil, nil, nil, nil, nil, "0xnullmail", now, now,
+		)
+		mock.ExpectQuery("FROM users").WithArgs("0xnullmail").WillReturnRows(rows)
+		u, err = repo.FindByWalletAddress(ctx, "0xnullmail")
+		require.NoError(t, err)
+		require.Equal(t, "hm-456", u.Code)
+		require.Empty(t, u.Email)
 	})
 
 	t.Run("link wallet", func(t *testing.T) {
