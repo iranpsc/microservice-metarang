@@ -56,6 +56,9 @@ help:
 	@echo "  test-coverage-financial - financial-service internal coverage ≥70%"
 	@echo "  test-coverage-social    - social-service internal coverage ≥70%"
 	@echo ""
+	@echo "Observability:"
+	@echo "  sentry:test      - Send a test event to Sentry (requires SENTRY_DSN in .env)"
+	@echo ""
 	@echo "Local uploads:"
 	@echo "  link-uploads           - Symlink ./uploads -> $(UPLOADS_SRC)"
 	@echo "  init-storage-uploads   - Create local storage-service uploads directory"
@@ -269,6 +272,15 @@ test-all: test-unit test-services test-database
 	@echo "✅ All test suites passed"
 
 test: test-all
+
+# =============================================================================
+# Sentry
+# =============================================================================
+# Colon in target name requires secondary expansion (otherwise Make parses it as a pattern rule).
+.SECONDEXPANSION:
+sentry\:test:
+	@echo "Sending test event to Sentry..."
+	@go run ./shared/cmd/sentry-test
 
 # =============================================================================
 # Local uploads symlink
