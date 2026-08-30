@@ -49,16 +49,10 @@ func validateUploadID(uploadID string) error {
 	return nil
 }
 
-// resolveChunkLocalPath maps an assembled relative path to a writable filesystem path.
-func resolveChunkLocalPath(uploadBaseDir, relativePath string, customUpload bool) (string, error) {
-	if customUpload {
-		return safePathUnderBase(uploadBaseDir, relativePath)
-	}
-	cleaned := filepath.Clean(relativePath)
-	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("invalid relative path")
-	}
-	return cleaned, nil
+// resolveChunkLocalPath maps an assembled relative path to a writable filesystem path
+// under uploadBaseDir, rejecting path traversal.
+func resolveChunkLocalPath(uploadBaseDir, relativePath string) (string, error) {
+	return safePathUnderBase(uploadBaseDir, relativePath)
 }
 
 // resolveChunkPublicDir returns the directory path exposed to API clients.
