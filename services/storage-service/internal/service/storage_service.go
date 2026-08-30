@@ -88,22 +88,26 @@ func localUploadPathCandidates(uploadBaseDir, filePath string) []string {
 	filePath = strings.TrimPrefix(strings.ReplaceAll(filePath, "\\", "/"), "/")
 	seen := make(map[string]struct{})
 	var out []string
-	add := func(p string) {
-		if p == "" {
+	add := func(relativePath string) {
+		if relativePath == "" {
 			return
 		}
-		if _, ok := seen[p]; ok {
+		absPath, err := safePathUnderBase(uploadBaseDir, relativePath)
+		if err != nil {
 			return
 		}
-		seen[p] = struct{}{}
-		out = append(out, p)
+		if _, ok := seen[absPath]; ok {
+			return
+		}
+		seen[absPath] = struct{}{}
+		out = append(out, absPath)
 	}
-	add(filepath.Join(uploadBaseDir, filePath))
+	add(filePath)
 	if strings.HasPrefix(filePath, "upload/") && !strings.HasPrefix(filePath, "uploads/") {
-		add(filepath.Join(uploadBaseDir, "uploads", strings.TrimPrefix(filePath, "upload/")))
+		add(filepath.Join("uploads", strings.TrimPrefix(filePath, "upload/")))
 	}
 	if !strings.HasPrefix(filePath, "uploads/") {
-		add(filepath.Join(uploadBaseDir, "uploads", filePath))
+		add(filepath.Join("uploads", filePath))
 	}
 	return out
 }
@@ -169,7 +173,7 @@ func (s *StorageService) HandleChunkUpload(uploadID, filename, contentType strin
 		return false, 0, "", "", "", fmt.Errorf("failed to assemble file: %w", err)
 	}
 
-	localPath, err := resolveChunkLocalPath(s.uploadBaseDir, relativePath, customUpload)
+	localPath, err := resolveChunkLocalPath(s.uploadBaseDir, relativePath)
 	if err != nil {
 		_ = s.chunkManager.CleanupSession(uploadID)
 		return false, 0, "", "", "", fmt.Errorf("invalid storage path: %w", err)

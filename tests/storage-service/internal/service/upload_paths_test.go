@@ -97,10 +97,34 @@ func TestHandleChunkUpload_DefaultUploadLayout(t *testing.T) {
 		t.Fatal("expected generated filename")
 	}
 
-	// Default layout writes using the assembled relative path (not under uploadBase).
-	t.Cleanup(func() { _ = os.RemoveAll("uploads") })
-	localFile := filepath.Join("uploads", "image-jpeg", strings.TrimSuffix(strings.TrimPrefix(publicDir, "uploads/image-jpeg/"), "/"), filename)
+	localFile := filepath.Join(uploadBase, "uploads", "image-jpeg", strings.TrimSuffix(strings.TrimPrefix(publicDir, "uploads/image-jpeg/"), "/"), filename)
 	if _, err := os.Stat(localFile); err != nil {
 		t.Fatalf("expected file at %s: %v", localFile, err)
+	}
+}
+
+func TestHandleChunkUpload_RejectsPathTraversal(t *testing.T) {
+	tempDir := t.TempDir()
+	uploadBase := filepath.Join(tempDir, "uploads")
+	chunkManager, err := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
+	if err != nil {
+		t.Fatalf("NewChunkManager: %v", err)
+	}
+
+	mockFTP := ftp.NewMockFTPClient(filepath.Join(tempDir, "ftp"), "http://localhost/uploads")
+	svc := service.NewStorageService(mockFTP, chunkManager, uploadBase)
+
+	_, _, _, _, _, err = svc.HandleChunkUpload(
+		"traversal-test",
+		"photo.jpg",
+		"image/jpeg",
+		[]byte("fake-jpeg-data"),
+		0,
+		1,
+		int64(len("fake-jpeg-data")),
+		"/uploads/../etc",
+	)
+	if err == nil {
+		t.Fatal("expected path traversal upload path to be rejected")
 	}
 }

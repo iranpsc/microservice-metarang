@@ -19,9 +19,6 @@ import (
 )
 
 func TestHTTPHandler_HandleChunkUpload(t *testing.T) {
-	// Default-layout uploads are written relative to the test working directory.
-	t.Cleanup(func() { _ = os.RemoveAll("uploads") })
-
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	chunkManager, err := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
@@ -233,9 +230,9 @@ func TestHTTPHandler_HandleChunkUpload(t *testing.T) {
 			t.Fatal("Name should be a string")
 		}
 
-		// Construct expected file path for default layout uploads.
-		// Path is like "uploads/image-jpeg/2024-01-15/"; files are written relative to CWD.
-		expectedPath := filepath.FromSlash(strings.TrimSuffix(path, "/") + "/" + name)
+		// Construct expected file path for default layout uploads under storageBase.
+		// Path is like "uploads/image-jpeg/2024-01-15/".
+		expectedPath := filepath.Join(storageBase, filepath.FromSlash(strings.TrimSuffix(path, "/")+"/"+name))
 
 		// Check if file exists
 		if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
@@ -250,7 +247,6 @@ func TestHTTPHandler_HandleChunkUpload(t *testing.T) {
 		if !bytes.Equal(savedContent, fileContent) {
 			t.Error("Saved file content does not match original")
 		}
-		t.Cleanup(func() { _ = os.Remove(expectedPath) })
 	})
 
 	t.Run("response format matches expected API exactly", func(t *testing.T) {
@@ -399,9 +395,6 @@ func createMultipartFormData(filename string, content []byte, fields map[string]
 }
 
 func TestChunkUpload_CompleteFlow(t *testing.T) {
-	// Default-layout uploads are written relative to the test working directory.
-	t.Cleanup(func() { _ = os.RemoveAll("uploads") })
-
 	// Test complete chunk upload flow with multiple chunks
 	tempDir := t.TempDir()
 	chunkManager, err := service.NewChunkManager(filepath.Join(tempDir, "chunks"))
@@ -474,16 +467,15 @@ func TestChunkUpload_CompleteFlow(t *testing.T) {
 		}
 	}
 
-	// Verify final file was assembled correctly (default layout writes relative to CWD).
+	// Verify final file was assembled correctly under storageBase.
 	if finalPath == "" || finalName == "" {
 		t.Fatal("missing path/name in completed response")
 	}
-	savedFile := filepath.FromSlash(strings.TrimSuffix(finalPath, "/") + "/" + finalName)
+	savedFile := filepath.Join(storageBase, filepath.FromSlash(strings.TrimSuffix(finalPath, "/")+"/"+finalName))
 	savedContent, err := os.ReadFile(savedFile)
 	if err != nil {
 		t.Fatalf("Failed to read saved file %s: %v", savedFile, err)
 	}
-	t.Cleanup(func() { _ = os.Remove(savedFile) })
 
 	// Expected content: "chunk 0 contentchunk 1 contentchunk 2 content"
 	expectedContent := []byte("chunk 0 contentchunk 1 contentchunk 2 content")
